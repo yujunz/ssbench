@@ -7,33 +7,42 @@ class Master:
     def __init__(self, queue):
         self.queue = queue
 
-    def go(self):
-        auth_url = "http://192.168.22.100:8080/auth/v1.0/"
-        user = 'dev:alice'
-        key = 'password'
-
+    def bench_object_creation(self, auth_url, user, key, container, size, count):
         url, token = client.get_auth(auth_url, user, key)
 
-        upload = {
-            "type": UPLOAD_OBJECT,
-            "url":  url,
-            "token": token,
-            # XXX make this configurable
-            "container": "dev",
-            # XXX make this configurable
-            "object_name": "obj1",
-            # XXX make this configurable
-            "object_size": 2**20  # 1 MB
-            }
+        if not self.container_exists(url, token, container):
+            self.create_container(url, token, container)
 
-        self.queue.put(yaml.dump(upload))
-        delete = {
-            "type": DELETE_OBJECT,
-            "url":  url,
-            "token": token,
-            # XXX make this configurable
-            "container": "dev",
-            # XXX make this configurable
-            "object_name": "obj1",
-            }
-        self.queue.put(yaml.dump(delete))
+        for i in range(count):
+            object_name = "obj%d" % (i,)
+            upload = {
+                "type": UPLOAD_OBJECT,
+                "url":  url,
+                "token": token,
+                "container": container,
+                "object_name": object_name,
+                "object_size": size,
+                }
+
+            delete = {
+                "type": DELETE_OBJECT,
+                "url":  url,
+                "token": token,
+                "container": container,
+                "object_name": object_name,
+                }
+
+            self.queue.put(yaml.dump(upload), priority=PRIORITY_WORK)
+            self.queue.put(yaml.dump(delete), priority=PRIORITY_CLEANUP)
+
+        # XXX gather stats
+
+    def container_exists(self, url, token, container):
+        try:
+            client.head_container(url, token, container)
+            return True
+        except client.ClientException:
+            return False
+
+    def create_container(self, url, token, container):
+        client.put_container(url, token, container)
