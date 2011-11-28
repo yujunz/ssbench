@@ -18,10 +18,21 @@ class Worker:
 
     def handle_job(self, job):
         job_data = yaml.load(job.body)
+        print job_data
         if job_data['type'] == UPLOAD_OBJECT:
             self.handle_upload_object(job_data)
+        elif job_data['type'] == DELETE_OBJECT:
+            self.handle_delete_object(job_data)
         else:
             raise NameError("Unknown job type %r" % (job_data['type'],))
+
+    def handle_delete_object(self, object_info):
+        client.delete_object(
+            url       = object_info['url'],
+            token     = object_info['token'],
+            container = object_info['container'],
+            name      = object_info['object_name'])
+        print "-"
 
     def handle_upload_object(self, object_info):
         client.put_object(
