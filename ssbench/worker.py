@@ -20,5 +20,5 @@ class Worker:
         if job_data['type'] == UPLOAD_OBJECT:
             print "WOO" # magic goes here
         else:
-            print "BOO"
-    
+            raise NameError("Unknown job type %r" % (job_data['type'],))
+
