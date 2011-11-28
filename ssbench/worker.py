@@ -1,6 +1,7 @@
 import yaml
 
 from ssbench.constants import *
+from swift.common import client
 
 class Worker:
     def __init__(self, queue):
@@ -18,7 +19,15 @@ class Worker:
     def handle_job(self, job):
         job_data = yaml.load(job.body)
         if job_data['type'] == UPLOAD_OBJECT:
-            print "WOO" # magic goes here
+            self.handle_upload_object(job_data)
         else:
             raise NameError("Unknown job type %r" % (job_data['type'],))
 
+    def handle_upload_object(self, object_info):
+        client.put_object(
+            url       = object_info['url'],
+            token     = object_info['token'],
+            container = object_info['container'],
+            name      = object_info['object_name'],
+            contents  = 'A' * object_info['object_size'])
+        print "."
