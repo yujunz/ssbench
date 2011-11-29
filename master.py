@@ -29,15 +29,6 @@ results = master.bench_object_creation(auth_url  = args.auth_url,
                                        size      = args.object_size,
                                        count     = args.num_objects)
 
-# Trim off the first and last 5% to account for spin-up time and
-# tapering-off of the work; we only want the middle
-#
-# XXX this is broken; if we have 100 results at time t=1, we might
-# chop off 50 of them, leaving a stoop-shouldered graph. Just show the
-# damn thing and let someone stare at it.
-# to_trim = int(round(0.05 * len(results)))
-# results = results[to_trim + 1 : len(results) - to_trim - 1]
-
 counted = Counter([int(item['completed_at']) for item in results])
 
 print "unixtime,uploads"
