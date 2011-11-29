@@ -46,11 +46,11 @@ class Worker:
                     raise
             except client.ClientException as error:
                 tries += 1
-                if not (error.http_status in statuses and tries <= self.MAX_RETRIES):
+                if not (error.http_status in statuses
+                        and tries <= self.MAX_RETRIES):
                     raise
                 else:
                     print "Retrying an error: %r" % (error,)
-
 
     def handle_delete_object(self, object_info):
         self.ignoring_http_responses(
