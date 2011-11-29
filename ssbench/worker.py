@@ -40,6 +40,11 @@ class Worker:
             try:
                 do_stuff()
                 break
+            # XXX The name of this method does not suggest that it
+            # will also ignore socket-level errors. Regardless,
+            # sometimes Swift refuses connections (probably when it's
+            # way overloaded and the listen socket's connection queue
+            # (in the kernel) is full, so the kernel just says RST).
             except socket.error:
                 tries += 1
                 if not (tries <= self.MAX_RETRIES):

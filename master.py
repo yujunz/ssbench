@@ -31,6 +31,6 @@ results = master.bench_object_creation(auth_url  = args.auth_url,
 
 counted = Counter([int(item['completed_at']) for item in results])
 
-print "unixtime,uploads"
-for item in sorted(counted.elements()):
+print "unixtime,count"
+for item in sorted(set(counted.elements())):
     print "%s,%s" % (item, counted[item])
