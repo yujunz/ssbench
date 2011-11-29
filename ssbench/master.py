@@ -77,7 +77,7 @@ class Master:
         results = []
         job = self.queue.reserve(timeout=timeout)
         while job:
-            job.delete
+            job.delete()
             results.append(yaml.load(job.body))
             if (count <= 0 or len(results) < count):
                 job = self.queue.reserve(timeout=timeout)
