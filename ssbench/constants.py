@@ -1,4 +1,3 @@
-RESULTS_TUBE = 'results'
 STATS_TUBE = 'stats'
 
 # NB: lower number --> higher priority (0 is highest, 2**32 - 1 is lowest)

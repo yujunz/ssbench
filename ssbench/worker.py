@@ -7,7 +7,7 @@ from ssbench.constants import *
 from swift.common import client
 
 class Worker:
-    MAX_RETRIES = 10
+    MAX_RETRIES = 50
 
     def __init__(self, queue):
         queue.use(STATS_TUBE)

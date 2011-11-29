@@ -16,7 +16,6 @@ arg_parser.add_argument('--qport', default=11300, type=int)
 args = arg_parser.parse_args(sys.argv[1:])
 
 beanq = beanstalkc.Connection(host=args.qhost, port=args.qport)
-beanq.watch(RESULTS_TUBE)
 beanq.watch(STATS_TUBE)
 
 job = beanq.reserve(timeout=1)
