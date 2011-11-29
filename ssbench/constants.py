@@ -6,3 +6,5 @@ PRIORITY_CLEANUP = 20000
 
 UPLOAD_OBJECT = 'upload-object'
 DELETE_OBJECT = 'delete-object'
+CREATE_CONTAINER = 'create-container'
+DELETE_CONTAINER = 'delete-container'

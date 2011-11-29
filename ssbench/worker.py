@@ -27,10 +27,15 @@ class Worker:
         print job_data # XXX
 
         tries = 0
+        # XXX this is really not a scalable way to do this
         if job_data['type'] == UPLOAD_OBJECT:
             self.handle_upload_object(job_data)
         elif job_data['type'] == DELETE_OBJECT:
             self.handle_delete_object(job_data)
+        elif job_data['type'] == CREATE_CONTAINER:
+            self.handle_create_container(job_data)
+        elif job_data['type'] == DELETE_CONTAINER:
+            self.handle_delete_container(job_data)
         else:
             raise NameError("Unknown job type %r" % (job_data['type'],))
 
@@ -56,6 +61,25 @@ class Worker:
                     raise
                 else:
                     print "Retrying an error: %r" % (error,)
+
+    def handle_delete_container(self, container_info):
+        self.ignoring_http_responses(
+            (404, 503),
+            lambda *x: client.delete_container(
+                url       = container_info['url'],
+                token     = container_info['token'],
+                container = container_info['container_name']))
+
+    def handle_create_container(self, container_info):
+        self.ignoring_http_responses(
+            (503,),
+            lambda *x: client.put_container(
+                url       = container_info['url'],
+                token     = container_info['token'],
+                container = container_info['container_name']))
+        self.queue.put(yaml.dump({
+                    "action": CREATE_CONTAINER,
+                    "completed_at": time.time()}))
 
     def handle_delete_object(self, object_info):
         self.ignoring_http_responses(
