@@ -35,33 +35,34 @@ class Master:
 
         return results
 
-    def bench_object_creation(self, auth_url, user, key, container, size, count):
+    def bench_object_creation(self, auth_url, user, key, containers, size, object_count):
         self.drain_stats_queue()
         url, token = client.get_auth(auth_url, user, key)
 
-        if not self.container_exists(url, token, container):
-            self.create_container(url, token, container)
+        for c in containers:
+            if not self.container_exists(url, token, c):
+                self.create_container(url, token, c)
 
-        for i in range(count):
+        for i in range(object_count):
             job = {
                 "type": UPLOAD_OBJECT,
                 "url":  url,
                 "token": token,
-                "container": container,
+                "container": containers[i % len(containers)],
                 "object_name": self.object_name(i),
                 "object_size": size,
                 }
 
             self.queue.put(yaml.dump(job), priority=PRIORITY_WORK)
 
-        results = self.gather_results(count)
+        results = self.gather_results(object_count)
 
-        for i in range(count):
+        for i in range(object_count):
             job = {
                 "type": DELETE_OBJECT,
                 "url":  url,
                 "token": token,
-                "container": container,
+                "container": containers[i % len(containers)],
                 "object_name": self.object_name(i),
                 }
 
