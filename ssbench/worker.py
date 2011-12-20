@@ -6,7 +6,7 @@ import random
 import logging
 
 from ssbench.constants import *
-from swift.common import client
+from ssbench import swift_client as client
 
 def add_dicts(*args, **kwargs):
     result = {}
@@ -63,7 +63,7 @@ class Worker:
 
         while True:
             try:
-                fn(**args)
+                fn_results = fn(**args)
                 break
             # XXX The name of this method does not suggest that it
             # will also ignore socket-level errors. Regardless,
@@ -80,6 +80,7 @@ class Worker:
                     print "Retrying an error: %r" % (error,)
                 else:
                     raise
+        return fn_results
 
     def add_object_name(self, object_type, container, object_name):
         """Stores an added object (by type and container name) for later
@@ -172,9 +173,9 @@ class Worker:
 
     def handle_upload_object(self, object_info):
         object_name = object_info['object_name']
-        self.ignoring_http_responses((503,), client.put_object, object_info,
-                                     name=object_name,
-                                     contents='A' * int(object_info['object_size']))
+        results = self.ignoring_http_responses((503,), client.put_object, object_info,
+                                               name=object_name,
+                                               contents='A' * int(object_info['object_size']))
         # Once we've stored an object, note that in case we need to update,
         # read, or delete (an unnamed) object in the future.
         # Furthermore, we'll assume that any object name starting with a
@@ -186,7 +187,10 @@ class Worker:
         self.add_object_name(
             self.object_name_type(object_name), object_info['container'], object_name,
         )
-        self.put_results(object_info)
+        self.put_results(object_info,
+                         first_byte_latency=results['x-swiftstack-first-byte-latency'],
+                         last_byte_latency=results['x-swiftstack-last-byte-latency'],
+                        )
 
 
     def handle_delete_container(self, container_info):
@@ -213,12 +217,17 @@ class Worker:
             if not object_name:
                 return
 
-        self.ignoring_http_responses((404, 503), client.delete_object, object_info,
-                                     name=object_name)
+        results = self.ignoring_http_responses((404, 503),
+                                               client.delete_object,
+                                               object_info, name=object_name)
         self.remove_object_name(
             self.object_name_type(object_name), object_info['container'], object_name,
         )
-        self.put_results(object_info, object_name=object_name)
+        self.put_results(object_info,
+                         object_name=object_name,
+                         first_byte_latency=results['x-swiftstack-first-byte-latency'],
+                         last_byte_latency=results['x-swiftstack-last-byte-latency'],
+                        )
 
     def handle_update_object(self, object_info):
         object_name = self.get_population_or_stock_object_name(
@@ -226,10 +235,14 @@ class Worker:
         )
         if not object_name:
             return
-        self.ignoring_http_responses((503,), client.put_object, object_info,
-                                     name=object_name,
-                                     contents='B' * int(object_info['object_size']))
-        self.put_results(object_info, object_name=object_name)
+        results = self.ignoring_http_responses((503,), client.put_object,
+                                               object_info, name=object_name,
+                                               contents='B' * int(object_info['object_size']))
+        self.put_results(object_info,
+                         object_name=object_name,
+                         first_byte_latency=results['x-swiftstack-first-byte-latency'],
+                         last_byte_latency=results['x-swiftstack-last-byte-latency'],
+                        )
 
     def handle_get_object(self, object_info):
         object_name = self.get_population_or_stock_object_name(
@@ -237,8 +250,12 @@ class Worker:
         )
         if not object_name:
             return
-        self.ignoring_http_responses((503,), client.get_object, object_info,
-                                     name=object_name)
-        self.put_results(object_info, object_name=object_name)
+        results = self.ignoring_http_responses((503,), client.get_object,
+                                               object_info, name=object_name)
+        self.put_results(object_info,
+                         object_name=object_name,
+                         first_byte_latency=results[0]['x-swiftstack-first-byte-latency'],
+                         last_byte_latency=results[0]['x-swiftstack-last-byte-latency'],
+                        )
 
 

@@ -3,11 +3,11 @@ from flexmock import flexmock
 import yaml
 from argparse import Namespace
 from collections import Counter
-from swift.common import client
 
 from ssbench.constants import *
 from ssbench.worker import Worker, add_dicts
 import ssbench.worker
+from ssbench import swift_client as client
 
 class TestWorker(object):
     def setUp(self):
@@ -97,7 +97,10 @@ class TestWorker(object):
             (503,), client.put_object, object_info,
             name=object_name,
             contents='A' * 3493284,
-        ).once
+        ).and_return({
+            'x-swiftstack-first-byte-latency': 0.30239,
+            'x-swiftstack-last-byte-latency': 32.435,
+        }).once
         worker.should_receive('add_object_name').with_args(
             'population', 'Application', object_name,
         ).once
@@ -106,8 +109,10 @@ class TestWorker(object):
         mock_worker_module.should_receive('time').and_return(stub_time)
         self.stub_queue.should_receive('put').with_args(
             yaml.dump(add_dicts(object_info,
-                               worker_id=self.stub_worker_id,
-                               completed_at=stub_time)),
+                                worker_id=self.stub_worker_id,
+                                first_byte_latency=0.30239,
+                                last_byte_latency=32.435,
+                                completed_at=stub_time)),
         ).once
         worker.handle_upload_object(object_info)
 
@@ -124,7 +129,10 @@ class TestWorker(object):
             (503,), client.put_object, object_info,
             name=object_name,
             contents='A' * 99000,
-        ).once
+        ).and_return({
+            'x-swiftstack-first-byte-latency': 0.492393,
+            'x-swiftstack-last-byte-latency': 8.23283,
+        }).once
         worker.should_receive('add_object_name').with_args(
             'stock', 'Picture', object_name,
         ).once
@@ -133,8 +141,10 @@ class TestWorker(object):
         mock_worker_module.should_receive('time').and_return(stub_time)
         self.stub_queue.should_receive('put').with_args(
             yaml.dump(add_dicts(object_info,
-                               worker_id=self.stub_worker_id,
-                               completed_at=stub_time)),
+                                worker_id=self.stub_worker_id,
+                                first_byte_latency=0.492393,
+                                last_byte_latency=8.23283,
+                                completed_at=stub_time)),
         ).once
         worker.handle_upload_object(object_info)
 
@@ -149,7 +159,10 @@ class TestWorker(object):
         worker.should_receive('ignoring_http_responses').with_args(
             (404, 503,), client.delete_object, object_info,
             name=object_name,
-        ).once
+        ).and_return({
+            'x-swiftstack-first-byte-latency': 0.94932,
+            'x-swiftstack-last-byte-latency': 8.3273,
+        }).once
         worker.should_receive('remove_object_name').with_args(
             'stock', 'Document', object_name,
         ).once
@@ -158,8 +171,10 @@ class TestWorker(object):
         mock_worker_module.should_receive('time').and_return(stub_time)
         self.stub_queue.should_receive('put').with_args(
             yaml.dump(add_dicts(object_info,
-                               worker_id=self.stub_worker_id,
-                               completed_at=stub_time)),
+                                worker_id=self.stub_worker_id,
+                                first_byte_latency=0.94932,
+                                last_byte_latency=8.3273,
+                                completed_at=stub_time)),
         ).once
         worker.handle_delete_object(object_info)
         
@@ -175,7 +190,10 @@ class TestWorker(object):
         worker.should_receive('ignoring_http_responses').with_args(
             (404, 503,), client.delete_object, object_info,
             name=population_object_name,
-        ).once
+        ).and_return({
+            'x-swiftstack-first-byte-latency': 2.43923,
+            'x-swiftstack-last-byte-latency': 3.1,
+        }).once
         worker.should_receive('remove_object_name').with_args(
             'population', 'Audio', population_object_name,
         ).once
@@ -184,9 +202,11 @@ class TestWorker(object):
         mock_worker_module.should_receive('time').and_return(stub_time)
         self.stub_queue.should_receive('put').with_args(
             yaml.dump(add_dicts(object_info,
-                               worker_id=self.stub_worker_id,
-                               completed_at=stub_time,
-                               object_name=population_object_name)),
+                                worker_id=self.stub_worker_id,
+                                completed_at=stub_time,
+                                first_byte_latency=2.43923,
+                                last_byte_latency=3.1,
+                                object_name=population_object_name)),
         ).once
         self.worker.add_object_name('stock', 'Audio', stock_object_name)
         self.worker.add_object_name('population', 'Audio', population_object_name)
@@ -215,7 +235,10 @@ class TestWorker(object):
         worker.should_receive('ignoring_http_responses').with_args(
             (404, 503,), client.delete_object, object_info,
             name=stock_object_name,
-        ).once
+        ).and_return({
+            'x-swiftstack-first-byte-latency': 2.44,
+            'x-swiftstack-last-byte-latency': 5.1,
+        }).once
         worker.should_receive('remove_object_name').with_args(
             'stock', 'Audio', stock_object_name,
         ).once
@@ -224,9 +247,11 @@ class TestWorker(object):
         mock_worker_module.should_receive('time').and_return(stub_time)
         self.stub_queue.should_receive('put').with_args(
             yaml.dump(add_dicts(object_info,
-                               worker_id=self.stub_worker_id,
-                               completed_at=stub_time,
-                               object_name=stock_object_name)),
+                                worker_id=self.stub_worker_id,
+                                first_byte_latency=2.44,
+                                last_byte_latency=5.1,
+                                completed_at=stub_time,
+                                object_name=stock_object_name)),
         ).once
         self.worker.add_object_name('stock', 'Audio', stock_object_name)
 
@@ -246,16 +271,21 @@ class TestWorker(object):
             (503,), client.put_object, object_info,
             name=population_object_name,
             contents='B' * 483213,
-        ).once
+        ).and_return({
+            'x-swiftstack-first-byte-latency': 4.45,
+            'x-swiftstack-last-byte-latency': 23.283,
+        }).once
         worker.should_receive('remove_object_name').never
         stub_time = 48238328.234
         mock_worker_module = flexmock(ssbench.worker)
         mock_worker_module.should_receive('time').and_return(stub_time)
         self.stub_queue.should_receive('put').with_args(
             yaml.dump(add_dicts(object_info,
-                               worker_id=self.stub_worker_id,
-                               completed_at=stub_time,
-                               object_name=population_object_name)),
+                                worker_id=self.stub_worker_id,
+                                completed_at=stub_time,
+                                first_byte_latency=4.45,
+                                last_byte_latency=23.283,
+                                object_name=population_object_name)),
         ).once
         self.worker.add_object_name('stock', 'Picture', stock_object_name)
         self.worker.add_object_name('population', 'Picture', population_object_name)
@@ -287,16 +317,21 @@ class TestWorker(object):
             (503,), client.put_object, object_info,
             name=stock_object_name,
             contents='B' * 8492391,
-        ).once
+        ).and_return({
+            'x-swiftstack-first-byte-latency': 4.88,
+            'x-swiftstack-last-byte-latency': 23.88,
+        }).once
         worker.should_receive('remove_object_name').never
         stub_time = 2948293293.382
         mock_worker_module = flexmock(ssbench.worker)
         mock_worker_module.should_receive('time').and_return(stub_time)
         self.stub_queue.should_receive('put').with_args(
             yaml.dump(add_dicts(object_info,
-                               worker_id=self.stub_worker_id,
-                               completed_at=stub_time,
-                               object_name=stock_object_name)),
+                                worker_id=self.stub_worker_id,
+                                completed_at=stub_time,
+                                first_byte_latency=4.88,
+                                last_byte_latency=23.88,
+                                object_name=stock_object_name)),
         ).once
         assert_false(object_info.has_key('object_name')) # sanity check
         self.worker.add_object_name('stock', 'Picture', stock_object_name)
@@ -316,16 +351,21 @@ class TestWorker(object):
         worker.should_receive('ignoring_http_responses').with_args(
             (503,), client.get_object, object_info,
             name=population_object_name,
-        ).once
+        ).and_return(({
+            'x-swiftstack-first-byte-latency': 5.33,
+            'x-swiftstack-last-byte-latency': 9.99,
+        }, 'object_data')).once
         worker.should_receive('remove_object_name').never
         stub_time = 48238328.234
         mock_worker_module = flexmock(ssbench.worker)
         mock_worker_module.should_receive('time').and_return(stub_time)
         self.stub_queue.should_receive('put').with_args(
             yaml.dump(add_dicts(object_info,
-                               worker_id=self.stub_worker_id,
-                               completed_at=stub_time,
-                               object_name=population_object_name)),
+                                worker_id=self.stub_worker_id,
+                                completed_at=stub_time,
+                                first_byte_latency=5.33,
+                                last_byte_latency=9.99,
+                                object_name=population_object_name)),
         ).once
         self.worker.add_object_name('stock', 'Document', stock_object_name)
         self.worker.add_object_name('population', 'Document', population_object_name)
@@ -356,16 +396,21 @@ class TestWorker(object):
         worker.should_receive('ignoring_http_responses').with_args(
             (503,), client.get_object, object_info,
             name=stock_object_name,
-        ).once
+        ).and_return(({
+            'x-swiftstack-first-byte-latency': 6.66,
+            'x-swiftstack-last-byte-latency': 8.88,
+        }, 'object_data')).once
         worker.should_receive('remove_object_name').never
         stub_time = 2948293293.382
         mock_worker_module = flexmock(ssbench.worker)
         mock_worker_module.should_receive('time').and_return(stub_time)
         self.stub_queue.should_receive('put').with_args(
             yaml.dump(add_dicts(object_info,
-                               worker_id=self.stub_worker_id,
-                               completed_at=stub_time,
-                               object_name=stock_object_name)),
+                                worker_id=self.stub_worker_id,
+                                completed_at=stub_time,
+                                first_byte_latency=6.66,
+                                last_byte_latency=8.88,
+                                object_name=stock_object_name)),
         ).once
         self.worker.add_object_name('stock', 'Document', stock_object_name)
 

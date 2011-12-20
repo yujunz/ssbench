@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# NOTE: hacked by SwiftStack for benchmarking purposes
+
 """
 Cloud Files client library used internally
 """
@@ -22,6 +24,7 @@ from re import compile, DOTALL
 from tokenize import generate_tokens, STRING, NAME, OP
 from urllib import quote as _quote, unquote
 from urlparse import urlparse, urlunparse
+from time import time
 
 try:
     from eventlet.green.httplib import HTTPException, HTTPSConnection
@@ -515,8 +518,10 @@ def get_object(url, token, container, name, http_conn=None,
     else:
         parsed, conn = http_connection(url)
     path = '%s/%s/%s' % (parsed.path, quote(container), quote(name))
+    start = time()
     conn.request('GET', path, '', {'X-Auth-Token': token})
     resp = conn.getresponse()
+    first_byte_latency = time() - start
     if resp.status < 200 or resp.status >= 300:
         resp.read()
         raise ClientException('Object GET failed', http_scheme=parsed.scheme,
@@ -532,7 +537,10 @@ def get_object(url, token, container, name, http_conn=None,
         object_body = _object_body()
     else:
         object_body = resp.read()
-    resp_headers = {}
+    resp_headers = {
+        'x-swiftstack-first-byte-latency': first_byte_latency,
+        'x-swiftstack-last-byte-latency': time() - start,
+    }
     for header, value in resp.getheaders():
         resp_headers[header.lower()] = value
     return resp_headers, object_body
@@ -598,7 +606,7 @@ def put_object(url, token=None, container=None, name=None, contents=None,
                       conn object)
     :param proxy: proxy to connect through, if any; None by default; str of the
                   format 'http://127.0.0.1:8888' to set one
-    :returns: etag from server response
+    :returns: dict with benchmarking headers
     :raises ClientException: HTTP PUT request failed
     """
     if http_conn:
@@ -628,6 +636,7 @@ def put_object(url, token=None, container=None, name=None, contents=None,
         headers['Content-Type'] = content_type
     if not contents:
         headers['Content-Length'] = '0'
+    request_start = time()
     if hasattr(contents, 'read'):
         conn.putrequest('PUT', path)
         for header, value in headers.iteritems():
@@ -652,13 +661,18 @@ def put_object(url, token=None, container=None, name=None, contents=None,
                 left -= len(chunk)
     else:
         conn.request('PUT', path, contents, headers)
+    response_start = time()
     resp = conn.getresponse()
     resp.read()
     if resp.status < 200 or resp.status >= 300:
         raise ClientException('Object PUT failed', http_scheme=parsed.scheme,
                 http_host=conn.host, http_port=conn.port, http_path=path,
                 http_status=resp.status, http_reason=resp.reason)
-    return resp.getheader('etag', '').strip('"')
+    now = time()
+    return {
+        'x-swiftstack-first-byte-latency': now - response_start,
+        'x-swiftstack-last-byte-latency': now - request_start,
+    }
 
 
 def post_object(url, token, container, name, headers, http_conn=None):
@@ -705,6 +719,7 @@ def delete_object(url, token=None, container=None, name=None, http_conn=None,
     :param headers: additional headers to include in the request
     :param proxy: proxy to connect through, if any; None by default; str of the
                   format 'http://127.0.0.1:8888' to set one
+    :returns: a dict with benchmarking headers
     :raises ClientException: HTTP DELETE request failed
     """
     if http_conn:
@@ -722,14 +737,20 @@ def delete_object(url, token=None, container=None, name=None, http_conn=None,
         headers = {}
     if token:
         headers['X-Auth-Token'] = token
+    start = time()
     conn.request('DELETE', path, '', headers)
     resp = conn.getresponse()
+    first_byte_latency = time() - start
     resp.read()
     if resp.status < 200 or resp.status >= 300:
         raise ClientException('Object DELETE failed',
                 http_scheme=parsed.scheme, http_host=conn.host,
                 http_port=conn.port, http_path=path, http_status=resp.status,
                 http_reason=resp.reason)
+    return {
+        'x-swiftstack-first-byte-latency': first_byte_latency,
+        'x-swiftstack-last-byte-latency': time() - start,
+    }
 
 
 class Connection(object):

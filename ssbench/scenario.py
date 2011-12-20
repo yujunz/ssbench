@@ -24,8 +24,7 @@ class Scenario(object):
             raise
 
         # Sanity-check user_count
-        if self._scenario_data['user_count'] < 1 or
-                self._scenario_data['user_count'] > MAX_WORKERS:
+        if self._scenario_data['user_count'] < 1 or self._scenario_data['user_count'] > MAX_WORKERS:
             raise ValueError('user_count must be between 1 and %d' % MAX_WORKERS)
 
         # Calculate probability thresholds for each size (from the initial_files)
