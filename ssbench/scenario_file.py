@@ -5,10 +5,10 @@ from ssbench.constants import *
 SIZE_STRS = ['tiny', 'small', 'medium', 'large', 'huge']
 ATTRS_BY_SIZE = {
     'tiny': dict(container='Picture', type_char='P', size=99 * 10**3), # 99 KB
-    'small': dict(container='Audio', type_char='A', size=4.9 * 10**6), # 4.9 MB
-    'medium': dict(container='Document', type_char='D', size=9.9 * 10**6), # 9.9 MB
+    'small': dict(container='Audio', type_char='A', size=int(4.9 * 10**6)), # 4.9 MB
+    'medium': dict(container='Document', type_char='D', size=int(9.9 * 10**6)), # 9.9 MB
     'large': dict(container='Video', type_char='V', size=101 * 10**6), # 101 MB
-    'huge': dict(container='Application', type_char='L', size=1.1 * 10**9), # 1.1 GB
+    'huge': dict(container='Application', type_char='L', size=int(1.1 * 10**9)), # 1.1 GB
 }
 
 class ScenarioFile(object):
