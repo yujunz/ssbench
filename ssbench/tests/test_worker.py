@@ -94,6 +94,10 @@ class TestWorker(object):
         }
         worker = flexmock(self.worker)
         worker.should_receive('ignoring_http_responses').with_args(
+            (503,), client.head_object, object_info,
+            name=object_name,
+        ).never
+        worker.should_receive('ignoring_http_responses').with_args(
             (503,), client.put_object, object_info,
             name=object_name,
             contents=worker.ChunkedReader('A', 3493284),
@@ -116,7 +120,7 @@ class TestWorker(object):
         ).once
         worker.handle_upload_object(object_info)
 
-    def test_handle_upload_stock_object(self):
+    def test_handle_upload_stock_object_not_existing(self):
         object_name = '/foo/bar/SP000001'
         object_info = {
             'type': UPLOAD_OBJECT,
@@ -125,6 +129,10 @@ class TestWorker(object):
             'object_size': 99000.0,
         }
         worker = flexmock(self.worker)
+        worker.should_receive('ignoring_http_responses').with_args(
+            (503,), client.head_object, object_info,
+            name=object_name,
+        ).and_raise(client.ClientException('Object HEAD failed')).once
         worker.should_receive('ignoring_http_responses').with_args(
             (503,), client.put_object, object_info,
             name=object_name,
@@ -144,6 +152,40 @@ class TestWorker(object):
                                 worker_id=self.stub_worker_id,
                                 first_byte_latency=0.492393,
                                 last_byte_latency=8.23283,
+                                completed_at=stub_time)),
+        ).once
+        worker.handle_upload_object(object_info)
+
+    def test_handle_upload_stock_object_existing(self):
+        object_name = '/foo/bar/SP000001'
+        object_info = {
+            'type': UPLOAD_OBJECT,
+            'container': 'Picture',
+            'object_name': object_name,
+            'object_size': 99000.0,
+        }
+        worker = flexmock(self.worker)
+        worker.should_receive('ignoring_http_responses').with_args(
+            (503,), client.head_object, object_info,
+            name=object_name,
+        ).and_return(dict(foo='bar')).once
+        worker.should_receive('ignoring_http_responses').with_args(
+            (503,), client.put_object, object_info,
+            name=object_name,
+            contents=worker.ChunkedReader('A', 99000),
+        ).never
+        worker.should_receive('add_object_name').with_args(
+            'stock', 'Picture', object_name,
+        ).once
+        stub_time = 98438243.3921
+        mock_worker_module = flexmock(ssbench.worker)
+        mock_worker_module.should_receive('time').and_return(stub_time)
+        self.stub_queue.should_receive('put').with_args(
+            yaml.dump(add_dicts(object_info,
+                                worker_id=self.stub_worker_id,
+                                # Existing stock object; skipped upload, so no stats
+                                first_byte_latency=None,
+                                last_byte_latency=None,
                                 completed_at=stub_time)),
         ).once
         worker.handle_upload_object(object_info)

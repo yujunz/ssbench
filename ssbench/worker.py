@@ -193,9 +193,20 @@ class Worker:
         
     def handle_upload_object(self, object_info):
         object_name = object_info['object_name']
-        results = self.ignoring_http_responses((503,), client.put_object, object_info,
-                                               name=object_name,
-                                               contents=self.ChunkedReader('A', object_info['object_size']))
+        name_type = self.object_name_type(object_name)
+        if name_type == 'stock':
+            # Skip upload if similarly named object exists
+            try:
+                results = self.ignoring_http_responses((503,), client.head_object,
+                                                       object_info, name=object_name)
+            except client.ClientException:
+                results = self.ignoring_http_responses((503,), client.put_object, object_info,
+                                                       name=object_name,
+                                                       contents=self.ChunkedReader('A', object_info['object_size']))
+        else:
+            results = self.ignoring_http_responses((503,), client.put_object, object_info,
+                                                   name=object_name,
+                                                   contents=self.ChunkedReader('A', object_info['object_size']))
         # Once we've stored an object, note that in case we need to update,
         # read, or delete (an unnamed) object in the future.
         # Furthermore, we'll assume that any object name starting with a
@@ -204,12 +215,10 @@ class Worker:
         # them separately and prefer to later operate on population objects vs.
         # stock objects.
 
-        self.add_object_name(
-            self.object_name_type(object_name), object_info['container'], object_name,
-        )
+        self.add_object_name(name_type, object_info['container'], object_name)
         self.put_results(object_info,
-                         first_byte_latency=results['x-swiftstack-first-byte-latency'],
-                         last_byte_latency=results['x-swiftstack-last-byte-latency'],
+                         first_byte_latency=results.get('x-swiftstack-first-byte-latency', None),
+                         last_byte_latency=results.get('x-swiftstack-last-byte-latency', None)
                         )
 
 
