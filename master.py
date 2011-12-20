@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import logging
 import argparse
 import beanstalkc
 import math
@@ -41,6 +42,8 @@ def run_scenario(master, args):
     results = master.run_scenario(auth_url=args.auth_url, user=args.user,
                                   key=args.key, scenario=scenario)
     print master.generate_scenario_report(scenario, results)
+
+logging.basicConfig(level=logging.DEBUG)
 
 arg_parser = argparse.ArgumentParser(description='Benchmark your Swift installation')
 arg_parser.add_argument('--qhost', default="localhost")

@@ -1,5 +1,6 @@
 import yaml
 
+import logging
 from ssbench.constants import *
 from swift.common import client
 
@@ -33,13 +34,17 @@ class Master:
         self.drain_stats_queue()
         url, token = client.get_auth(auth_url, user, key)
 
+        logging.info('Starting scenario run for %r', scenario.name)
         # Ensure containers exist
+        logging.info('Making sure benchmark containers exist...')
         for container in ['Picture', 'Audio', 'Document', 'Video',
                           'Application']:
             if not self.container_exists(url, token, container):
+                logging.info('  creating container %r', container)
                 self.create_container(url, token, container)
 
         # Enqueue initialization jobs
+        logging.info('Initializing cluster with stock data (using full concurrency)')
         initial_jobs = scenario.initial_jobs()
         for initial_job in initial_jobs:
             initial_job.update(url=url, token=token)
@@ -49,6 +54,9 @@ class Master:
         results = self.gather_results(len(initial_jobs))
 
         # Enqueue bench jobs
+        logging.info('Starting benchmark run (%d concurrent workers)',
+                     scenario.user_count)
+        self.queue.use('work_%04d' % scenario.user_count)
         bench_jobs = scenario.bench_jobs()
         for bench_job in bench_jobs:
             bench_job.update(url=url, token=token)

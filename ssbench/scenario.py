@@ -1,6 +1,7 @@
 import json
 import random
 
+import logging
 from ssbench.constants import *
 from ssbench.scenario_file import ScenarioFile, SIZE_STRS
 
@@ -19,8 +20,13 @@ class Scenario(object):
             fp = open(scenario_filename)
             self._scenario_data = json.load(fp)
         except:
-            sys.stderr.write('Error loading scenario file %r' % scenario_filename)
+            logging.exception('Error loading scenario file %r', scenario_filename)
             raise
+
+        # Sanity-check user_count
+        if self._scenario_data['user_count'] < 1 or
+                self._scenario_data['user_count'] > MAX_WORKERS:
+            raise ValueError('user_count must be between 1 and %d' % MAX_WORKERS)
 
         # Calculate probability thresholds for each size (from the initial_files)
         initial_sum = sum([self._scenario_data['initial_files'][size_str] for
@@ -36,6 +42,14 @@ class Scenario(object):
         for i in range(4):
             last = last + float(self._scenario_data['crud_profile'][i]) / initial_sum
             self.bench_crud_thresholds[i] = last
+
+    @property
+    def user_count(self):
+        return self._scenario_data['user_count']
+
+    @property
+    def name(self):
+        return self._scenario_data['name']
 
 
     def initial_job(self, size_str, i):

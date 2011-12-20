@@ -13,7 +13,10 @@ class TestWorker(object):
     def setUp(self):
         self.stub_queue = flexmock()
         self.stub_queue.should_receive('use').with_args(STATS_TUBE).once
-        self.stub_worker_id = 'blaek feal'
+        # Workers should look at tubes >= worker_id
+        for i in range(3, MAX_WORKERS + 1):
+            self.stub_queue.should_receive('watch').with_args('work_%04d' % i).once
+        self.stub_worker_id = 3
         self.worker = Worker(self.stub_queue, self.stub_worker_id)
 
     def test_get_object_name_with_no_types(self):
@@ -66,6 +69,20 @@ class TestWorker(object):
         assert_almost_equal(exp_count, pc1_name_count['pc1a'], delta=exp_delta)
         assert_almost_equal(exp_count, pc1_name_count['pc1b'], delta=exp_delta)
         assert_almost_equal(exp_count, pc1_name_count['pc1c'], delta=exp_delta)
+
+    def test_remove_object_name(self):
+        # pass these by not raising any Exceptions
+        self.worker.remove_object_name('bad type', 'not a container', 'foo')
+        self.worker.remove_object_name('population', 'not a container', 'foo')
+
+        self.worker.add_object_name('stock', 'container1', 'abcdef')
+        self.worker.remove_object_name('stock', 'container1', 'foo')
+        assert_equal('abcdef', self.worker.get_object_name('stock', 'container1'))
+
+        self.worker.add_object_name('stock', 'container1', 'xyz')
+        assert_equal('abcdef', self.worker.remove_object_name('stock', 'container1', 'abcdef'))
+        assert_equal('xyz', self.worker.get_object_name('stock', 'container1'))
+
 
     def test_handle_upload_population_object(self):
         object_name = '/foo/bar/PA000001'

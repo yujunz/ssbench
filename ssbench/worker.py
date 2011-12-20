@@ -21,6 +21,8 @@ class Worker:
 
     def __init__(self, queue, worker_id):
         queue.use(STATS_TUBE)
+        for i in range(worker_id, MAX_WORKERS + 1):
+            queue.watch('work_%04d' % i)
         self.queue = queue
         self.worker_id = worker_id
         self.object_names = {
@@ -105,7 +107,16 @@ class Worker:
         :returns: (nothing)
         """
     
-        pass
+        names_by_container = self.object_names.get(object_type, None)
+        if names_by_container:
+            container_names = names_by_container.get(container, None)
+            if container_names:
+                try:
+                    container_names.remove(object_name)
+                except ValueError:
+                    pass  # don't care if it wasn't there
+                else:
+                    return object_name
 
     def get_object_name(self, object_type, container):
         """Retrieve an object name (by type and container) at random, with a
@@ -127,7 +138,10 @@ class Worker:
         return None
 
     def object_name_type(self, object_name):
-        """Returns the type string for an object name.  For now, this method examines the final "path" of an object, with / as a delimiter.  If the final "path" starts with "S", then the type is 'stock', otherwise the type returned is 'population'.
+        """Returns the type string for an object name.  For now, this method
+        examines the final "path" of an object, with / as a delimiter.  If the
+        final "path" starts with "S", then the type is 'stock', otherwise the
+        type returned is 'population'.
         
         :object_name: The name of an object
         :returns: An object type (eg. 'stock', or 'population')

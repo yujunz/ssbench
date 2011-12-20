@@ -5,6 +5,8 @@ PRIORITY_SETUP = 5000
 PRIORITY_WORK = 10000
 PRIORITY_CLEANUP = 20000
 
+MAX_WORKERS = 100
+
 UPLOAD_OBJECT = 'upload_object' # includes obj name
 GET_OBJECT = 'get_object'       # does NOT include obj name to get
 UPDATE_OBJECT = 'update_object' # does NOT include obj name to update
