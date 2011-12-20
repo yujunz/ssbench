@@ -96,7 +96,7 @@ class TestWorker(object):
         worker.should_receive('ignoring_http_responses').with_args(
             (503,), client.put_object, object_info,
             name=object_name,
-            contents='A' * 3493284,
+            contents=worker.ChunkedReader('A', 3493284),
         ).and_return({
             'x-swiftstack-first-byte-latency': 0.30239,
             'x-swiftstack-last-byte-latency': 32.435,
@@ -128,7 +128,7 @@ class TestWorker(object):
         worker.should_receive('ignoring_http_responses').with_args(
             (503,), client.put_object, object_info,
             name=object_name,
-            contents='A' * 99000,
+            contents=worker.ChunkedReader('A', 99000),
         ).and_return({
             'x-swiftstack-first-byte-latency': 0.492393,
             'x-swiftstack-last-byte-latency': 8.23283,
@@ -270,7 +270,7 @@ class TestWorker(object):
         worker.should_receive('ignoring_http_responses').with_args(
             (503,), client.put_object, object_info,
             name=population_object_name,
-            contents='B' * 483213,
+            contents=worker.ChunkedReader('B',483213),
         ).and_return({
             'x-swiftstack-first-byte-latency': 4.45,
             'x-swiftstack-last-byte-latency': 23.283,
@@ -316,7 +316,7 @@ class TestWorker(object):
         worker.should_receive('ignoring_http_responses').with_args(
             (503,), client.put_object, object_info,
             name=stock_object_name,
-            contents='B' * 8492391,
+            contents=worker.ChunkedReader('B', 8492391),
         ).and_return({
             'x-swiftstack-first-byte-latency': 4.88,
             'x-swiftstack-last-byte-latency': 23.88,
@@ -351,6 +351,7 @@ class TestWorker(object):
         worker.should_receive('ignoring_http_responses').with_args(
             (503,), client.get_object, object_info,
             name=population_object_name,
+            resp_chunk_size=65536,
         ).and_return(({
             'x-swiftstack-first-byte-latency': 5.33,
             'x-swiftstack-last-byte-latency': 9.99,
@@ -396,6 +397,7 @@ class TestWorker(object):
         worker.should_receive('ignoring_http_responses').with_args(
             (503,), client.get_object, object_info,
             name=stock_object_name,
+            resp_chunk_size=65536,
         ).and_return(({
             'x-swiftstack-first-byte-latency': 6.66,
             'x-swiftstack-last-byte-latency': 8.88,

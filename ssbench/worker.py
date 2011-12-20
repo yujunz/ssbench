@@ -171,11 +171,31 @@ class Worker:
                                                  worker_id=self.worker_id,
                                                  **kwargs)))
 
+    class ChunkedReader(object):
+        def __init__(self, letter, size):
+            self.size = size
+            self.letter = letter
+            self.bytes_left = int(size) # in case it's a float
+
+        def __eq__(self, other_reader):
+            if isinstance(other_reader, Worker.ChunkedReader):
+                return self.size == other_reader.size and self.letter == other_reader.letter
+
+        def read(self, chunk_size):
+            if self.bytes_left == 0:
+                return None
+            elif self.bytes_left < chunk_size:
+                self.bytes_left = 0
+                return self.letter * self.bytes_left
+            else:
+                self.bytes_left -= chunk_size
+                return self.letter * chunk_size
+        
     def handle_upload_object(self, object_info):
         object_name = object_info['object_name']
         results = self.ignoring_http_responses((503,), client.put_object, object_info,
                                                name=object_name,
-                                               contents='A' * int(object_info['object_size']))
+                                               contents=self.ChunkedReader('A', object_info['object_size']))
         # Once we've stored an object, note that in case we need to update,
         # read, or delete (an unnamed) object in the future.
         # Furthermore, we'll assume that any object name starting with a
@@ -237,7 +257,7 @@ class Worker:
             return
         results = self.ignoring_http_responses((503,), client.put_object,
                                                object_info, name=object_name,
-                                               contents='B' * int(object_info['object_size']))
+                                               contents=self.ChunkedReader('B', object_info['object_size']))
         self.put_results(object_info,
                          object_name=object_name,
                          first_byte_latency=results['x-swiftstack-first-byte-latency'],
@@ -251,7 +271,11 @@ class Worker:
         if not object_name:
             return
         results = self.ignoring_http_responses((503,), client.get_object,
-                                               object_info, name=object_name)
+                                               object_info, name=object_name,
+                                               resp_chunk_size=2**16)
+        # Read (and throw away) all the file contents (chunked)
+        for chunk in results[1]:
+            pass
         self.put_results(object_info,
                          object_name=object_name,
                          first_byte_latency=results[0]['x-swiftstack-first-byte-latency'],
