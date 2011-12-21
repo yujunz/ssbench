@@ -208,7 +208,7 @@ class Master:
             self.queue.put(yaml.dump(initial_job), priority=PRIORITY_SETUP)
 
         # Wait for them to all finish
-        results = self.gather_results(len(initial_jobs))
+        results = self.gather_results(len(initial_jobs), timeout=600)
 
         # Enqueue bench jobs
         logging.info('Starting benchmark run (%d concurrent workers)',
@@ -220,7 +220,7 @@ class Master:
             self.queue.put(yaml.dump(bench_job), priority=PRIORITY_WORK)
 
         # Wait for them to all finish and return the results
-        results = self.gather_results(len(bench_jobs))
+        results = self.gather_results(len(bench_jobs), timeout=300)
         return results
 
     def bench_container_creation(self, auth_url, user, key, count):
