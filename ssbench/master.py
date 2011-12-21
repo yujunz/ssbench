@@ -1,6 +1,7 @@
 import yaml
 
 import logging
+from statlib import stats
 from ssbench.constants import *
 from swift.common import client
 
@@ -10,15 +11,172 @@ class Master:
         queue.ignore('default')
         self.queue = queue
 
-    def generate_scenario_report(self, scenario, results):
-        """Print a report based on the results from having run a scenario.  The
-        results will cover only the "bench jobs", not the "initialization
-        jobs".
+    def calculate_scenario_stats(self, results):
+        """Given a list of worker job result dicts, compute various statistics.
+       
+        :results: A list of worker job result dicts
+        :returns: A stats python dict which looks like:
+            SERIES_STATS = {
+                'min': 1.1,
+                'max': 1.1,
+                'avg': 1.1,
+                'std_dev': 1.1,
+                'median': 1.1,
+            }
+            {
+                'agg_stats': {
+                    'worker_count': 1,
+                    'start': 1.1,
+                    'stop': 1.1,
+                    'req_count': 1,
+                    'avg_req_per_sec': 1.1, # req_count / (stop - start)?
+                    'first_byte_latency': SERIES_STATS,
+                    'last_byte_latency': SERIES_STATS,
+                },
+                'worker_stats': {
+                    1: {  # keys are worker_ids
+                        'start': 1.1,
+                        'stop': 1.1,
+                        'req_count': 1,
+                        'avg_req_per_sec': 1.1, # req_count / (stop - start)?
+                        'first_byte_latency': SERIES_STATS,
+                        'last_byte_latency': SERIES_STATS,
+                    },
+                    # ...
+                },
+                'op_stats': {
+                    CREATE_OBJECT: { # keys are CRUD constants: CREATE_OBJECT, READ_OBJECT, etc.
+                        'req_count': 1, # num requests of this CRUD type
+                        'avg_req_per_sec': 1.1, # total_requests / sum(last_byte_latencies)
+                        'first_byte_latency': SERIES_STATS,
+                        'last_byte_latency': SERIES_STATS,
+                    },
+                    # ...
+                },
+                'size_stats': {
+                    1: { # keys are file size byte-counts
+                        'req_percent': 1.1, # % of total requests
+                        'avg_req_per_sec': 1.1, # total_requests / sum(last_byte_latencies)
+                        'first_byte_latency': SERIES_STATS,
+                        'last_byte_latency': SERIES_STATS,
+                        'op_stats': {
+                            CREATE_OBJECT: { # keys are CRUD constants: CREATE_OBJECT, READ_OBJECT, etc.
+                                'req_percent': 1.1, # % of total requests
+                                'avg_req_per_sec': 1.1, # total_requests / sum(last_byte_latencies)
+                                'first_byte_latency': SERIES_STATS,
+                                'last_byte_latency': SERIES_STATS,
+                            },
+                            # ...
+                        },
+
+                    },
+                    # ...
+                },
+                'time_series': {
+                    'seconds_per_point': 1, # will start with 1 here, but may need to be higher
+                    'data': [{
+                        'epoch_seconds': 1, # data is for time period 'epoch_seconds' to 'epoch_seconds + 1'
+                        'reqs_finished': 1, # number or requests which completed during this second
+                        'first_byte_latency': SERIES_STATS, # summary of values for reqs finished this second
+                        'last_byte_latency': SERIES_STATS,  # (ditto)
+                        }  
+                        # ...
+                    ],
+                },
+            }
+        """
+        # Each result looks like:
+        # {
+        #   'worker_id': 1,
+        #   'type': 'get_object',
+        #   'object_size': 4900000,
+        #   'first_byte_latency': 0.9137639999389648,
+        #   'last_byte_latency': 0.913769006729126,
+        #   'completed_at': 1324372892.360802,
+        #}
+        agg_stats = dict(start=2**32, stop=0, req_count=0)
+        op_stats = {}
+        for crud_type in [CREATE_OBJECT, READ_OBJECT, UPDATE_OBJECT, DELETE_OBJECT]:
+            op_stats[crud_type] = dict(req_count=0, avg_req_per_sec=0)
+
+        stats = dict(
+            agg_stats = agg_stats,
+            worker_stats = {},
+            op_stats = op_stats,
+            size_stats = {},
+            time_series = dict(seconds_per_point=1, data=[])
+        )
+        for result in results:
+            result['start'] = result['completed_at'] - result['last_byte_latency']
+            if not stats['worker_stats'].has_key(result['worker_id']):
+                stats['worker_stats'][result['worker_id']] = {}
+            # Roll in worker stats
+            self._add_result_to(stats['worker_stats'][result['worker_id']], result)
+            self._add_result_to(agg_stats, result)
+            self._add_result_to(op_stats[result['type']], result)
+        agg_stats['worker_count'] = len(stats['worker_stats'].keys())
+        self._compute_req_per_sec(agg_stats)
+        self._compute_latency_stats(agg_stats)
+        for worker_stats in stats['worker_stats'].values():
+            self._compute_req_per_sec(worker_stats)
+            self._compute_latency_stats(worker_stats)
+        for op_stats_dict in op_stats.values():
+            if op_stats_dict['req_count']:
+                self._compute_req_per_sec(op_stats_dict)
+                self._compute_latency_stats(op_stats_dict)
+
+
+        return stats
+
+    def _compute_latency_stats(self, stat_dict):
+        for latency_type in ('first_byte_latency', 'last_byte_latency'):
+            stat_dict[latency_type] = self._series_stats(stat_dict[latency_type])
+ 
+    def _compute_req_per_sec(self, stat_dict):
+        stat_dict['avg_req_per_sec'] = round(stat_dict['req_count'] /
+                                             (stat_dict['stop'] -
+                                              stat_dict['start']), 6)
+
+
+    def _add_result_to(self, stat_dict, result):
+        if not stat_dict.has_key('start') or result['start'] < stat_dict['start']:
+            stat_dict['start'] = result['start']
+        if not stat_dict.has_key('stop') or result['completed_at'] > stat_dict['stop']:
+            stat_dict['stop'] = result['completed_at']
+        if not stat_dict.has_key('req_count'):
+            stat_dict['req_count'] = 1
+        else:
+            stat_dict['req_count'] += 1
+        self._rec_latency(stat_dict, result)
+
+    def _series_stats(self, sequence):
+        n, (minval, maxval), mean, std_dev, skew, kurtosis = stats.ldescribe(sequence)
+        logging.debug('_series_stats(%r) == %r', sequence, [
+            n, (minval, maxval), mean, std_dev, skew, kurtosis,
+        ])
+        return dict(
+            min=round(minval, 6), max=round(maxval, 6), avg=round(mean, 6),
+            std_dev=round(stats.lsamplestdev(sequence), 6),
+            median=round(stats.lmedianscore(sequence), 6),
+        )
+
+    def _rec_latency(self, stats_dict, result):
+        for latency_type in ('first_byte_latency', 'last_byte_latency'):
+            if stats_dict.has_key(latency_type):
+                stats_dict[latency_type].append(result[latency_type])
+            else:
+                stats_dict[latency_type] = [result[latency_type]]
+
+
+
+    def generate_scenario_report(self, scenario, stats):
+        """Format a report based on calculated statistics for an executed
+        scenario.
         
-        :results: A sequence of result records as returned by workers via the queue
+        :stats: A python data structure with calculated statistics
         :returns: A report (string) suitable for printing, emailing, etc.
         """
-    
+
         return repr(results)
 
     def run_scenario(self, auth_url, user, key, scenario):
@@ -102,7 +260,7 @@ class Master:
 
         for i in range(object_count):
             job = {
-                "type": UPLOAD_OBJECT,
+                "type": CREATE_OBJECT,
                 "url":  url,
                 "token": token,
                 "container": containers[i % len(containers)],

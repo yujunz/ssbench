@@ -7,8 +7,11 @@ from collections import Counter
 from ssbench.constants import *
 from ssbench.scenario import Scenario
 
-class TestScenario(object):
+class ScenarioFixture(object):
     def setUp(self):
+        superclass = super(ScenarioFixture, self)
+        if hasattr(superclass, 'setUp'):
+            superclass.setUp()
         self.stub_scenario_file = '/tmp/.430gjf.test_scenario.py'
         self.scenario_dict = dict(
             name='Test1 - Happy go lucky',
@@ -23,12 +26,15 @@ class TestScenario(object):
             crud_profile=[6, 0, 0, 1], # maybe make this a dict?
             user_count=1,
         )
-
+ 
     def tearDown(self):
         try:
             os.unlink(self.stub_scenario_file)
         except OSError:
             pass  # don't care if it didn't get created
+        superclass = super(ScenarioFixture, self)
+        if hasattr(superclass, 'tearDown'):
+            superclass.tearDown()
 
     def write_scenario_file(self, **contents):
         """Generates a scenario file on disk (in /tmp).
@@ -43,6 +49,15 @@ class TestScenario(object):
     
         fp = open(self.stub_scenario_file, 'w')
         json.dump(contents, fp)
+
+
+
+class TestScenario(ScenarioFixture):
+    def setUp(self):
+        super(TestScenario, self).setUp()
+
+    def tearDown(self):
+        super(TestScenario, self).tearDown()
 
     def test_basic_instantiation(self):
         self.write_scenario_file(**self.scenario_dict)
@@ -69,7 +84,7 @@ class TestScenario(object):
         # From the CRUD profile, we should have 85.7% Create (6/7), and 14.3%
         # Delete (1/7).
         type_counter = Counter([_['type'] for _ in jobs])
-        assert_almost_equal(6 * 5000 / 7, type_counter[UPLOAD_OBJECT],
+        assert_almost_equal(6 * 5000 / 7, type_counter[CREATE_OBJECT],
                             delta=0.10*6*5000/7)
         assert_almost_equal(5000 / 7, type_counter[DELETE_OBJECT],
                             delta=0.10*5000/7)
@@ -80,7 +95,7 @@ class TestScenario(object):
 
         bench_job = scenario.bench_job('small', 0, 31)
         assert_dict_equal(dict(
-            type=UPLOAD_OBJECT,
+            type=CREATE_OBJECT,
             container='Audio',
             object_name='PA000031',
             object_size=4900000,
@@ -92,7 +107,7 @@ class TestScenario(object):
 
         bench_job = scenario.bench_job('large', 1, 492)
         assert_dict_equal(dict(
-            type=GET_OBJECT,
+            type=READ_OBJECT,
             container='Video',
             object_size=101000000,
         ), bench_job)
@@ -132,25 +147,25 @@ class TestScenario(object):
         assert_dict_equal({
             # Note that the scenario stays out of the business of which cluster
             # you're using and authentication tokens.
-            'type': UPLOAD_OBJECT,
+            'type': CREATE_OBJECT,
             'container': 'Picture', # i.e. tiny
             'object_name': 'SP000001', # <Usage><Type>######
             'object_size': 99000, # tiny file size
         }, jobs[0])
         assert_dict_equal({
-            'type': UPLOAD_OBJECT,
+            'type': CREATE_OBJECT,
             'container': 'Audio', # i.e. small
             'object_name': 'SA000001', # <Usage><Type>######
             'object_size': 4900000, # small file size
         }, jobs[1])
         assert_dict_equal({
-            'type': UPLOAD_OBJECT,
+            'type': CREATE_OBJECT,
             'container': 'Document', # i.e. medium
             'object_name': 'SD000001', # <Usage><Type>######
             'object_size': 9900000, # medium file size
         }, jobs[2])
         assert_dict_equal({
-            'type': UPLOAD_OBJECT,
+            'type': CREATE_OBJECT,
             'container': 'Video', # i.e. tiny
             'object_name': 'SV000001', # <Usage><Type>######
             'object_size': 101000000, # tiny file size
@@ -158,7 +173,7 @@ class TestScenario(object):
         # This scenario called for no initial "huge" files, so we wrapped back
         # to tiny (#2)
         assert_dict_equal({
-            'type': UPLOAD_OBJECT,
+            'type': CREATE_OBJECT,
             'container': 'Picture', # i.e. tiny
             'object_name': 'SP000002', # <Usage><Type>######
             'object_size': 99000, # tiny file size
@@ -169,3 +184,4 @@ class TestScenario(object):
         assert_equal(300, size_counter['Audio'])
         assert_equal(300, size_counter['Document'])
         assert_equal(100, size_counter['Video'])
+

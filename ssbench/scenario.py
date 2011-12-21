@@ -61,7 +61,7 @@ class Scenario(object):
 
         sfile = ScenarioFile('S', size_str, i)
         return {
-            "type": UPLOAD_OBJECT,
+            "type": CREATE_OBJECT,
             "container": sfile.container,
             "object_name": sfile.name,
             "object_size": sfile.size,
@@ -81,7 +81,7 @@ class Scenario(object):
         if crud_index == 0:
             # Create
             return dict(
-                type=UPLOAD_OBJECT,
+                type=CREATE_OBJECT,
                 container=sfile.container,
                 object_name=sfile.name,
                 object_size=sfile.size,
@@ -89,7 +89,7 @@ class Scenario(object):
         elif crud_index == 1:
             # Read
             return dict(
-                type=GET_OBJECT,
+                type=READ_OBJECT,
                 container=sfile.container,
                 object_size=sfile.size,
             )

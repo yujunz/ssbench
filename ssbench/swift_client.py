@@ -25,6 +25,7 @@ from tokenize import generate_tokens, STRING, NAME, OP
 from urllib import quote as _quote, unquote
 from urlparse import urlparse, urlunparse
 from time import time
+import logging
 
 try:
     from eventlet.green.httplib import HTTPException, HTTPSConnection
@@ -198,7 +199,7 @@ def get_auth(url, user, key, snet=False):
         parsed[1] = 'snet-' + parsed[1]
         url = urlunparse(parsed)
     return url, resp.getheader('x-storage-token',
-                                                resp.getheader('x-auth-token'))
+                               resp.getheader('x-auth-token'))
 
 
 def get_account(url, token, marker=None, limit=None, prefix=None,

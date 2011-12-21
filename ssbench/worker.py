@@ -22,7 +22,7 @@ class Worker:
     def __init__(self, queue, worker_id):
         queue.use(STATS_TUBE)
         for i in range(worker_id, MAX_WORKERS + 1):
-            queue.watch('work_%04d' % i)
+            queue.watch(WORK_TUBE_FORMAT % i)
         self.queue = queue
         self.worker_id = worker_id
         self.object_names = {

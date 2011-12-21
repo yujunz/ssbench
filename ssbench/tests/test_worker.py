@@ -15,7 +15,7 @@ class TestWorker(object):
         self.stub_queue.should_receive('use').with_args(STATS_TUBE).once
         # Workers should look at tubes >= worker_id
         for i in range(3, MAX_WORKERS + 1):
-            self.stub_queue.should_receive('watch').with_args('work_%04d' % i).once
+            self.stub_queue.should_receive('watch').with_args(WORK_TUBE_FORMAT % i).once
         self.stub_worker_id = 3
         self.worker = Worker(self.stub_queue, self.stub_worker_id)
 
@@ -87,7 +87,7 @@ class TestWorker(object):
     def test_handle_upload_population_object(self):
         object_name = '/foo/bar/PA000001'
         object_info = {
-            'type': UPLOAD_OBJECT,
+            'type': CREATE_OBJECT,
             'container': 'Application',
             'object_name': object_name,
             'object_size': 3493284.0,
@@ -123,7 +123,7 @@ class TestWorker(object):
     def test_handle_upload_stock_object_not_existing(self):
         object_name = '/foo/bar/SP000001'
         object_info = {
-            'type': UPLOAD_OBJECT,
+            'type': CREATE_OBJECT,
             'container': 'Picture',
             'object_name': object_name,
             'object_size': 99000.0,
@@ -159,7 +159,7 @@ class TestWorker(object):
     def test_handle_upload_stock_object_existing(self):
         object_name = '/foo/bar/SP000001'
         object_info = {
-            'type': UPLOAD_OBJECT,
+            'type': CREATE_OBJECT,
             'container': 'Picture',
             'object_name': object_name,
             'object_size': 99000.0,
@@ -385,7 +385,7 @@ class TestWorker(object):
         stock_object_name = 'SD000034'
         population_object_name = '/PD009123'
         object_info = {
-            'type': GET_OBJECT,
+            'type': READ_OBJECT,
             'container': 'Document',
             'object_size': 483213,
         }
@@ -417,7 +417,7 @@ class TestWorker(object):
 
     def test_get_object_without_name_have_no_population_or_stock(self):
         object_info = {
-            'type': GET_OBJECT,
+            'type': READ_OBJECT,
             'container': 'Document',
             'object_size': 39928438,
         }
@@ -431,7 +431,7 @@ class TestWorker(object):
     def test_get_object_without_name_have_no_population(self):
         stock_object_name = '/0glwvm//SD006546'
         object_info = {
-            'type': GET_OBJECT,
+            'type': READ_OBJECT,
             'container': 'Document',
             'object_size': 8492391,
         }
@@ -462,16 +462,16 @@ class TestWorker(object):
  
 
     def test_dispatching_upload_object(self):
-        # UPLOAD_OBJECT = 'upload_object' # includes obj name
-        info = {'type': UPLOAD_OBJECT, 'a': 1}
+        # CREATE_OBJECT = 'upload_object' # includes obj name
+        info = {'type': CREATE_OBJECT, 'a': 1}
         job = Namespace(body=yaml.dump(info))
         worker = flexmock(self.worker)
         worker.should_receive('handle_upload_object').with_args(info).once
         worker.handle_job(job)
 
     def test_dispatching_get_object(self):
-        # GET_OBJECT = 'get_object'       # does NOT include obj name to get
-        info = {'type': GET_OBJECT, 'b': 2}
+        # READ_OBJECT = 'get_object'       # does NOT include obj name to get
+        info = {'type': READ_OBJECT, 'b': 2}
         job = Namespace(body=yaml.dump(info))
         worker = flexmock(self.worker)
         worker.should_receive('handle_get_object').with_args(info).once
