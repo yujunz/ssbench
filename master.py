@@ -41,7 +41,8 @@ def run_scenario(master, args):
     scenario = Scenario(args.scenario_file)
     results = master.run_scenario(auth_url=args.auth_url, user=args.user,
                                   key=args.key, scenario=scenario)
-    print master.generate_scenario_report(scenario, results)
+    stats = master.calculate_scenario_stats(results)
+    print master.generate_scenario_report(scenario, stats)
 
 logging.basicConfig(level=logging.DEBUG)
 

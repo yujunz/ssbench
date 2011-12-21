@@ -5,6 +5,8 @@ from statlib import stats
 from ssbench.constants import *
 from swift.common import client
 
+from pprint import pformat
+
 class Master:
     def __init__(self, queue):
         queue.watch(STATS_TUBE)
@@ -151,9 +153,6 @@ class Master:
 
     def _series_stats(self, sequence):
         n, (minval, maxval), mean, std_dev, skew, kurtosis = stats.ldescribe(sequence)
-        logging.debug('_series_stats(%r) == %r', sequence, [
-            n, (minval, maxval), mean, std_dev, skew, kurtosis,
-        ])
         return dict(
             min=round(minval, 6), max=round(maxval, 6), avg=round(mean, 6),
             std_dev=round(stats.lsamplestdev(sequence), 6),
@@ -177,7 +176,7 @@ class Master:
         :returns: A report (string) suitable for printing, emailing, etc.
         """
 
-        return repr(results)
+        return pformat(stats)
 
     def run_scenario(self, auth_url, user, key, scenario):
         """Runs a CRUD scenario, given cluter parameters and a Scenario object.
