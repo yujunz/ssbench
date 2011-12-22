@@ -52,6 +52,15 @@ class Master:
                         'avg_req_per_sec': 1.1, # total_requests / sum(last_byte_latencies)
                         'first_byte_latency': SERIES_STATS,
                         'last_byte_latency': SERIES_STATS,
+                        'size_stats': {
+                            1: { # keys are file size byte-counts
+                                'req_percent': 1.1, # % of total requests
+                                'avg_req_per_sec': 1.1, # total_requests / sum(last_byte_latencies)
+                                'first_byte_latency': SERIES_STATS,
+                                'last_byte_latency': SERIES_STATS,
+                            },
+                            # ...
+                        },
                     },
                     # ...
                 },
@@ -61,27 +70,13 @@ class Master:
                         'avg_req_per_sec': 1.1, # total_requests / sum(last_byte_latencies)
                         'first_byte_latency': SERIES_STATS,
                         'last_byte_latency': SERIES_STATS,
-                        'op_stats': {
-                            CREATE_OBJECT: { # keys are CRUD constants: CREATE_OBJECT, READ_OBJECT, etc.
-                                'req_percent': 1.1, # % of total requests
-                                'avg_req_per_sec': 1.1, # total_requests / sum(last_byte_latencies)
-                                'first_byte_latency': SERIES_STATS,
-                                'last_byte_latency': SERIES_STATS,
-                            },
-                            # ...
-                        },
-
                     },
                     # ...
                 },
                 'time_series': {
-                    'seconds_per_point': 1, # will start with 1 here, but may need to be higher
-                    'data': [{
-                        'epoch_seconds': 1, # data is for time period 'epoch_seconds' to 'epoch_seconds + 1'
-                        'reqs_finished': 1, # number or requests which completed during this second
-                        'first_byte_latency': SERIES_STATS, # summary of values for reqs finished this second
-                        'last_byte_latency': SERIES_STATS,  # (ditto)
-                        }  
+                    'start': 1, # epoch time of first data point
+                    'data': [
+                        1, # number of requests finishing during this second
                         # ...
                     ],
                 },
@@ -99,23 +94,46 @@ class Master:
         agg_stats = dict(start=2**32, stop=0, req_count=0)
         op_stats = {}
         for crud_type in [CREATE_OBJECT, READ_OBJECT, UPDATE_OBJECT, DELETE_OBJECT]:
-            op_stats[crud_type] = dict(req_count=0, avg_req_per_sec=0)
+            op_stats[crud_type] = dict(
+                req_count=0, avg_req_per_sec=0, size_stats = {},
+            )
 
+        req_completion_seconds = {}
+        completion_time_max = 0
+        completion_time_min = 2**32
         stats = dict(
             agg_stats = agg_stats,
             worker_stats = {},
             op_stats = op_stats,
             size_stats = {},
-            time_series = dict(seconds_per_point=1, data=[])
         )
         for result in results:
+            completion_time = int(result['completed_at'])
+            if completion_time < completion_time_min:
+                completion_time_min = completion_time
+            if completion_time > completion_time_max:
+                completion_time_max = completion_time
+            req_completion_seconds[completion_time] = \
+                1 + req_completion_seconds.get(completion_time, 0)
             result['start'] = result['completed_at'] - result['last_byte_latency']
+
+            # Stats per-worker
             if not stats['worker_stats'].has_key(result['worker_id']):
                 stats['worker_stats'][result['worker_id']] = {}
-            # Roll in worker stats
             self._add_result_to(stats['worker_stats'][result['worker_id']], result)
+
+            # Stats per-file-size
+            if not stats['size_stats'].has_key(result['object_size']):
+                stats['size_stats'][result['object_size']] = {}
+            self._add_result_to(stats['size_stats'][result['object_size']], result)
+
             self._add_result_to(agg_stats, result)
             self._add_result_to(op_stats[result['type']], result)
+
+            # Stats per-operation-per-file-size
+            if not op_stats[result['type']]['size_stats'].has_key(result['object_size']):
+                op_stats[result['type']]['size_stats'][result['object_size']] = {}
+            self._add_result_to(op_stats[result['type']]['size_stats'][result['object_size']], result)
         agg_stats['worker_count'] = len(stats['worker_stats'].keys())
         self._compute_req_per_sec(agg_stats)
         self._compute_latency_stats(agg_stats)
@@ -126,7 +144,18 @@ class Master:
             if op_stats_dict['req_count']:
                 self._compute_req_per_sec(op_stats_dict)
                 self._compute_latency_stats(op_stats_dict)
-
+                for size_stats in op_stats_dict['size_stats'].values():
+                    self._compute_req_per_sec(size_stats)
+                    self._compute_latency_stats(size_stats)
+        for size_stats in stats['size_stats'].values():
+            logging.debug('size_stats: %r', size_stats)
+            self._compute_req_per_sec(size_stats)
+            self._compute_latency_stats(size_stats)
+        time_series_data = [
+            req_completion_seconds.get(t, 0) for t in range(completion_time_min, completion_time_max + 1)
+        ]
+        stats['time_series'] = dict(start=completion_time_min,
+                                    data=time_series_data)
 
         return stats
 
@@ -152,7 +181,15 @@ class Master:
         self._rec_latency(stat_dict, result)
 
     def _series_stats(self, sequence):
-        n, (minval, maxval), mean, std_dev, skew, kurtosis = stats.ldescribe(sequence)
+        try:
+            n, (minval, maxval), mean, std_dev, skew, kurtosis = stats.ldescribe(sequence)
+        except ZeroDivisionError:
+            # Handle the case of a single-element sequence (sample standard
+            # deviation divides by N-1)
+            minval=sequence[0]
+            maxval=sequence[0]
+            mean=sequence[0]
+            std_dev=0
         return dict(
             min=round(minval, 6), max=round(maxval, 6), avg=round(mean, 6),
             std_dev=round(stats.lsamplestdev(sequence), 6),
@@ -200,8 +237,11 @@ class Master:
                 logging.info('  creating container %r', container)
                 self.create_container(url, token, container)
 
+        self.queue.use('work_%04d' % scenario.user_count)
+
         # Enqueue initialization jobs
-        logging.info('Initializing cluster with stock data (using full concurrency)')
+        logging.info('Initializing cluster with stock data (%d concurrent workers)',
+                     scenario.user_count)
         initial_jobs = scenario.initial_jobs()
         for initial_job in initial_jobs:
             initial_job.update(url=url, token=token)
@@ -213,14 +253,13 @@ class Master:
         # Enqueue bench jobs
         logging.info('Starting benchmark run (%d concurrent workers)',
                      scenario.user_count)
-        self.queue.use('work_%04d' % scenario.user_count)
         bench_jobs = scenario.bench_jobs()
         for bench_job in bench_jobs:
             bench_job.update(url=url, token=token)
             self.queue.put(yaml.dump(bench_job), priority=PRIORITY_WORK)
 
         # Wait for them to all finish and return the results
-        results = self.gather_results(len(bench_jobs), timeout=300)
+        results = self.gather_results(len(bench_jobs), timeout=600)
         return results
 
     def bench_container_creation(self, auth_url, user, key, count):
