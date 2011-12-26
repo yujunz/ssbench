@@ -506,32 +506,64 @@ Master Test Scenario - ablkei
 TOTAL
        Count:    12  Average requests per second:   1.9
                            min     max    avg    std_dev  median
-       First-byte latency:  0.10 -  1.20   0.51  ( 0.39)   0.40
-       Last-byte  latency:  0.20 -  3.00   1.16  ( 0.97)   0.75
+       First-byte latency:  0.10 -  1.20   0.51  ( 0.39)   0.40  (  all obj sizes)
+       Last-byte  latency:  0.20 -  3.00   1.16  ( 0.97)   0.75  (  all obj sizes)
+       First-byte latency:  0.10 -  1.00   0.45  ( 0.38)   0.35  (     99 kB objs)
+       Last-byte  latency:  0.20 -  1.80   0.87  ( 0.58)   0.75  (     99 kB objs)
+       First-byte latency:  0.20 -  1.00   0.57  ( 0.33)   0.50  (   4900 kB objs)
+       Last-byte  latency:  0.50 -  3.00   1.43  ( 1.11)   0.80  (   4900 kB objs)
+       First-byte latency:  0.30 -  0.80   0.55  ( 0.25)   0.55  (   9900 kB objs)
+       Last-byte  latency:  0.40 -  2.80   1.60  ( 1.20)   1.60  (   9900 kB objs)
+       First-byte latency:  0.10 -  0.20   0.15  ( 0.05)   0.15  ( 101000 kB objs)
+       Last-byte  latency:  0.30 -  0.40   0.35  ( 0.05)   0.35  ( 101000 kB objs)
+       First-byte latency:  1.20 -  1.20   1.20  ( 0.00)   1.20  (1100000 kB objs)
+       Last-byte  latency:  2.20 -  2.20   2.20  ( 0.00)   2.20  (1100000 kB objs)
 
 CREATE
        Count:     3  Average requests per second:   0.5
                            min     max    avg    std_dev  median
-       First-byte latency:  0.10 -  1.20   0.77  ( 0.48)   1.00
-       Last-byte  latency:  0.20 -  3.00   1.80  ( 1.18)   2.20
+       First-byte latency:  0.10 -  1.20   0.77  ( 0.48)   1.00  (  all obj sizes)
+       Last-byte  latency:  0.20 -  3.00   1.80  ( 1.18)   2.20  (  all obj sizes)
+       First-byte latency:  0.10 -  0.10   0.10  ( 0.00)   0.10  (     99 kB objs)
+       Last-byte  latency:  0.20 -  0.20   0.20  ( 0.00)   0.20  (     99 kB objs)
+       First-byte latency:  1.00 -  1.00   1.00  ( 0.00)   1.00  (   4900 kB objs)
+       Last-byte  latency:  3.00 -  3.00   3.00  ( 0.00)   3.00  (   4900 kB objs)
+       First-byte latency:  1.20 -  1.20   1.20  ( 0.00)   1.20  (1100000 kB objs)
+       Last-byte  latency:  2.20 -  2.20   2.20  ( 0.00)   2.20  (1100000 kB objs)
 
 READ
        Count:     4  Average requests per second:   1.0
                            min     max    avg    std_dev  median
-       First-byte latency:  0.10 -  1.00   0.40  ( 0.35)   0.25
-       Last-byte  latency:  0.40 -  1.80   0.88  ( 0.55)   0.65
+       First-byte latency:  0.10 -  1.00   0.40  ( 0.35)   0.25  (  all obj sizes)
+       Last-byte  latency:  0.40 -  1.80   0.88  ( 0.55)   0.65  (  all obj sizes)
+       First-byte latency:  0.10 -  1.00   0.55  ( 0.45)   0.55  (     99 kB objs)
+       Last-byte  latency:  0.80 -  1.80   1.30  ( 0.50)   1.30  (     99 kB objs)
+       First-byte latency:  0.20 -  0.20   0.20  ( 0.00)   0.20  (   4900 kB objs)
+       Last-byte  latency:  0.50 -  0.50   0.50  ( 0.00)   0.50  (   4900 kB objs)
+       First-byte latency:  0.30 -  0.30   0.30  ( 0.00)   0.30  (   9900 kB objs)
+       Last-byte  latency:  0.40 -  0.40   0.40  ( 0.00)   0.40  (   9900 kB objs)
 
 UPDATE
        Count:     3  Average requests per second:   0.5
                            min     max    avg    std_dev  median
-       First-byte latency:  0.20 -  0.80   0.53  ( 0.25)   0.60
-       Last-byte  latency:  0.30 -  2.80   1.27  ( 1.10)   0.70
+       First-byte latency:  0.20 -  0.80   0.53  ( 0.25)   0.60  (  all obj sizes)
+       Last-byte  latency:  0.30 -  2.80   1.27  ( 1.10)   0.70  (  all obj sizes)
+       First-byte latency:  0.60 -  0.60   0.60  ( 0.00)   0.60  (     99 kB objs)
+       Last-byte  latency:  0.70 -  0.70   0.70  ( 0.00)   0.70  (     99 kB objs)
+       First-byte latency:  0.80 -  0.80   0.80  ( 0.00)   0.80  (   9900 kB objs)
+       Last-byte  latency:  2.80 -  2.80   2.80  ( 0.00)   2.80  (   9900 kB objs)
+       First-byte latency:  0.20 -  0.20   0.20  ( 0.00)   0.20  ( 101000 kB objs)
+       Last-byte  latency:  0.30 -  0.30   0.30  ( 0.00)   0.30  ( 101000 kB objs)
 
 DELETE
        Count:     2  Average requests per second:   2.0
                            min     max    avg    std_dev  median
-       First-byte latency:  0.10 -  0.50   0.30  ( 0.20)   0.30
-       Last-byte  latency:  0.40 -  0.80   0.60  ( 0.20)   0.60
+       First-byte latency:  0.10 -  0.50   0.30  ( 0.20)   0.30  (  all obj sizes)
+       Last-byte  latency:  0.40 -  0.80   0.60  ( 0.20)   0.60  (  all obj sizes)
+       First-byte latency:  0.50 -  0.50   0.50  ( 0.00)   0.50  (   4900 kB objs)
+       Last-byte  latency:  0.80 -  0.80   0.80  ( 0.00)   0.80  (   4900 kB objs)
+       First-byte latency:  0.10 -  0.10   0.10  ( 0.00)   0.10  ( 101000 kB objs)
+       Last-byte  latency:  0.40 -  0.40   0.40  ( 0.00)   0.40  ( 101000 kB objs)
 
 
 """.split('\n'), self.master.generate_scenario_report(self.scenario, scen_stats).split('\n'))

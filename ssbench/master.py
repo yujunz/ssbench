@@ -380,8 +380,12 @@ ${scenario.name}
 ${label}
        Count: ${'%5d' % stats['req_count']}  Average requests per second: ${'%5.1f' % stats['avg_req_per_sec']}
                            min     max    avg    std_dev  median
-       First-byte latency: ${'%5.2f' % stats['first_byte_latency']['min']} - ${'%5.2f' % stats['first_byte_latency']['max']}  ${'%5.2f' % stats['first_byte_latency']['avg']}  (${'%5.2f' % stats['first_byte_latency']['std_dev']})  ${'%5.2f' % stats['first_byte_latency']['median']}
-       Last-byte  latency: ${'%5.2f' % stats['last_byte_latency']['min']} - ${'%5.2f' % stats['last_byte_latency']['max']}  ${'%5.2f' % stats['last_byte_latency']['avg']}  (${'%5.2f' % stats['last_byte_latency']['std_dev']})  ${'%5.2f' % stats['last_byte_latency']['median']}
+       First-byte latency: ${'%5.2f' % stats['first_byte_latency']['min']} - ${'%5.2f' % stats['first_byte_latency']['max']}  ${'%5.2f' % stats['first_byte_latency']['avg']}  (${'%5.2f' % stats['first_byte_latency']['std_dev']})  ${'%5.2f' % stats['first_byte_latency']['median']}  (${'%15s' % 'all obj sizes'})
+       Last-byte  latency: ${'%5.2f' % stats['last_byte_latency']['min']} - ${'%5.2f' % stats['last_byte_latency']['max']}  ${'%5.2f' % stats['last_byte_latency']['avg']}  (${'%5.2f' % stats['last_byte_latency']['std_dev']})  ${'%5.2f' % stats['last_byte_latency']['median']}  (${'%15s' % 'all obj sizes'})
+% for byte_count, byte_stats in sorted(sstats.iteritems(), cmp=lambda x,y: cmp(x[0], y[0])):
+       First-byte latency: ${'%5.2f' % byte_stats['first_byte_latency']['min']} - ${'%5.2f' % byte_stats['first_byte_latency']['max']}  ${'%5.2f' % byte_stats['first_byte_latency']['avg']}  (${'%5.2f' % byte_stats['first_byte_latency']['std_dev']})  ${'%5.2f' % byte_stats['first_byte_latency']['median']}  (${'%7.0f' % (byte_count / 1000.0)} kB objs)
+       Last-byte  latency: ${'%5.2f' % byte_stats['last_byte_latency']['min']} - ${'%5.2f' % byte_stats['last_byte_latency']['max']}  ${'%5.2f' % byte_stats['last_byte_latency']['avg']}  (${'%5.2f' % byte_stats['last_byte_latency']['std_dev']})  ${'%5.2f' % byte_stats['last_byte_latency']['median']}  (${'%7.0f' % (byte_count / 1000.0)} kB objs)
+% endfor
 % endfor
 
 
