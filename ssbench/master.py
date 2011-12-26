@@ -26,6 +26,18 @@ class Master:
         template = Template(self.scenario_template())
         tmpl_vars = {
             'crud_pcts': scenario.crud_pcts,
+            'stat_list': [
+                ('TOTAL', stats['agg_stats'], stats['size_stats']),
+                ('CREATE', stats['op_stats'][CREATE_OBJECT],
+                 stats['op_stats'][CREATE_OBJECT]['size_stats']),
+                ('READ', stats['op_stats'][READ_OBJECT],
+                 stats['op_stats'][READ_OBJECT]['size_stats']),
+                ('UPDATE', stats['op_stats'][UPDATE_OBJECT],
+                 stats['op_stats'][UPDATE_OBJECT]['size_stats']),
+                ('DELETE', stats['op_stats'][DELETE_OBJECT],
+                 stats['op_stats'][DELETE_OBJECT]['size_stats']),
+            ],
+            'agg_stats': stats['agg_stats'],
         }
         return template.render(scenario=scenario, stats=stats, **tmpl_vars)
 
@@ -70,7 +82,7 @@ class Master:
                         'last_byte_latency': SERIES_STATS,
                         'size_stats': {
                             1: { # keys are file size byte-counts
-                                'req_percent': 1.1, # % of total requests
+                                'req_count': 1, # num requests of this type and size
                                 'avg_req_per_sec': 1.1, # total_requests / sum(last_byte_latencies)
                                 'first_byte_latency': SERIES_STATS,
                                 'last_byte_latency': SERIES_STATS,
@@ -82,7 +94,7 @@ class Master:
                 },
                 'size_stats': {
                     1: { # keys are file size byte-counts
-                        'req_percent': 1.1, # % of total requests
+                        'req_count': 1, # num requests of this size (for all CRUD types)
                         'avg_req_per_sec': 1.1, # total_requests / sum(last_byte_latencies)
                         'first_byte_latency': SERIES_STATS,
                         'last_byte_latency': SERIES_STATS,
@@ -361,8 +373,16 @@ class Master:
     def scenario_template(self):
         return """
 ${scenario.name}
-  C   R   U   D
+  C   R   U   D     Worker count: ${'%3d' % agg_stats['worker_count']}
 %% ${'%02.0f  %02.0f  %02.0f  %02.0f' % (crud_pcts[0], crud_pcts[1], crud_pcts[2], crud_pcts[3])}
+% for label, stats, sstats in stat_list:
+
+${label}
+       Count: ${'%5d' % stats['req_count']}  Average requests per second: ${'%5.1f' % stats['avg_req_per_sec']}
+                           min     max    avg    std_dev  median
+       First-byte latency: ${'%5.2f' % stats['first_byte_latency']['min']} - ${'%5.2f' % stats['first_byte_latency']['max']}  ${'%5.2f' % stats['first_byte_latency']['avg']}  (${'%5.2f' % stats['first_byte_latency']['std_dev']})  ${'%5.2f' % stats['first_byte_latency']['median']}
+       Last-byte  latency: ${'%5.2f' % stats['last_byte_latency']['min']} - ${'%5.2f' % stats['last_byte_latency']['max']}  ${'%5.2f' % stats['last_byte_latency']['avg']}  (${'%5.2f' % stats['last_byte_latency']['std_dev']})  ${'%5.2f' % stats['last_byte_latency']['median']}
+% endfor
 
 
 """

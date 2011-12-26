@@ -498,10 +498,40 @@ class TestMaster(ScenarioFixture, TestCase):
     def test_generate_scenario_report(self):
         # Time series (reqs completed each second
         scen_stats = self.master.calculate_scenario_stats(self.stub_results)
-        self.assertEqual("""
+        self.assertListEqual(u"""
 Master Test Scenario - ablkei
-  C   R   U   D
+  C   R   U   D     Worker count:   3
 % 50  30  10  10
 
+TOTAL
+       Count:    12  Average requests per second:   1.9
+                           min     max    avg    std_dev  median
+       First-byte latency:  0.10 -  1.20   0.51  ( 0.39)   0.40
+       Last-byte  latency:  0.20 -  3.00   1.16  ( 0.97)   0.75
 
-""", self.master.generate_scenario_report(self.scenario, scen_stats))
+CREATE
+       Count:     3  Average requests per second:   0.5
+                           min     max    avg    std_dev  median
+       First-byte latency:  0.10 -  1.20   0.77  ( 0.48)   1.00
+       Last-byte  latency:  0.20 -  3.00   1.80  ( 1.18)   2.20
+
+READ
+       Count:     4  Average requests per second:   1.0
+                           min     max    avg    std_dev  median
+       First-byte latency:  0.10 -  1.00   0.40  ( 0.35)   0.25
+       Last-byte  latency:  0.40 -  1.80   0.88  ( 0.55)   0.65
+
+UPDATE
+       Count:     3  Average requests per second:   0.5
+                           min     max    avg    std_dev  median
+       First-byte latency:  0.20 -  0.80   0.53  ( 0.25)   0.60
+       Last-byte  latency:  0.30 -  2.80   1.27  ( 1.10)   0.70
+
+DELETE
+       Count:     2  Average requests per second:   2.0
+                           min     max    avg    std_dev  median
+       First-byte latency:  0.10 -  0.50   0.30  ( 0.20)   0.30
+       Last-byte  latency:  0.40 -  0.80   0.60  ( 0.20)   0.60
+
+
+""".split('\n'), self.master.generate_scenario_report(self.scenario, scen_stats).split('\n'))
