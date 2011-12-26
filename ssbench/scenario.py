@@ -50,6 +50,11 @@ class Scenario(object):
     def name(self):
         return self._scenario_data['name']
 
+    @property
+    def crud_pcts(self):
+        total = sum(self._scenario_data['crud_profile'])
+        return [float(c) / total  * 100 for c in self._scenario_data['crud_profile']]
+
 
     def initial_job(self, size_str, i):
         """Creates an initializing job dict of a given size.

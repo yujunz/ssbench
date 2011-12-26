@@ -1,0 +1,5 @@
+beanstalkc
+argparse
+Mako
+PyYAML
+statlib

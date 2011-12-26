@@ -2,8 +2,10 @@ import yaml
 
 import logging
 from statlib import stats
+from mako.template import Template
+
 from ssbench.constants import *
-from swift.common import client
+from ssbench import swift_client as client
 
 from pprint import pformat
 
@@ -12,6 +14,20 @@ class Master:
         queue.watch(STATS_TUBE)
         queue.ignore('default')
         self.queue = queue
+
+    def generate_scenario_report(self, scenario, stats):
+        """Format a report based on calculated statistics for an executed
+        scenario.
+        
+        :stats: A python data structure with calculated statistics
+        :returns: A report (string) suitable for printing, emailing, etc.
+        """
+
+        template = Template(self.scenario_template())
+        tmpl_vars = {
+            'crud_pcts': scenario.crud_pcts,
+        }
+        return template.render(scenario=scenario, stats=stats, **tmpl_vars)
 
     def calculate_scenario_stats(self, results):
         """Given a list of worker job result dicts, compute various statistics.
@@ -148,7 +164,6 @@ class Master:
                     self._compute_req_per_sec(size_stats)
                     self._compute_latency_stats(size_stats)
         for size_stats in stats['size_stats'].values():
-            logging.debug('size_stats: %r', size_stats)
             self._compute_req_per_sec(size_stats)
             self._compute_latency_stats(size_stats)
         time_series_data = [
@@ -202,18 +217,6 @@ class Master:
                 stats_dict[latency_type].append(result[latency_type])
             else:
                 stats_dict[latency_type] = [result[latency_type]]
-
-
-
-    def generate_scenario_report(self, scenario, stats):
-        """Format a report based on calculated statistics for an executed
-        scenario.
-        
-        :stats: A python data structure with calculated statistics
-        :returns: A report (string) suitable for printing, emailing, etc.
-        """
-
-        return pformat(stats)
 
     def run_scenario(self, auth_url, user, key, scenario):
         """Runs a CRUD scenario, given cluter parameters and a Scenario object.
@@ -354,3 +357,12 @@ class Master:
 
     def object_name(self, index):
         return "ssbench-obj%d" % (index,)
+
+    def scenario_template(self):
+        return """
+${scenario.name}
+  C   R   U   D
+%% ${'%02.0f  %02.0f  %02.0f  %02.0f' % (crud_pcts[0], crud_pcts[1], crud_pcts[2], crud_pcts[3])}
+
+
+"""

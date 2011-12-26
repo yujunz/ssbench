@@ -1,7 +1,7 @@
 from unittest import TestCase
 from flexmock import flexmock
 import yaml
-from pprint import pprint
+from pprint import pprint, pformat
 from statlib import stats
 
 from ssbench.constants import *
@@ -494,3 +494,14 @@ class TestMaster(ScenarioFixture, TestCase):
             start=101,
             data=[1, 1, 5, 3, 0, 2],
         ), scen_stats['time_series'])
+
+    def test_generate_scenario_report(self):
+        # Time series (reqs completed each second
+        scen_stats = self.master.calculate_scenario_stats(self.stub_results)
+        self.assertEqual("""
+Master Test Scenario - ablkei
+  C   R   U   D
+% 50  30  10  10
+
+
+""", self.master.generate_scenario_report(self.scenario, scen_stats))

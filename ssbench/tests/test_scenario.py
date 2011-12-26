@@ -64,6 +64,11 @@ class TestScenario(ScenarioFixture):
         scenario = Scenario(self.stub_scenario_file)
         assert_dict_equal(self.scenario_dict, scenario._scenario_data) # very whitebox
 
+    def test_crud_pcts(self):
+        self.write_scenario_file(**self.scenario_dict)
+        scenario = Scenario(self.stub_scenario_file)
+        assert_list_equal([6.0/7*100,0.0,0.0,1.0/7*100], scenario.crud_pcts)
+
     def test_bench_jobs(self):
         self.write_scenario_file(**self.scenario_dict)
         scenario = Scenario(self.stub_scenario_file)
