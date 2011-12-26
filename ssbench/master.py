@@ -38,6 +38,7 @@ class Master:
                  stats['op_stats'][DELETE_OBJECT]['size_stats']),
             ],
             'agg_stats': stats['agg_stats'],
+            'time_series_data': stats['time_series']['data'],
         }
         return template.render(scenario=scenario, stats=stats, **tmpl_vars)
 
@@ -119,6 +120,13 @@ class Master:
         #   'last_byte_latency': 0.913769006729126,
         #   'completed_at': 1324372892.360802,
         #}
+        #OR
+        # {
+        #   'worker_id': 1,
+        #   'type': 'get_object',
+        #   'completed_at': 1324372892.360802,
+        #   'exception': '...',
+        # } 
         agg_stats = dict(start=2**32, stop=0, req_count=0)
         op_stats = {}
         for crud_type in [CREATE_OBJECT, READ_OBJECT, UPDATE_OBJECT, DELETE_OBJECT]:
@@ -136,6 +144,11 @@ class Master:
             size_stats = {},
         )
         for result in results:
+            if result.has_key('exception'):
+                # skip but log exceptions
+                logging.warn('Exception from worker %d: %s',
+                             result['worker_id'], result['exception'])
+                continue
             completion_time = int(result['completed_at'])
             if completion_time < completion_time_min:
                 completion_time_min = completion_time
@@ -388,5 +401,10 @@ ${label}
 % endfor
 % endfor
 
+Number of requests completed per second since start of benchmark run:
+Seconds since start  Completed requests
+% for i, count in enumerate(time_series_data, 1):
+${'%19d  %18d' % (i, count)}
+% endfor
 
 """

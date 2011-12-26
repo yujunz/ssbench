@@ -46,6 +46,8 @@ class TestMaster(ScenarioFixture, TestCase):
             self.gen_result(1, CREATE_OBJECT, 'huge', 103.8, 105.0, 106.0),
             self.gen_result(1, UPDATE_OBJECT, 'large', 106.1, 106.3, 106.4),
             #
+            # exceptions should be ignored
+            dict(worker_id=2, type=UPDATE_OBJECT, completed_at=39293.2, exception='wacky!'),
             self.gen_result(2, UPDATE_OBJECT, 'medium', 100.1, 100.9, 102.9),
             self.gen_result(2, DELETE_OBJECT, 'large', 102.9, 103.0, 103.3),
             self.gen_result(2, CREATE_OBJECT, 'tiny', 103.3, 103.4, 103.5),
@@ -565,5 +567,13 @@ DELETE
        First-byte latency:  0.10 -  0.10   0.10  ( 0.00)   0.10  ( 101000 kB objs)
        Last-byte  latency:  0.40 -  0.40   0.40  ( 0.00)   0.40  ( 101000 kB objs)
 
+Number of requests completed per second since start of benchmark run:
+Seconds since start  Completed requests
+                  1                   1
+                  2                   1
+                  3                   5
+                  4                   3
+                  5                   0
+                  6                   2
 
 """.split('\n'), self.master.generate_scenario_report(self.scenario, scen_stats).split('\n'))

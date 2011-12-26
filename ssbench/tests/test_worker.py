@@ -1,6 +1,7 @@
 from nose.tools import *
 from flexmock import flexmock
 import yaml
+import socket
 from argparse import Namespace
 from collections import Counter
 
@@ -391,7 +392,7 @@ class TestWorker(object):
         }
         worker = flexmock(self.worker)
         worker.should_receive('ignoring_http_responses').with_args(
-            (503,), client.get_object, object_info,
+            (404, 503), client.get_object, object_info,
             name=population_object_name,
             resp_chunk_size=65536,
         ).and_return(({
@@ -437,7 +438,7 @@ class TestWorker(object):
         }
         worker = flexmock(self.worker)
         worker.should_receive('ignoring_http_responses').with_args(
-            (503,), client.get_object, object_info,
+            (404, 503), client.get_object, object_info,
             name=stock_object_name,
             resp_chunk_size=65536,
         ).and_return(({
@@ -460,6 +461,60 @@ class TestWorker(object):
 
         worker.handle_get_object(object_info)
  
+
+    def test_dispatching_socket_exception(self):
+        info = {'type': CREATE_OBJECT, 'a': 1}
+        job = Namespace(body=yaml.dump(info))
+        worker = flexmock(self.worker)
+        worker.should_receive('handle_upload_object').with_args(info).and_raise(
+            socket.error('slap happy')
+        ).once
+        stub_time = 49943493.284
+        mock_worker_module = flexmock(ssbench.worker)
+        mock_worker_module.should_receive('time').and_return(stub_time)
+        self.stub_queue.should_receive('put').with_args(
+            yaml.dump(add_dicts(info,
+                                worker_id=self.stub_worker_id,
+                                completed_at=stub_time,
+                                exception=repr(socket.error('slap happy')))),
+        ).once
+        worker.handle_job(job)
+
+    def test_dispatching_client_exception(self):
+        info = {'type': READ_OBJECT, 'container': 'fun', 'a': 2}
+        job = Namespace(body=yaml.dump(info))
+        worker = flexmock(self.worker)
+        worker.should_receive('handle_get_object').with_args(info).and_raise(
+            client.ClientException('slam bam')
+        ).once
+        stub_time = 2948293949.94
+        mock_worker_module = flexmock(ssbench.worker)
+        mock_worker_module.should_receive('time').and_return(stub_time)
+        self.stub_queue.should_receive('put').with_args(
+            yaml.dump(add_dicts(info,
+                                worker_id=self.stub_worker_id,
+                                completed_at=stub_time,
+                                exception=repr(client.ClientException('slam bam')))),
+        ).once
+        worker.handle_job(job)
+
+    def test_dispatching_value_error_exception(self):
+        info = {'type': READ_OBJECT, 'container': 'fun', 'a': 2}
+        job = Namespace(body=yaml.dump(info))
+        worker = flexmock(self.worker)
+        worker.should_receive('handle_get_object').with_args(info).and_raise(
+            ValueError('ve'),
+        ).once
+        stub_time = 2948293950.183
+        mock_worker_module = flexmock(ssbench.worker)
+        mock_worker_module.should_receive('time').and_return(stub_time)
+        self.stub_queue.should_receive('put').with_args(
+            yaml.dump(add_dicts(info,
+                                worker_id=self.stub_worker_id,
+                                completed_at=stub_time,
+                                exception=repr(ValueError('ve')))),
+        ).once
+        worker.handle_job(job)
 
     def test_dispatching_upload_object(self):
         # CREATE_OBJECT = 'upload_object' # includes obj name

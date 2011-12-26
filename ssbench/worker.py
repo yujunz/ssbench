@@ -48,7 +48,13 @@ class Worker:
         # Dispatch type to a handler, if possible
         handler = getattr(self, 'handle_%s' % job_data['type'], None)
         if handler:
-            handler(job_data)
+            try:
+                handler(job_data)
+            except Exception as e:
+                # If the handler threw an exception, we need to put a "result"
+                # anyway so the master can finish by reading the requisite
+                # number of results without having to timeout.
+                self.put_results(job_data, exception=repr(e))
         else:
             raise NameError("Unknown job type %r" % job_data['type'])
 
@@ -279,7 +285,7 @@ class Worker:
         )
         if not object_name:
             return
-        results = self.ignoring_http_responses((503,), client.get_object,
+        results = self.ignoring_http_responses((404, 503), client.get_object,
                                                object_info, name=object_name,
                                                resp_chunk_size=2**16)
         # Read (and throw away) all the file contents (chunked)
