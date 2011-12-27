@@ -460,7 +460,52 @@ class TestWorker(object):
         self.worker.add_object_name('stock', 'Document', stock_object_name)
 
         worker.handle_get_object(object_info)
- 
+
+    def test_delete_population(self):
+        obj1 = 'PP000002'
+        obj2 = 'PA000003'
+        obj_stock = 'SP000002'
+
+        worker = flexmock(self.worker)
+        worker.add_object_name('population', 'Picture', obj1)
+        worker.add_object_name('population', 'Application', obj2)
+        worker.add_object_name('stock', 'Picture', obj_stock)
+
+        del_pop_info = {
+            'type': DELETE_POPULATION,
+            'url': 'some url',
+        }
+        delete_info = {
+            'type': DELETE_OBJECT,
+            'url': 'some url',
+        }
+        worker.should_receive('ignoring_http_responses').with_args(
+            (404, 503), client.delete_object,
+            add_dicts(delete_info, container='Picture'), name=obj1,
+        ).once
+        worker.should_receive('ignoring_http_responses').with_args(
+            (404, 503), client.delete_object,
+            add_dicts(delete_info, container='Application'), name=obj2,
+        ).once
+        worker.should_receive('ignoring_http_responses').with_args(
+            (404, 503), client.delete_object,
+            add_dicts(delete_info, container='Picture'), name=obj_stock,
+        ).never
+        stub_time = 4823049.482
+        mock_worker_module = flexmock(ssbench.worker)
+        mock_worker_module.should_receive('time').and_return(stub_time)
+        self.stub_queue.should_receive('put').with_args(
+            yaml.dump(add_dicts(del_pop_info,
+                                worker_id=self.stub_worker_id,
+                                completed_at=stub_time)),
+        ).once
+
+        worker.handle_delete_population(del_pop_info)
+
+        # The deleted objects' names no longer in cache:
+        assert_equal(None, worker.get_object_name('population', 'Picture'))
+        assert_equal(None, worker.get_object_name('population', 'Application'))
+        assert_equal(obj_stock, worker.get_object_name('stock', 'Picture'))
 
     def test_dispatching_socket_exception(self):
         info = {'type': CREATE_OBJECT, 'a': 1}
@@ -514,6 +559,14 @@ class TestWorker(object):
                                 completed_at=stub_time,
                                 exception=repr(ValueError('ve')))),
         ).once
+        worker.handle_job(job)
+
+    def test_dispatching_delete_population(self):
+        # DELETE_POPULATION = 'delete_population'
+        info = {'type': DELETE_POPULATION, 'a': 2}
+        job = Namespace(body=yaml.dump(info))
+        worker = flexmock(self.worker)
+        worker.should_receive('handle_delete_population').with_args(info).once
         worker.handle_job(job)
 
     def test_dispatching_upload_object(self):

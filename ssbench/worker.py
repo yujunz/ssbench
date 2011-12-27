@@ -125,6 +125,15 @@ class Worker:
                 else:
                     return object_name
 
+    def remove_all_population_object_names(self):
+        object_type = 'population'
+        deleted = {}
+        names_by_container = self.object_names.get(object_type, None)
+        if names_by_container:
+            for container in names_by_container.keys():
+                deleted[container] = names_by_container.pop(container)
+        return deleted
+
     def get_object_name(self, object_type, container):
         """Retrieve an object name (by type and container) at random, with a
         uniform probability distribution.
@@ -297,4 +306,15 @@ class Worker:
                          last_byte_latency=results[0]['x-swiftstack-last-byte-latency'],
                         )
 
+    def handle_delete_population(self, object_info):
+        objects_by_container = self.remove_all_population_object_names()
+        for container in sorted(objects_by_container.keys()):
+            del_info = add_dicts(object_info, type=DELETE_OBJECT, container=container)
+            for object_name in sorted(objects_by_container[container]):
+                logging.debug('Deleting population object %s/%s %r', container, object_name, del_info)
+                results = self.ignoring_http_responses((404, 503),
+                                                       client.delete_object,
+                                                       del_info,
+                                                       name=object_name)
+        self.put_results(object_info)
 

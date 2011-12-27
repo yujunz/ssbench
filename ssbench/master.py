@@ -127,6 +127,7 @@ class Master:
         #   'completed_at': 1324372892.360802,
         #   'exception': '...',
         # } 
+        logging.info('Calculating statistics for %d result items...', len(results))
         agg_stats = dict(start=2**32, stop=0, req_count=0)
         op_stats = {}
         for crud_type in [CREATE_OBJECT, READ_OBJECT, UPDATE_OBJECT, DELETE_OBJECT]:
@@ -268,7 +269,7 @@ class Master:
         self.queue.use('work_%04d' % scenario.user_count)
 
         # Enqueue initialization jobs
-        logging.info('Initializing cluster with stock data (%d concurrent workers)',
+        logging.info('Initializing cluster with stock data (up to %d concurrent workers)',
                      scenario.user_count)
         initial_jobs = scenario.initial_jobs()
         for initial_job in initial_jobs:
@@ -279,7 +280,7 @@ class Master:
         results = self.gather_results(len(initial_jobs), timeout=600)
 
         # Enqueue bench jobs
-        logging.info('Starting benchmark run (%d concurrent workers)',
+        logging.info('Starting benchmark run (up to %d concurrent workers)',
                      scenario.user_count)
         bench_jobs = scenario.bench_jobs()
         for bench_job in bench_jobs:
@@ -288,6 +289,13 @@ class Master:
 
         # Wait for them to all finish and return the results
         results = self.gather_results(len(bench_jobs), timeout=600)
+
+        logging.info('Deleting population objects from cluster')
+        del_pop_job = dict(type=DELETE_POPULATION, url=url, token=token)
+        for _ in range(scenario.user_count):
+            self.queue.put(yaml.dump(del_pop_job), priority=PRIORITY_CLEANUP)
+        self.gather_results(scenario.user_count, timeout=600)
+
         return results
 
     def bench_container_creation(self, auth_url, user, key, count):

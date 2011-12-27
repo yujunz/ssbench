@@ -15,3 +15,4 @@ UPDATE_OBJECT = 'update_object' # does NOT include obj name to update
 DELETE_OBJECT = 'delete_object' # may or may not include obj name to delete
 CREATE_CONTAINER = 'create_container'
 DELETE_CONTAINER = 'delete_container'
+DELETE_POPULATION = 'delete_population'
