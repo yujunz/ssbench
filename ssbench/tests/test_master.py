@@ -3,6 +3,8 @@ from flexmock import flexmock
 import yaml
 from pprint import pprint, pformat
 from statlib import stats
+from StringIO import StringIO
+import csv
 
 from ssbench.constants import *
 from ssbench.scenario import Scenario
@@ -497,6 +499,26 @@ class TestMaster(ScenarioFixture, TestCase):
             data=[1, 1, 5, 3, 0, 2],
         ), scen_stats['time_series'])
 
+    def test_write_rps_histogram(self):
+        # Write out time series data (requests-per-second histogram) to an
+        # already open CSV file
+        scen_stats = self.master.calculate_scenario_stats(self.stub_results)
+
+        test_csv_file = StringIO()
+        self.master.write_rps_histogram(scen_stats, test_csv_file)
+        test_csv_file.seek(0)
+        reader = csv.reader(test_csv_file)
+        self.assertListEqual([
+            ["Seconds Since Start", "Requests Completed"],
+            ['1', '1'],
+            ['2', '1'],
+            ['3', '5'],
+            ['4', '3'],
+            ['5', '0'],
+            ['6', '2'],
+        ], list(reader))
+
+
     def test_generate_scenario_report(self):
         # Time series (reqs completed each second
         scen_stats = self.master.calculate_scenario_stats(self.stub_results)
@@ -567,13 +589,5 @@ DELETE
        First-byte latency:  0.10 -  0.10   0.10  ( 0.00)   0.10  ( 101000 kB objs)
        Last-byte  latency:  0.40 -  0.40   0.40  ( 0.00)   0.40  ( 101000 kB objs)
 
-Number of requests completed per second since start of benchmark run:
-Seconds since start  Completed requests
-                  1                   1
-                  2                   1
-                  3                   5
-                  4                   3
-                  5                   0
-                  6                   2
 
 """.split('\n'), self.master.generate_scenario_report(self.scenario, scen_stats).split('\n'))

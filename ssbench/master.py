@@ -38,7 +38,6 @@ class Master:
                  stats['op_stats'][DELETE_OBJECT]['size_stats']),
             ],
             'agg_stats': stats['agg_stats'],
-            'time_series_data': stats['time_series']['data'],
         }
         return template.render(scenario=scenario, stats=stats, **tmpl_vars)
 
@@ -391,6 +390,11 @@ class Master:
     def object_name(self, index):
         return "ssbench-obj%d" % (index,)
 
+    def write_rps_histogram(self, stats, csv_file):
+        csv_file.write('"Seconds Since Start","Requests Completed"\n')
+        for i, req_count in enumerate(stats['time_series']['data'], 1):
+            csv_file.write('%d,%d\n' % (i, req_count))
+    
     def scenario_template(self):
         return """
 ${scenario.name}
@@ -409,10 +413,5 @@ ${label}
 % endfor
 % endfor
 
-Number of requests completed per second since start of benchmark run:
-Seconds since start  Completed requests
-% for i, count in enumerate(time_series_data, 1):
-${'%19d  %18d' % (i, count)}
-% endfor
 
 """

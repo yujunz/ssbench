@@ -5,6 +5,7 @@ import argparse
 import beanstalkc
 import math
 import sys
+import pickle
 
 from collections import Counter
 from ssbench.master import Master
@@ -41,22 +42,60 @@ def run_scenario(master, args):
     scenario = Scenario(args.scenario_file)
     results = master.run_scenario(auth_url=args.auth_url, user=args.user,
                                   key=args.key, scenario=scenario)
+    if not args.stats_file:
+        args.stats_file = open('%s.stat' % scenario.name, 'w')
+    pickle.dump([scenario, results], args.stats_file)
+    args.stats_file.close()
+
+def report_scenario(master, args):
+    scenario, results = pickle.load(args.stats_file)
     stats = master.calculate_scenario_stats(results)
-    print master.generate_scenario_report(scenario, stats)
+    args.report_file.write(master.generate_scenario_report(scenario, stats))
+    if args.rps_histogram:
+        master.write_rps_histogram(stats, args.rps_histogram)
+        # Note: not explicitly closing here in case it's redirected to STDOUT (i.e. "-")
+
+def add_swift_args(parser):
+    parser.add_argument('-A', '--auth-url', required=True)
+    parser.add_argument('-K', '--key', required=True)
+    parser.add_argument('-U', '--user', required=True)
 
 logging.basicConfig(level=logging.DEBUG)
 
 arg_parser = argparse.ArgumentParser(description='Benchmark your Swift installation')
-arg_parser.add_argument('--qhost', default="localhost")
-arg_parser.add_argument('--qport', default=11300, type=int)
-arg_parser.add_argument('-A', '--auth-url', required=True)
-arg_parser.add_argument('-K', '--key', required=True)
-arg_parser.add_argument('-U', '--user', required=True)
+arg_parser.add_argument('--qhost', default="localhost", help='beanstalkd host (def: localhost)')
+arg_parser.add_argument('--qport', default=11300, type=int, help='beanstalkd port (def: 11300)')
 
-subparsers = arg_parser.add_subparsers(
-    help="create-objects | create-containers | run-scenario")
+subparsers = arg_parser.add_subparsers()
+
+run_scenario_arg_parser = subparsers.add_parser("run-scenario", help="Run CRUD scenario, saving statistics")
+add_swift_args(run_scenario_arg_parser)
+run_scenario_arg_parser.add_argument('-f', '--scenario-file', required=True, type=str)
+run_scenario_arg_parser.add_argument('-s', '--stats-file',
+                                     type=argparse.FileType('w'),
+                                     help='File into which benchmarking statistics will be saved (def: %s)' % (
+                                         '<scenario_name>.stat'
+                                     ))
+run_scenario_arg_parser.set_defaults(func=run_scenario)
+
+report_scenario_arg_parser = subparsers.add_parser("report-scenario",
+                                                   help="Generate a report from saved scenario statistics")
+report_scenario_arg_parser.add_argument('-s', '--stats-file',
+                                        type=argparse.FileType('r'),
+                                        required=True,
+                                        help='An existing stats file from a previous --run-scenario invocation')
+report_scenario_arg_parser.add_argument('-f', '--report-file',
+                                        type=argparse.FileType('w'),
+                                        default=sys.stdout,
+                                        help='The file to which the report should be written (def: STDOUT)')
+report_scenario_arg_parser.add_argument('-r', '--rps-histogram',
+                                        type=argparse.FileType('w'),
+                                        help='Also write a CSV file with requests completed per second histogram data')
+report_scenario_arg_parser.set_defaults(func=report_scenario)
+
 
 create_objects_arg_parser = subparsers.add_parser("create-objects", help="create a bunch of objects")
+add_swift_args(create_objects_arg_parser)
 create_objects_arg_parser.add_argument(
     '-C', '--containers',
     default=None,
@@ -67,12 +106,10 @@ create_objects_arg_parser.add_argument('-s', '--object-size', default=2**20, typ
 create_objects_arg_parser.set_defaults(func=create_objects)
 
 create_containers_arg_parser = subparsers.add_parser("create-containers", help="create a bunch of containers")
+add_swift_args(create_containers_arg_parser)
 create_containers_arg_parser.add_argument('-n', '--num-containers', default=100, type=int)
 create_containers_arg_parser.set_defaults(func=create_containers)
 
-create_containers_arg_parser = subparsers.add_parser("run-scenario", help="run CRUD scenario")
-create_containers_arg_parser.add_argument('-f', '--scenario-file', required=True, type=str)
-create_containers_arg_parser.set_defaults(func=run_scenario)
 
 args = arg_parser.parse_args(sys.argv[1:])
 beanq = beanstalkc.Connection(host=args.qhost, port=args.qport)
