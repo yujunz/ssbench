@@ -368,25 +368,25 @@ class Master:
     def gather_results(self, count=0, timeout=15, label=None):
         results = []
         if label:
-            print "Gathering results for %s (expect %d)" % (label, count)
+            sys.stderr.write("Gathering results for %s (expect %d)\n" % (label, count))
         job = self.queue.reserve(timeout=timeout)
         while job:
             job.delete()
             results.append(yaml.load(job.body))
             if label:
-                sys.stdout.write('.')
-                sys.stdout.flush()
+                sys.stderr.write('.')
+                sys.stderr.flush()
                 if len(results) % 40 == 0:
-                    print ' (%3d/%3d)' % (len(results), count)
+                    sys.stderr.write(' (%3d/%3d)\n' % (len(results), count))
             if (count <= 0 or len(results) < count):
                 job = self.queue.reserve(timeout=timeout)
                 if not job and label:
-                    sys.stdout.write('TIMED OUT AFTER %s SECONDS' % timeout)
-                    sys.stdout.flush()
+                    sys.stderr.write('TIMED OUT AFTER %s SECONDS' % timeout)
+                    sys.stderr.flush()
             else:
                 job = None
         if label:
-            print ' (%3d/%3d)' % (len(results), count)
+            sys.stderr.write(' (%3d/%3d)\n' % (len(results), count))
         return results
 
     def container_exists(self, url, token, container):

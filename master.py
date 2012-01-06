@@ -6,6 +6,7 @@ import beanstalkc
 import math
 import sys
 import pickle
+from datetime import datetime
 
 from collections import Counter
 from ssbench.master import Master
@@ -40,11 +41,26 @@ def create_containers(master, args):
 
 def run_scenario(master, args):
     scenario = Scenario(args.scenario_file)
+
+    # Possibly attempt open prior to benchmark run so we get errors earlier
+    # if there's a problem.
+    if not args.stats_file:
+        args.stats_file = open('results/%s.stat' % scenario.name, 'w+')
+
     results = master.run_scenario(auth_url=args.auth_url, user=args.user,
                                   key=args.key, scenario=scenario)
-    if not args.stats_file:
-        args.stats_file = open('%s.stat' % scenario.name, 'w')
+
     pickle.dump([scenario, results], args.stats_file)
+
+    if not args.no_default_report:
+        args.stats_file.flush()
+        args.stats_file.seek(0)
+        report_fname = 'results/%s_%s.txt' % (
+          scenario.name, datetime.now().isoformat('_'))
+        args.report_file = open(report_fname, 'w')
+        args.rps_histogram = args.report_file
+        report_scenario(master, args)
+        args.report_file.close()  # we know we can close it
     args.stats_file.close()
 
 def report_scenario(master, args):
@@ -72,10 +88,14 @@ run_scenario_arg_parser = subparsers.add_parser("run-scenario", help="Run CRUD s
 add_swift_args(run_scenario_arg_parser)
 run_scenario_arg_parser.add_argument('-f', '--scenario-file', required=True, type=str)
 run_scenario_arg_parser.add_argument('-s', '--stats-file',
-                                     type=argparse.FileType('w'),
+                                     type=argparse.FileType('w+'),
                                      help='File into which benchmarking statistics will be saved (def: %s)' % (
-                                         '<scenario_name>.stat'
+                                         'results/<scenario_filename>.stat'
                                      ))
+run_scenario_arg_parser.add_argument('-r', '--no-default-report',
+                                     action='store_true',
+                                     default=False,
+                                     help="Immediately generate a report to STDOUT after saving --stats-file (def: True)")
 run_scenario_arg_parser.set_defaults(func=run_scenario)
 
 report_scenario_arg_parser = subparsers.add_parser("report-scenario",
