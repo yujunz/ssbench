@@ -372,9 +372,22 @@ class Master:
         job = self.queue.reserve(timeout=timeout)
         while job:
             job.delete()
-            results.append(yaml.load(job.body))
+            result = yaml.load(job.body)
+            results.append(result)
             if label:
-                sys.stderr.write('.')
+                if result.has_key('first_byte_latency'):
+                    if result['first_byte_latency'] < 1:
+                        sys.stderr.write('.')
+                    elif result['first_byte_latency'] < 3:
+                        sys.stderr.write('o')
+                    elif result['first_byte_latency'] < 10:
+                        sys.stderr.write('O')
+                    else:
+                        sys.stderr.write('*')
+                elif result.has_key('exception'):
+                    sys.stderr.write('X')
+                else:
+                    sys.stderr.write('_')
                 sys.stderr.flush()
                 if len(results) % 40 == 0:
                     sys.stderr.write(' (%3d/%3d)\n' % (len(results), count))
