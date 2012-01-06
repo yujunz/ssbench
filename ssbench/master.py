@@ -1,6 +1,7 @@
 import yaml
 
 import logging
+import sys
 from statlib import stats
 from mako.template import Template
 
@@ -276,7 +277,9 @@ class Master:
             self.queue.put(yaml.dump(initial_job), priority=PRIORITY_SETUP)
 
         # Wait for them to all finish
-        results = self.gather_results(len(initial_jobs), timeout=600)
+        results = self.gather_results(len(initial_jobs),
+                                      timeout=600,
+                                      label='initial population')
 
         # Enqueue bench jobs
         logging.info('Starting benchmark run (up to %d concurrent workers)',
@@ -287,7 +290,7 @@ class Master:
             self.queue.put(yaml.dump(bench_job), priority=PRIORITY_WORK)
 
         # Wait for them to all finish and return the results
-        results = self.gather_results(len(bench_jobs), timeout=600)
+        results = self.gather_results(len(bench_jobs), timeout=600, label='benchmark run')
 
         logging.info('Deleting population objects from cluster')
         del_pop_job = dict(type=DELETE_POPULATION, url=url, token=token)
@@ -362,16 +365,28 @@ class Master:
         self.gather_results(count=0,   # no limit
                             timeout=0) # no waiting
 
-    def gather_results(self, count=0, timeout=15):
+    def gather_results(self, count=0, timeout=15, label=None):
         results = []
+        if label:
+            print "Gathering results for %s (expect %d)" % (label, count)
         job = self.queue.reserve(timeout=timeout)
         while job:
             job.delete()
             results.append(yaml.load(job.body))
+            if label:
+                sys.stdout.write('.')
+                sys.stdout.flush()
+                if len(results) % 40 == 0:
+                    print ' (%3d/%3d)' % (len(results), count)
             if (count <= 0 or len(results) < count):
                 job = self.queue.reserve(timeout=timeout)
+                if not job and label:
+                    sys.stdout.write('TIMED OUT AFTER %s SECONDS' % timeout)
+                    sys.stdout.flush()
             else:
                 job = None
+        if label:
+            print ' (%3d/%3d)' % (len(results), count)
         return results
 
     def container_exists(self, url, token, container):
