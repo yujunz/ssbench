@@ -8,6 +8,9 @@ import logging
 from ssbench.constants import *
 from ssbench import swift_client as client
 
+class NoPopulationObjectAvailable(Exception):
+    pass
+
 def add_dicts(*args, **kwargs):
     result = {}
     for d in args:
@@ -259,7 +262,9 @@ class Worker:
                 object_info['container'],
             )
             if not object_name:
-                return
+                raise NoPopulationObjectAvailable(
+                    'delete(%s)' % object_info['container'],
+                )
 
         results = self.ignoring_http_responses((404, 503),
                                                client.delete_object,
@@ -278,7 +283,9 @@ class Worker:
             object_info['container'],
         )
         if not object_name:
-            return
+            raise NoPopulationObjectAvailable(
+                'update(%s)' % object_info['container'],
+            )
         results = self.ignoring_http_responses((503,), client.put_object,
                                                object_info, name=object_name,
                                                contents=self.ChunkedReader('B', object_info['object_size']))
@@ -293,7 +300,9 @@ class Worker:
             object_info['container'],
         )
         if not object_name:
-            return
+            raise NoPopulationObjectAvailable(
+                'get(%s)' % object_info['container'],
+            )
         results = self.ignoring_http_responses((404, 503), client.get_object,
                                                object_info, name=object_name,
                                                resp_chunk_size=2**16)
