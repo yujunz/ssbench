@@ -1,0 +1,13 @@
+{
+  "name": "Large test scenario",
+  "initial_files": {
+    "tiny": 128,
+    "small": 64,
+    "medium": 64,
+    "large": 32,
+    "huge": 32
+  },
+  "file_count": 10000,
+  "crud_profile": [4, 4, 2, 2],
+  "user_count": 24
+}

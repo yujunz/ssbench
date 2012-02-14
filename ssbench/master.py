@@ -422,7 +422,7 @@ class Master:
         csv_file.write('"Seconds Since Start","Requests Completed"\n')
         for i, req_count in enumerate(stats['time_series']['data'], 1):
             csv_file.write('%d,%d\n' % (i, req_count))
-    
+
     def scenario_template(self):
         return """
 ${scenario.name}
@@ -433,11 +433,11 @@ ${scenario.name}
 ${label}
        Count: ${'%5d' % stats['req_count']}  Average requests per second: ${'%5.1f' % stats['avg_req_per_sec']}
                            min     max    avg    std_dev  median
-       First-byte latency: ${'%5.2f' % stats['first_byte_latency']['min']} - ${'%5.2f' % stats['first_byte_latency']['max']}  ${'%5.2f' % stats['first_byte_latency']['avg']}  (${'%5.2f' % stats['first_byte_latency']['std_dev']})  ${'%5.2f' % stats['first_byte_latency']['median']}  (${'%15s' % 'all obj sizes'})
-       Last-byte  latency: ${'%5.2f' % stats['last_byte_latency']['min']} - ${'%5.2f' % stats['last_byte_latency']['max']}  ${'%5.2f' % stats['last_byte_latency']['avg']}  (${'%5.2f' % stats['last_byte_latency']['std_dev']})  ${'%5.2f' % stats['last_byte_latency']['median']}  (${'%15s' % 'all obj sizes'})
+       First-byte latency: ${'%5.2f' % stats['first_byte_latency']['min']} - ${'%6.2f' % stats['first_byte_latency']['max']}  ${'%6.2f' % stats['first_byte_latency']['avg']}  (${'%6.2f' % stats['first_byte_latency']['std_dev']})  ${'%6.2f' % stats['first_byte_latency']['median']}  (${'%15s' % 'all obj sizes'})
+       Last-byte  latency: ${'%5.2f' % stats['last_byte_latency']['min']} - ${'%6.2f' % stats['last_byte_latency']['max']}  ${'%6.2f' % stats['last_byte_latency']['avg']}  (${'%6.2f' % stats['last_byte_latency']['std_dev']})  ${'%6.2f' % stats['last_byte_latency']['median']}  (${'%15s' % 'all obj sizes'})
 % for byte_count, byte_stats in sorted(sstats.iteritems(), cmp=lambda x,y: cmp(x[0], y[0])):
-       First-byte latency: ${'%5.2f' % byte_stats['first_byte_latency']['min']} - ${'%5.2f' % byte_stats['first_byte_latency']['max']}  ${'%5.2f' % byte_stats['first_byte_latency']['avg']}  (${'%5.2f' % byte_stats['first_byte_latency']['std_dev']})  ${'%5.2f' % byte_stats['first_byte_latency']['median']}  (${'%7.0f' % (byte_count / 1000.0)} kB objs)
-       Last-byte  latency: ${'%5.2f' % byte_stats['last_byte_latency']['min']} - ${'%5.2f' % byte_stats['last_byte_latency']['max']}  ${'%5.2f' % byte_stats['last_byte_latency']['avg']}  (${'%5.2f' % byte_stats['last_byte_latency']['std_dev']})  ${'%5.2f' % byte_stats['last_byte_latency']['median']}  (${'%7.0f' % (byte_count / 1000.0)} kB objs)
+       First-byte latency: ${'%5.2f' % byte_stats['first_byte_latency']['min']} - ${'%6.2f' % byte_stats['first_byte_latency']['max']}  ${'%6.2f' % byte_stats['first_byte_latency']['avg']}  (${'%6.2f' % byte_stats['first_byte_latency']['std_dev']})  ${'%6.2f' % byte_stats['first_byte_latency']['median']}  (${'%7.0f' % (byte_count / 1000.0)} kB objs)
+       Last-byte  latency: ${'%5.2f' % byte_stats['last_byte_latency']['min']} - ${'%6.2f' % byte_stats['last_byte_latency']['max']}  ${'%6.2f' % byte_stats['last_byte_latency']['avg']}  (${'%6.2f' % byte_stats['last_byte_latency']['std_dev']})  ${'%6.2f' % byte_stats['last_byte_latency']['median']}  (${'%7.0f' % (byte_count / 1000.0)} kB objs)
 % endfor
 % endfor
 
