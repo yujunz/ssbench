@@ -224,7 +224,7 @@ class Master:
     def _series_stats(self, sequence):
         try:
             n, (minval, maxval), mean, std_dev, skew, kurtosis = \
-                    pystat.stats.ldescribe(sequence)
+                    statlib.stats.ldescribe(sequence)
         except ZeroDivisionError:
             # Handle the case of a single-element sequence (sample standard
             # deviation divides by N-1)
@@ -234,8 +234,8 @@ class Master:
             std_dev=0
         return dict(
             min=round(minval, 6), max=round(maxval, 6), avg=round(mean, 6),
-            std_dev=round(pystat.stats.lsamplestdev(sequence), 6),
-            median=round(pystat.stats.lmedianscore(sequence), 6),
+            std_dev=round(statlib.stats.lsamplestdev(sequence), 6),
+            median=round(statlib.stats.lmedianscore(sequence), 6),
         )
 
     def _rec_latency(self, stats_dict, result):
