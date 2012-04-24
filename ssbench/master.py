@@ -226,7 +226,7 @@ class Master:
             n, (minval, maxval), mean, std_dev, skew, kurtosis = \
                     statlib.stats.ldescribe(sequence)
         except ZeroDivisionError:
-            # Handle the case of a single-element sequence (sample standard
+            # Handle the case of a single-element sequence (population standard
             # deviation divides by N-1)
             minval=sequence[0]
             maxval=sequence[0]
