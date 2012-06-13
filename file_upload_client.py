@@ -3,9 +3,11 @@
 import argparse
 from itertools import imap
 import os
+from Queue import Queue, Empty
 import random
 import subprocess
 import sys
+from threading import Thread
 import time
 
 
@@ -34,12 +36,35 @@ def run(args):
             _run_swift(auth_args, ['post', container_name],
                        subprocess.check_output)
 
+    keep_running = True
+    upload_queue = Queue(args.concurrency)
+
+    def queue_uploader():
+        while keep_running:
+            work_item = None
+            try:
+                work_item = upload_queue.get(timeout=1)
+            except Empty:
+                pass
+            if work_item is not None:
+                try:
+                    upload_object(*work_item)
+                finally:
+                    upload_queue.task_done()
+
+    # Fire up worker threads
+    worker_threads = []
+    for _ in xrange(args.concurrency):
+        work_thread = Thread(target=queue_uploader)
+        work_thread.start()
+        worker_threads.append(work_thread)
+
     desired_period = 1.0 / args.rate_of_upload
     run_count = 0
     while args.number_of_objects > 0 and run_count <= args.number_of_objects:
         start_time = time.time()
 
-        upload_object(run_count, auth_args, args, container_list)
+        upload_queue.put([run_count, auth_args, args, container_list])
 
         elapsed_time = time.time() - start_time
         sleep_time = desired_period - elapsed_time
@@ -54,6 +79,14 @@ def run(args):
         else:
             debug(args, 'sleep_time was %5.3fs (skipping sleep!)', sleep_time)
         run_count += 1
+
+    debug(args, 'setting keep_running = False')
+    keep_running = False
+    debug(args, 'joining on upload_queue')
+    upload_queue.join()
+    for i, work_thread in enumerate(worker_threads, 1):
+        debug(args, 'joining thread #%d', i)
+        work_thread.join()
 
 
 def _run_swift(auth_args, extra_swift_args, runner_fn):
@@ -86,11 +119,17 @@ def upload_object(index, auth_args, args, container_list):
         os.unlink(object_name)
 
 
+
 # We need to be able to simulate an upload of a file of random size (between 2
 # byte counts) at some specified average frequency (but make it a little
 # random, so it's not completely synthetic?).
 #
 #These files should be uploaded across a random set of containers (numbering around 1 million).
+
+class RawArgumentDefaultsHelpFormatter(argparse.RawDescriptionHelpFormatter,
+                                       argparse.ArgumentDefaultsHelpFormatter):
+    pass
+
 
 arg_parser = argparse.ArgumentParser(
     description="""Object uploader:
@@ -104,8 +143,18 @@ arg_parser = argparse.ArgumentParser(
     container names in the file specified by <container-name-file>.  If that
     option is not specified, a built-in static list of 100 containers will be
     used.
+
+    The <concurrency> option can increase the number of simultaneous
+    connections to the cluster.  The parallel threads are only used to maintain
+    the desired upload rate specified by <rate-of-upload>.  For example, if you
+    wanted 500 uploads per second, you could run this script on 100 servers
+    with <rate-of-upload> set to 5.  Even with a <concurrency> setting greater
+    than 1, if a single thread can upload objects in less than 200ms, there may
+    not actually be more than one concurrent connection to the Swift cluster.
+    In other words, <concurrency> is a maximum concurrency, not guaranteed
+    concurrency.
     """,
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    formatter_class=RawArgumentDefaultsHelpFormatter)
 arg_parser.add_argument('-v', '--verbose', action='store_true',
                         help='Verbosely print status output',
                         default=False)
@@ -139,7 +188,10 @@ arg_parser.add_argument('-c', '--container-name-file', type=str,
                              '(if not given, a built-in static list of 100 '
                              'containers will be used)',
                         default=None)
-arg_parser.add_argument('-C', '--create-containers', action='store_true',
+arg_parser.add_argument('-C', '--concurrency', type=int,
+                        help='Number of uploads to run simultaneously',
+                        default=1)
+arg_parser.add_argument('-R', '--create-containers', action='store_true',
                         help='Create all containers in static list or '
                              '<container-name-file>',
                         default=False)
