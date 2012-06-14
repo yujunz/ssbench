@@ -11,6 +11,8 @@ from threading import Thread
 import time
 
 
+UPLOAD_COUNT = 0
+
 def debug(args, msg, *fmt_args):
     if args.debug:
         print ' *** ' + msg % fmt_args
@@ -31,40 +33,49 @@ def run(args):
     if args.user:
         auth_args.extend(['-U', args.user])
 
-    if args.create_containers:
-        for container_name in container_list:
-            _run_swift(auth_args, ['post', container_name],
-                       subprocess.check_output)
-
     keep_running = True
-    upload_queue = Queue(args.concurrency)
+    work_queue = Queue(args.concurrency)
 
-    def queue_uploader():
+    def thread_worker():
         while keep_running:
             work_item = None
             try:
-                work_item = upload_queue.get(timeout=1)
+                work_item = work_queue.get(timeout=1)
             except Empty:
                 pass
             if work_item is not None:
+                fn = work_item.pop(0)
                 try:
-                    upload_object(*work_item)
+                    fn(*work_item)
                 finally:
-                    upload_queue.task_done()
+                    work_queue.task_done()
 
     # Fire up worker threads
     worker_threads = []
     for _ in xrange(args.concurrency):
-        work_thread = Thread(target=queue_uploader)
+        work_thread = Thread(target=thread_worker)
         work_thread.start()
         worker_threads.append(work_thread)
 
+    if args.create_containers:
+        for container_name in container_list:
+            debug(args, 'POSTing to container %s', container_name)
+            work_queue.put([
+                _run_swift, auth_args, ['post', container_name],
+                subprocess.check_output])
+        debug(args, 'joining on work_queue (for container POSTs)')
+        work_queue.join()
+
+    start_time = time.time()
     desired_period = 1.0 / args.rate_of_upload
+    global UPLOAD_COUNT
+    UPLOAD_COUNT = 0
     run_count = 0
     while args.number_of_objects > 0 and run_count <= args.number_of_objects:
         start_time = time.time()
 
-        upload_queue.put([run_count, auth_args, args, container_list])
+        work_queue.put([
+            upload_object, run_count, auth_args, args, container_list])
 
         elapsed_time = time.time() - start_time
         sleep_time = desired_period - elapsed_time
@@ -82,11 +93,15 @@ def run(args):
 
     debug(args, 'setting keep_running = False')
     keep_running = False
-    debug(args, 'joining on upload_queue')
-    upload_queue.join()
+    debug(args, 'joining on work_queue')
+    work_queue.join()
     for i, work_thread in enumerate(worker_threads, 1):
         debug(args, 'joining thread #%d', i)
         work_thread.join()
+
+    elapsed_time = time.time() - start_time
+    print 'Ran %.1fs total; uploaded %d objects (avg. %.2f objs/sec)' % (
+        elapsed_time, UPLOAD_COUNT, UPLOAD_COUNT / elapsed_time)
 
 
 def _run_swift(auth_args, extra_swift_args, runner_fn):
@@ -101,6 +116,7 @@ def _run_swift(auth_args, extra_swift_args, runner_fn):
 
 
 def upload_object(index, auth_args, args, container_list):
+    global UPLOAD_COUNT
     container = random.choice(container_list)
     object_name = '%s_%05d' % (container, index)
     object_size = args.lower_file_size + int(
@@ -113,7 +129,9 @@ def upload_object(index, auth_args, args, container_list):
         'upload', container, object_name
     ]
     try:
-        _run_swift(auth_args, swift_args, subprocess.check_call)
+        rc = _run_swift(auth_args, swift_args, subprocess.check_call)
+        UPLOAD_COUNT += 1
+        return rc
     finally:
         debug(args, 'unlinking %s', object_name)
         os.unlink(object_name)
