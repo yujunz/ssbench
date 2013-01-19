@@ -23,7 +23,8 @@ def run(args):
         container_list = ['file_upload_client_%03d' % i for i in xrange(100)]
     else:
         with open(args.container_name_file, 'r') as container_file:
-            container_list = container_file.readlines()
+            container_list = imap(lambda c: c.rstrip(),
+                                  container_file.readlines())
 
     auth_args = []
     if args.auth_url:
@@ -47,6 +48,9 @@ def run(args):
                 fn = work_item.pop(0)
                 try:
                     fn(*work_item)
+                except Exception as e:
+                    print '### Worker thread got exception %r' % (e,)
+                    raise
                 finally:
                     work_queue.task_done()
 
@@ -57,25 +61,48 @@ def run(args):
         work_thread.start()
         worker_threads.append(work_thread)
 
+    if args.delete_containers:
+        print 'DELETEing %d containers...' % (len(container_list),)
+        for container_name in container_list:
+            debug(args, 'DELETEing to container %s', container_name)
+            work_queue.put([
+                _run_swift, auth_args, ['delete', container_name],
+                subprocess.check_call])
+        debug(args, 'joining on work_queue (for container POSTs)')
+        work_queue.join()
+
     if args.create_containers:
+        print 'Ensuring %d containers are created...' % (len(container_list),)
         for container_name in container_list:
             debug(args, 'POSTing to container %s', container_name)
             work_queue.put([
                 _run_swift, auth_args, ['post', container_name],
-                subprocess.check_output])
+                subprocess.check_call])
         debug(args, 'joining on work_queue (for container POSTs)')
         work_queue.join()
 
-    start_time = time.time()
+    run_start_time = time.time()
     desired_period = 1.0 / args.rate_of_upload
     global UPLOAD_COUNT
     UPLOAD_COUNT = 0
     run_count = 0
-    while args.number_of_objects > 0 and run_count <= args.number_of_objects:
+    while args.number_of_objects > 0 \
+          and run_count <= args.number_of_objects - 1:
         start_time = time.time()
 
+        # Sanity-check that all threads are still running
+        if len(filter(lambda t: t.isAlive(),
+                      worker_threads)) != args.concurrency:
+            print 'WARNING: one or more worker threads exited early; aborting!'
+            break
+
+        put_start = time.time()
         work_queue.put([
             upload_object, run_count, auth_args, args, container_list])
+        put_elapsed = time.time() - put_start
+        if put_elapsed > desired_period:
+            debug(args, 'NOTE -- fell behind (%.2fs to put into queue)',
+                  put_elapsed)
 
         elapsed_time = time.time() - start_time
         sleep_time = desired_period - elapsed_time
@@ -99,9 +126,9 @@ def run(args):
         debug(args, 'joining thread #%d', i)
         work_thread.join()
 
-    elapsed_time = time.time() - start_time
+    run_elapsed_time = time.time() - run_start_time
     print 'Ran %.1fs total; uploaded %d objects (avg. %.2f objs/sec)' % (
-        elapsed_time, UPLOAD_COUNT, UPLOAD_COUNT / elapsed_time)
+        run_elapsed_time, UPLOAD_COUNT, UPLOAD_COUNT / run_elapsed_time)
 
 
 def _run_swift(auth_args, extra_swift_args, runner_fn):
@@ -211,6 +238,10 @@ arg_parser.add_argument('-C', '--concurrency', type=int,
                         default=1)
 arg_parser.add_argument('-R', '--create-containers', action='store_true',
                         help='Create all containers in static list or '
+                             '<container-name-file>',
+                        default=False)
+arg_parser.add_argument('-D', '--delete-containers', action='store_true',
+                        help='Delete all containers in static list or '
                              '<container-name-file>',
                         default=False)
 
