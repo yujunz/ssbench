@@ -1,619 +1,211 @@
-from nose.tools import *
-from flexmock import flexmock
+import time
 import yaml
 import socket
 from argparse import Namespace
 from collections import Counter
+from flexmock import flexmock
+from nose.tools import *
 
-from ssbench.constants import *
-from ssbench.worker import Worker, add_dicts
-import ssbench.worker
+import ssbench
+from ssbench import worker
 from ssbench import swift_client as client
+
+from ssbench.worker import beanstalkc
+
 
 class TestWorker(object):
     def setUp(self):
-        self.stub_queue = flexmock()
-        self.stub_queue.should_receive('use').with_args(STATS_TUBE).once
-        # Workers should look at tubes >= worker_id
-        for i in range(3, MAX_WORKERS + 1):
-            self.stub_queue.should_receive('watch').with_args(WORK_TUBE_FORMAT % i).once
-        self.stub_worker_id = 3
-        self.worker = Worker(self.stub_queue, self.stub_worker_id)
+        self.qhost = 'some.host'
+        self.qport = 8530
+        self.max_retries = 9
+        self.concurrency = 12
+        self.worker_id = 3
 
-    def test_get_object_name_with_no_types(self):
-        assert_equal(None, self.worker.get_object_name('foo', 'bar'))
+        self.mock_queue = flexmock()
+        self.mock_connection = flexmock(beanstalkc.Connection)
+        self.mock_connection.new_instances(self.mock_queue).with_args(
+            beanstalkc.Connection, host=self.qhost, port=self.qport,
+        ).times(1 + 12)
+        # ^^--once for self.work_queue and <concurrecy> times by
+        # self.result_queue_pool(?)
+        self.mock_queue.should_receive('watch').with_args(
+            ssbench.WORK_TUBE).once
+        self.mock_queue.should_receive('use').with_args(
+            ssbench.STATS_TUBE).times(12)
 
-    def test_get_object_name_with_no_names(self):
-        assert_equal(None, self.worker.get_object_name('stock', 'foo'))
+        self.worker = worker.Worker(self.qhost, self.qport, self.worker_id,
+                                    self.max_retries, self.concurrency)
+        self.mock_worker = flexmock(self.worker)
 
-    def test_add_get_object_name(self):
-        # Stored object names:
-        # stock
-        #   container1
-        #     3 names: sc1a, sc1b, sc1c
-        #   container2
-        #     3 names: sc2a, sc2b, sc2c
-        # population
-        #   container1
-        #     3 names: pc1a, pc1b, pc1c
-        #
-        # Expect that we can get them back out randomly with a flat probability
-        # distribution.
-        self.worker.add_object_name('stock', 'container1', 'sc1a')
-        self.worker.add_object_name('stock', 'container1', 'sc1b')
-        self.worker.add_object_name('stock', 'container1', 'sc1c')
-        self.worker.add_object_name('stock', 'container2', 'sc2a')
-        self.worker.add_object_name('stock', 'container2', 'sc2b')
-        self.worker.add_object_name('stock', 'container2', 'sc2c')
-        self.worker.add_object_name('population', 'container1', 'pc1a')
-        self.worker.add_object_name('population', 'container1', 'pc1b')
-        self.worker.add_object_name('population', 'container1', 'pc1c')
+        self.stub_time = 98438243.3921
+        self.time_expectation = flexmock(time).should_receive(
+            'time'
+        ).and_return(self.stub_time)
 
-        name_count = 1000
-        exp_count = name_count / 3.0
-        exp_delta = name_count * 0.1 # expect distribution to be even w/in 10%
-        sc1_name_count = Counter(
-            [self.worker.get_object_name('stock', 'container1') for _ in range(name_count)]
-        )
-        assert_almost_equal(exp_count, sc1_name_count['sc1a'], delta=exp_delta)
-        assert_almost_equal(exp_count, sc1_name_count['sc1b'], delta=exp_delta)
-        assert_almost_equal(exp_count, sc1_name_count['sc1c'], delta=exp_delta)
-        sc2_name_count = Counter(
-            [self.worker.get_object_name('stock', 'container2') for _ in range(name_count)]
-        )
-        assert_almost_equal(exp_count, sc2_name_count['sc2a'], delta=exp_delta)
-        assert_almost_equal(exp_count, sc2_name_count['sc2b'], delta=exp_delta)
-        assert_almost_equal(exp_count, sc2_name_count['sc2c'], delta=exp_delta)
-        pc1_name_count = Counter(
-            [self.worker.get_object_name('population', 'container1') for _ in range(name_count)]
-        )
-        assert_almost_equal(exp_count, pc1_name_count['pc1a'], delta=exp_delta)
-        assert_almost_equal(exp_count, pc1_name_count['pc1b'], delta=exp_delta)
-        assert_almost_equal(exp_count, pc1_name_count['pc1c'], delta=exp_delta)
-
-    def test_remove_object_name(self):
-        # pass these by not raising any Exceptions
-        self.worker.remove_object_name('bad type', 'not a container', 'foo')
-        self.worker.remove_object_name('population', 'not a container', 'foo')
-
-        self.worker.add_object_name('stock', 'container1', 'abcdef')
-        self.worker.remove_object_name('stock', 'container1', 'foo')
-        assert_equal('abcdef', self.worker.get_object_name('stock', 'container1'))
-
-        self.worker.add_object_name('stock', 'container1', 'xyz')
-        assert_equal('abcdef', self.worker.remove_object_name('stock', 'container1', 'abcdef'))
-        assert_equal('xyz', self.worker.get_object_name('stock', 'container1'))
-
-
-    def test_handle_upload_population_object(self):
-        object_name = '/foo/bar/PA000001'
-        object_info = {
-            'type': CREATE_OBJECT,
-            'container': 'Application',
-            'object_name': object_name,
-            'object_size': 3493284.0,
-        }
-        worker = flexmock(self.worker)
-        worker.should_receive('ignoring_http_responses').with_args(
-            (503,), client.head_object, object_info,
-            name=object_name,
-        ).never
-        worker.should_receive('ignoring_http_responses').with_args(
-            (503,), client.put_object, object_info,
-            name=object_name,
-            contents=worker.ChunkedReader('A', 3493284),
-        ).and_return({
-            'x-swiftstack-first-byte-latency': 0.30239,
-            'x-swiftstack-last-byte-latency': 32.435,
-        }).once
-        worker.should_receive('add_object_name').with_args(
-            'population', 'Application', object_name,
-        ).once
-        stub_time = 49392932.949
-        mock_worker_module = flexmock(ssbench.worker)
-        mock_worker_module.should_receive('time').and_return(stub_time)
-        self.stub_queue.should_receive('put').with_args(
-            yaml.dump(add_dicts(object_info,
-                                worker_id=self.stub_worker_id,
-                                first_byte_latency=0.30239,
-                                last_byte_latency=32.435,
-                                completed_at=stub_time)),
-        ).once
-        worker.handle_upload_object(object_info)
-
-    def test_handle_upload_stock_object_not_existing(self):
+    def test_handle_upload_object(self):
         object_name = '/foo/bar/SP000001'
         object_info = {
-            'type': CREATE_OBJECT,
+            'type': ssbench.CREATE_OBJECT,
             'container': 'Picture',
-            'object_name': object_name,
-            'object_size': 99000.0,
+            'name': object_name,
+            'size': 99000,
         }
-        worker = flexmock(self.worker)
-        worker.should_receive('ignoring_http_responses').with_args(
-            (503,), client.head_object, object_info,
-            name=object_name,
-        ).and_raise(client.ClientException('Object HEAD failed')).once
-        worker.should_receive('ignoring_http_responses').with_args(
+        self.mock_worker.should_receive(
+            'ignoring_http_responses'
+        ).with_args(
             (503,), client.put_object, object_info,
-            name=object_name,
+            content_length=99000,
             contents=worker.ChunkedReader('A', 99000),
         ).and_return({
             'x-swiftstack-first-byte-latency': 0.492393,
             'x-swiftstack-last-byte-latency': 8.23283,
         }).once
-        worker.should_receive('add_object_name').with_args(
-            'stock', 'Picture', object_name,
+        self.time_expectation.once
+        self.mock_queue.should_receive('put').with_args(
+            yaml.dump(worker.add_dicts(object_info,
+                                       worker_id=self.worker_id,
+                                       first_byte_latency=0.492393,
+                                       last_byte_latency=8.23283,
+                                       completed_at=self.stub_time)),
         ).once
-        stub_time = 98438243.3921
-        mock_worker_module = flexmock(ssbench.worker)
-        mock_worker_module.should_receive('time').and_return(stub_time)
-        self.stub_queue.should_receive('put').with_args(
-            yaml.dump(add_dicts(object_info,
-                                worker_id=self.stub_worker_id,
-                                first_byte_latency=0.492393,
-                                last_byte_latency=8.23283,
-                                completed_at=stub_time)),
-        ).once
-        worker.handle_upload_object(object_info)
+        self.mock_worker.handle_upload_object(object_info)
 
-    def test_handle_upload_stock_object_existing(self):
-        object_name = '/foo/bar/SP000001'
+    def test_handle_delete_object(self):
         object_info = {
-            'type': CREATE_OBJECT,
-            'container': 'Picture',
-            'object_name': object_name,
-            'object_size': 99000.0,
-        }
-        worker = flexmock(self.worker)
-        worker.should_receive('ignoring_http_responses').with_args(
-            (503,), client.head_object, object_info,
-            name=object_name,
-        ).and_return(dict(foo='bar')).once
-        worker.should_receive('ignoring_http_responses').with_args(
-            (503,), client.put_object, object_info,
-            name=object_name,
-            contents=worker.ChunkedReader('A', 99000),
-        ).never
-        worker.should_receive('add_object_name').with_args(
-            'stock', 'Picture', object_name,
-        ).once
-        stub_time = 98438243.3921
-        mock_worker_module = flexmock(ssbench.worker)
-        mock_worker_module.should_receive('time').and_return(stub_time)
-        self.stub_queue.should_receive('put').with_args(
-            yaml.dump(add_dicts(object_info,
-                                worker_id=self.stub_worker_id,
-                                # Existing stock object; skipped upload, so no stats
-                                first_byte_latency=None,
-                                last_byte_latency=None,
-                                completed_at=stub_time)),
-        ).once
-        worker.handle_upload_object(object_info)
-
-    def test_delete_object_with_name(self):
-        object_name = '/lcj/nn/SD000843'
-        object_info = {
-            'type': DELETE_OBJECT,
+            'type': ssbench.DELETE_OBJECT,
             'container': 'Document',
-            'object_name': object_name,
+            'name': 'some name',
         }
-        worker = flexmock(self.worker)
-        worker.should_receive('ignoring_http_responses').with_args(
+        self.mock_worker.should_receive(
+            'ignoring_http_responses',
+        ).with_args(
             (404, 503,), client.delete_object, object_info,
-            name=object_name,
         ).and_return({
             'x-swiftstack-first-byte-latency': 0.94932,
             'x-swiftstack-last-byte-latency': 8.3273,
         }).once
-        worker.should_receive('remove_object_name').with_args(
-            'stock', 'Document', object_name,
-        ).once
-        stub_time = 98438243.3921
-        mock_worker_module = flexmock(ssbench.worker)
-        mock_worker_module.should_receive('time').and_return(stub_time)
-        self.stub_queue.should_receive('put').with_args(
-            yaml.dump(add_dicts(object_info,
-                                worker_id=self.stub_worker_id,
+        self.mock_queue.should_receive('put').with_args(
+            yaml.dump(worker.add_dicts(object_info,
+                                worker_id=self.worker_id,
                                 first_byte_latency=0.94932,
                                 last_byte_latency=8.3273,
-                                completed_at=stub_time)),
+                                completed_at=self.stub_time)),
         ).once
-        worker.handle_delete_object(object_info)
+        self.mock_worker.handle_delete_object(object_info)
         
 
-    def test_delete_object_without_name_have_population(self):
-        stock_object_name = '/kabo/qq/SA000038'
-        population_object_name = '/bls/.bo/PA000492'
+    def test_handle_update_object(self):
         object_info = {
-            'type': DELETE_OBJECT,
-            'container': 'Audio',
-        }
-        worker = flexmock(self.worker)
-        worker.should_receive('ignoring_http_responses').with_args(
-            (404, 503,), client.delete_object, object_info,
-            name=population_object_name,
-        ).and_return({
-            'x-swiftstack-first-byte-latency': 2.43923,
-            'x-swiftstack-last-byte-latency': 3.1,
-        }).once
-        worker.should_receive('remove_object_name').with_args(
-            'population', 'Audio', population_object_name,
-        ).once
-        stub_time = 4939320.233
-        mock_worker_module = flexmock(ssbench.worker)
-        mock_worker_module.should_receive('time').and_return(stub_time)
-        self.stub_queue.should_receive('put').with_args(
-            yaml.dump(add_dicts(object_info,
-                                worker_id=self.stub_worker_id,
-                                completed_at=stub_time,
-                                first_byte_latency=2.43923,
-                                last_byte_latency=3.1,
-                                object_name=population_object_name)),
-        ).once
-        self.worker.add_object_name('stock', 'Audio', stock_object_name)
-        self.worker.add_object_name('population', 'Audio', population_object_name)
-
-        worker.handle_delete_object(object_info)
-
-    def test_delete_object_without_name_have_no_population_or_stock(self):
-        object_info = {
-            'type': DELETE_OBJECT,
-            'container': 'Audio',
-        }
-        worker = flexmock(self.worker)
-        worker.should_receive('ignoring_http_responses').never
-        worker.should_receive('remove_object_name').never
-        self.stub_queue.should_receive('put').never
-
-        worker.handle_delete_object(object_info)
-
-    def test_delete_object_without_name_have_no_population(self):
-        stock_object_name = '/kabo/qq/SA000038'
-        object_info = {
-            'type': DELETE_OBJECT,
-            'container': 'Audio',
-        }
-        worker = flexmock(self.worker)
-        worker.should_receive('ignoring_http_responses').with_args(
-            (404, 503,), client.delete_object, object_info,
-            name=stock_object_name,
-        ).and_return({
-            'x-swiftstack-first-byte-latency': 2.44,
-            'x-swiftstack-last-byte-latency': 5.1,
-        }).once
-        worker.should_receive('remove_object_name').with_args(
-            'stock', 'Audio', stock_object_name,
-        ).once
-        stub_time = 4939320.233
-        mock_worker_module = flexmock(ssbench.worker)
-        mock_worker_module.should_receive('time').and_return(stub_time)
-        self.stub_queue.should_receive('put').with_args(
-            yaml.dump(add_dicts(object_info,
-                                worker_id=self.stub_worker_id,
-                                first_byte_latency=2.44,
-                                last_byte_latency=5.1,
-                                completed_at=stub_time,
-                                object_name=stock_object_name)),
-        ).once
-        self.worker.add_object_name('stock', 'Audio', stock_object_name)
-
-        worker.handle_delete_object(object_info)
- 
-
-    def test_update_object_without_name_have_population(self):
-        stock_object_name = '/lsv/op/SP000392'
-        population_object_name = '/eavl/ovjs/PP000192'
-        object_info = {
-            'type': UPDATE_OBJECT,
+            'type': ssbench.UPDATE_OBJECT,
             'container': 'Picture',
-            'object_size': 483213.0,
+            'name': 'BestObjEvar',
+            'size': 483213,
         }
-        worker = flexmock(self.worker)
-        worker.should_receive('ignoring_http_responses').with_args(
+        self.mock_worker.should_receive(
+            'ignoring_http_responses',
+        ).with_args(
             (503,), client.put_object, object_info,
-            name=population_object_name,
-            contents=worker.ChunkedReader('B',483213),
+            content_length=483213,
+            contents=worker.ChunkedReader('B', 483213),
         ).and_return({
             'x-swiftstack-first-byte-latency': 4.45,
             'x-swiftstack-last-byte-latency': 23.283,
         }).once
-        worker.should_receive('remove_object_name').never
-        stub_time = 48238328.234
-        mock_worker_module = flexmock(ssbench.worker)
-        mock_worker_module.should_receive('time').and_return(stub_time)
-        self.stub_queue.should_receive('put').with_args(
-            yaml.dump(add_dicts(object_info,
-                                worker_id=self.stub_worker_id,
-                                completed_at=stub_time,
+        self.mock_queue.should_receive('put').with_args(
+            yaml.dump(worker.add_dicts(object_info,
+                                worker_id=self.worker_id,
+                                completed_at=self.stub_time,
                                 first_byte_latency=4.45,
-                                last_byte_latency=23.283,
-                                object_name=population_object_name)),
+                                last_byte_latency=23.283)),
         ).once
-        self.worker.add_object_name('stock', 'Picture', stock_object_name)
-        self.worker.add_object_name('population', 'Picture', population_object_name)
 
-        worker.handle_update_object(object_info)
+        self.mock_worker.handle_update_object(object_info)
 
-    def test_update_object_without_name_have_no_population_or_stock(self):
+    def test_handle_get_object(self):
         object_info = {
-            'type': UPDATE_OBJECT,
-            'container': 'Picture',
-            'object_size': 39928438,
-        }
-        worker = flexmock(self.worker)
-        worker.should_receive('ignoring_http_responses').never
-        worker.should_receive('remove_object_name').never
-        self.stub_queue.should_receive('put').never
-
-        worker.handle_update_object(object_info)
-
-    def test_update_object_without_name_have_no_population(self):
-        stock_object_name = '/bjsl/gfc/SP006546'
-        object_info = {
-            'type': UPDATE_OBJECT,
-            'container': 'Picture',
-            'object_size': 8492391,
-        }
-        worker = flexmock(self.worker)
-        worker.should_receive('ignoring_http_responses').with_args(
-            (503,), client.put_object, object_info,
-            name=stock_object_name,
-            contents=worker.ChunkedReader('B', 8492391),
-        ).and_return({
-            'x-swiftstack-first-byte-latency': 4.88,
-            'x-swiftstack-last-byte-latency': 23.88,
-        }).once
-        worker.should_receive('remove_object_name').never
-        stub_time = 2948293293.382
-        mock_worker_module = flexmock(ssbench.worker)
-        mock_worker_module.should_receive('time').and_return(stub_time)
-        self.stub_queue.should_receive('put').with_args(
-            yaml.dump(add_dicts(object_info,
-                                worker_id=self.stub_worker_id,
-                                completed_at=stub_time,
-                                first_byte_latency=4.88,
-                                last_byte_latency=23.88,
-                                object_name=stock_object_name)),
-        ).once
-        assert_false(object_info.has_key('object_name')) # sanity check
-        self.worker.add_object_name('stock', 'Picture', stock_object_name)
-
-        worker.handle_update_object(object_info)
-        assert_false(object_info.has_key('object_name')) # sanity check
-
-    def test_get_object_without_name_have_population(self):
-        stock_object_name = 'SD000034'
-        population_object_name = '/PD009123'
-        object_info = {
-            'type': READ_OBJECT,
+            'type': ssbench.READ_OBJECT,
             'container': 'Document',
-            'object_size': 483213,
+            'name': 'SuperObject',
+            'size': 483213,
         }
-        worker = flexmock(self.worker)
-        worker.should_receive('ignoring_http_responses').with_args(
+        self.mock_worker.should_receive(
+            'ignoring_http_responses',
+        ).with_args(
             (404, 503), client.get_object, object_info,
-            name=population_object_name,
             resp_chunk_size=65536,
         ).and_return(({
             'x-swiftstack-first-byte-latency': 5.33,
             'x-swiftstack-last-byte-latency': 9.99,
-        }, 'object_data')).once
-        worker.should_receive('remove_object_name').never
-        stub_time = 48238328.234
-        mock_worker_module = flexmock(ssbench.worker)
-        mock_worker_module.should_receive('time').and_return(stub_time)
-        self.stub_queue.should_receive('put').with_args(
-            yaml.dump(add_dicts(object_info,
-                                worker_id=self.stub_worker_id,
-                                completed_at=stub_time,
+        }, ['object_data'])).once
+        self.mock_queue.should_receive('put').with_args(
+            yaml.dump(worker.add_dicts(object_info,
+                                worker_id=self.worker_id,
+                                completed_at=self.stub_time,
                                 first_byte_latency=5.33,
-                                last_byte_latency=9.99,
-                                object_name=population_object_name)),
-        ).once
-        self.worker.add_object_name('stock', 'Document', stock_object_name)
-        self.worker.add_object_name('population', 'Document', population_object_name)
-
-        worker.handle_get_object(object_info)
-
-    def test_get_object_without_name_have_no_population_or_stock(self):
-        object_info = {
-            'type': READ_OBJECT,
-            'container': 'Document',
-            'object_size': 39928438,
-        }
-        worker = flexmock(self.worker)
-        worker.should_receive('ignoring_http_responses').never
-        worker.should_receive('remove_object_name').never
-        self.stub_queue.should_receive('put').never
-
-        worker.handle_get_object(object_info)
-
-    def test_get_object_without_name_have_no_population(self):
-        stock_object_name = '/0glwvm//SD006546'
-        object_info = {
-            'type': READ_OBJECT,
-            'container': 'Document',
-            'object_size': 8492391,
-        }
-        worker = flexmock(self.worker)
-        worker.should_receive('ignoring_http_responses').with_args(
-            (404, 503), client.get_object, object_info,
-            name=stock_object_name,
-            resp_chunk_size=65536,
-        ).and_return(({
-            'x-swiftstack-first-byte-latency': 6.66,
-            'x-swiftstack-last-byte-latency': 8.88,
-        }, 'object_data')).once
-        worker.should_receive('remove_object_name').never
-        stub_time = 2948293293.382
-        mock_worker_module = flexmock(ssbench.worker)
-        mock_worker_module.should_receive('time').and_return(stub_time)
-        self.stub_queue.should_receive('put').with_args(
-            yaml.dump(add_dicts(object_info,
-                                worker_id=self.stub_worker_id,
-                                completed_at=stub_time,
-                                first_byte_latency=6.66,
-                                last_byte_latency=8.88,
-                                object_name=stock_object_name)),
-        ).once
-        self.worker.add_object_name('stock', 'Document', stock_object_name)
-
-        worker.handle_get_object(object_info)
-
-    def test_delete_population(self):
-        obj1 = 'PP000002'
-        obj2 = 'PA000003'
-        obj_stock = 'SP000002'
-
-        worker = flexmock(self.worker)
-        worker.add_object_name('population', 'Picture', obj1)
-        worker.add_object_name('population', 'Application', obj2)
-        worker.add_object_name('stock', 'Picture', obj_stock)
-
-        del_pop_info = {
-            'type': DELETE_POPULATION,
-            'url': 'some url',
-        }
-        delete_info = {
-            'type': DELETE_OBJECT,
-            'url': 'some url',
-        }
-        worker.should_receive('ignoring_http_responses').with_args(
-            (404, 503), client.delete_object,
-            add_dicts(delete_info, container='Picture'), name=obj1,
-        ).once
-        worker.should_receive('ignoring_http_responses').with_args(
-            (404, 503), client.delete_object,
-            add_dicts(delete_info, container='Application'), name=obj2,
-        ).once
-        worker.should_receive('ignoring_http_responses').with_args(
-            (404, 503), client.delete_object,
-            add_dicts(delete_info, container='Picture'), name=obj_stock,
-        ).never
-        stub_time = 4823049.482
-        mock_worker_module = flexmock(ssbench.worker)
-        mock_worker_module.should_receive('time').and_return(stub_time)
-        self.stub_queue.should_receive('put').with_args(
-            yaml.dump(add_dicts(del_pop_info,
-                                worker_id=self.stub_worker_id,
-                                completed_at=stub_time)),
+                                last_byte_latency=9.99)),
         ).once
 
-        worker.handle_delete_population(del_pop_info)
-
-        # The deleted objects' names no longer in cache:
-        assert_equal(None, worker.get_object_name('population', 'Picture'))
-        assert_equal(None, worker.get_object_name('population', 'Application'))
-        assert_equal(obj_stock, worker.get_object_name('stock', 'Picture'))
+        self.mock_worker.handle_get_object(object_info)
 
     def test_dispatching_socket_exception(self):
-        info = {'type': CREATE_OBJECT, 'a': 1}
-        job = Namespace(body=yaml.dump(info))
-        worker = flexmock(self.worker)
-        worker.should_receive('handle_upload_object').with_args(info).and_raise(
+        info = {'type': ssbench.CREATE_OBJECT, 'a': 1}
+        self.mock_worker.should_receive('handle_upload_object').with_args(info).and_raise(
             socket.error('slap happy')
         ).once
-        stub_time = 49943493.284
-        mock_worker_module = flexmock(ssbench.worker)
-        mock_worker_module.should_receive('time').and_return(stub_time)
-        self.stub_queue.should_receive('put').with_args(
-            yaml.dump(add_dicts(info,
-                                worker_id=self.stub_worker_id,
-                                completed_at=stub_time,
+        self.mock_queue.should_receive('put').with_args(
+            yaml.dump(worker.add_dicts(info,
+                                worker_id=self.worker_id,
+                                completed_at=self.stub_time,
                                 exception=repr(socket.error('slap happy')))),
         ).once
-        worker.handle_job(job)
+        self.mock_worker.handle_job(info)
 
     def test_dispatching_client_exception(self):
-        info = {'type': READ_OBJECT, 'container': 'fun', 'a': 2}
-        job = Namespace(body=yaml.dump(info))
-        worker = flexmock(self.worker)
-        worker.should_receive('handle_get_object').with_args(info).and_raise(
+        info = {'type': ssbench.READ_OBJECT, 'container': 'fun', 'a': 2}
+        self.mock_worker.should_receive('handle_get_object').with_args(info).and_raise(
             client.ClientException('slam bam')
         ).once
-        stub_time = 2948293949.94
-        mock_worker_module = flexmock(ssbench.worker)
-        mock_worker_module.should_receive('time').and_return(stub_time)
-        self.stub_queue.should_receive('put').with_args(
-            yaml.dump(add_dicts(info,
-                                worker_id=self.stub_worker_id,
-                                completed_at=stub_time,
+        self.mock_queue.should_receive('put').with_args(
+            yaml.dump(worker.add_dicts(info,
+                                worker_id=self.worker_id,
+                                completed_at=self.stub_time,
                                 exception=repr(client.ClientException('slam bam')))),
         ).once
-        worker.handle_job(job)
+        self.mock_worker.handle_job(info)
 
     def test_dispatching_value_error_exception(self):
-        info = {'type': READ_OBJECT, 'container': 'fun', 'a': 2}
-        job = Namespace(body=yaml.dump(info))
-        worker = flexmock(self.worker)
-        worker.should_receive('handle_get_object').with_args(info).and_raise(
+        info = {'type': ssbench.READ_OBJECT, 'container': 'fun', 'a': 2}
+        self.mock_worker.should_receive('handle_get_object').with_args(info).and_raise(
             ValueError('ve'),
         ).once
-        stub_time = 2948293950.183
-        mock_worker_module = flexmock(ssbench.worker)
-        mock_worker_module.should_receive('time').and_return(stub_time)
-        self.stub_queue.should_receive('put').with_args(
-            yaml.dump(add_dicts(info,
-                                worker_id=self.stub_worker_id,
-                                completed_at=stub_time,
+        self.mock_queue.should_receive('put').with_args(
+            yaml.dump(worker.add_dicts(info,
+                                worker_id=self.worker_id,
+                                completed_at=self.stub_time,
                                 exception=repr(ValueError('ve')))),
         ).once
-        worker.handle_job(job)
-
-    def test_dispatching_delete_population(self):
-        # DELETE_POPULATION = 'delete_population'
-        info = {'type': DELETE_POPULATION, 'a': 2}
-        job = Namespace(body=yaml.dump(info))
-        worker = flexmock(self.worker)
-        worker.should_receive('handle_delete_population').with_args(info).once
-        worker.handle_job(job)
+        self.mock_worker.handle_job(info)
 
     def test_dispatching_upload_object(self):
         # CREATE_OBJECT = 'upload_object' # includes obj name
-        info = {'type': CREATE_OBJECT, 'a': 1}
-        job = Namespace(body=yaml.dump(info))
-        worker = flexmock(self.worker)
-        worker.should_receive('handle_upload_object').with_args(info).once
-        worker.handle_job(job)
+        info = {'type': ssbench.CREATE_OBJECT, 'a': 1}
+        self.mock_worker.should_receive('handle_upload_object').with_args(info).once
+        self.mock_worker.handle_job(info)
 
     def test_dispatching_get_object(self):
         # READ_OBJECT = 'get_object'       # does NOT include obj name to get
-        info = {'type': READ_OBJECT, 'b': 2}
-        job = Namespace(body=yaml.dump(info))
-        worker = flexmock(self.worker)
-        worker.should_receive('handle_get_object').with_args(info).once
-        worker.handle_job(job)
+        info = {'type': ssbench.READ_OBJECT, 'b': 2}
+        self.mock_worker.should_receive('handle_get_object').with_args(info).once
+        self.mock_worker.handle_job(info)
 
     def test_dispatching_update_object(self):
         # UPDATE_OBJECT = 'update_object' # does NOT include obj name to update
-        info = {'type': UPDATE_OBJECT, 'c': 3}
-        job = Namespace(body=yaml.dump(info))
-        worker = flexmock(self.worker)
-        worker.should_receive('handle_update_object').with_args(info).once
-        worker.handle_job(job)
+        info = {'type': ssbench.UPDATE_OBJECT, 'c': 3}
+        self.mock_worker.should_receive('handle_update_object').with_args(info).once
+        self.mock_worker.handle_job(info)
 
     def test_dispatching_delete_object(self):
         # DELETE_OBJECT = 'delete_object' # may or may not include obj name to delete
-        info = {'type': DELETE_OBJECT, 'd': 4}
-        job = Namespace(body=yaml.dump(info))
-        worker = flexmock(self.worker)
-        worker.should_receive('handle_delete_object').with_args(info).once
-        worker.handle_job(job)
-
-    def test_dispatching_create_container(self):
-        # CREATE_CONTAINER = 'create_container'
-        info = {'type': CREATE_CONTAINER, 'e': 5}
-        job = Namespace(body=yaml.dump(info))
-        worker = flexmock(self.worker)
-        worker.should_receive('handle_create_container').with_args(info).once
-        worker.handle_job(job)
-
-    def test_dispatching_delete_container(self):
-        # DELETE_CONTAINER = 'delete_container'
-        info = {'type': DELETE_CONTAINER, 'f': 6}
-        job = Namespace(body=yaml.dump(info))
-        worker = flexmock(self.worker)
-        worker.should_receive('handle_delete_container').with_args(info).once
-        worker.handle_job(job)
-
+        info = {'type': ssbench.DELETE_OBJECT, 'd': 4}
+        self.mock_worker.should_receive('handle_delete_object').with_args(info).once
+        self.mock_worker.handle_job(info)

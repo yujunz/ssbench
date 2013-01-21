@@ -1,13 +1,19 @@
 {
   "name": "Small test scenario",
+  "sizes": [{
+    "name": "tiny",
+    "size_min": 4096,
+    "size_max": 65536
+  }, {
+    "name": "small",
+    "size_min": 100000,
+    "size_max": 200000
+  }],
   "initial_files": {
-    "tiny": 10,
-    "small": 10,
-    "medium": 0,
-    "large": 0,
-    "huge": 0
+    "tiny": 100,
+    "small": 10
   },
-  "file_count": 2000,
-  "crud_profile": [3, 1, 1, 2],
-  "user_count": 1
+  "operation_count": 500,
+  "crud_profile": [3, 4, 2, 2],
+  "user_count": 7
 }

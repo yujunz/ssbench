@@ -1,20 +1,165 @@
-import yaml
-
-import logging
 import sys
-import statlib
+import yaml  # *gag*; replace with msgpack!
+import logging
+import statlib.stats
 from mako.template import Template
+from collections import OrderedDict
 
-from ssbench.constants import *
-from ssbench import swift_client as client
+import eventlet
+import eventlet.pools 
+from eventlet.green.httplib import CannotSendRequest
 
-from pprint import pformat
+import ssbench
+import ssbench.swift_client as client
+from ssbench.run_state import RunState
+
+from pprint import pprint, pformat
+
+
+def _container_creator(storage_url, token, container):
+    http_conn = client.http_connection(storage_url)
+    try:
+        client.head_container(storage_url, token, container,
+                              http_conn=http_conn)
+    except client.ClientException:
+        client.put_container(storage_url, token, container,
+                             http_conn=http_conn)
+
+
+def _gen_cleanup_job(object_info):
+    return {
+        'type': ssbench.DELETE_OBJECT,
+        'container': object_info[0],
+        'name': object_info[1],
+    }
+
 
 class Master:
     def __init__(self, queue):
-        queue.watch(STATS_TUBE)
+        queue.watch(ssbench.STATS_TUBE)
         queue.ignore('default')
         self.queue = queue
+
+    def process_result_to(self, job, processor):
+        job.delete()
+        result = yaml.load(job.body)
+        processor(result)
+
+    def do_a_run(self, concurrency, job_generator, result_processor, priority,
+                 storage_url, token, mapper_fn=None):
+        active = 0
+        for job in job_generator:
+            if mapper_fn is not None:
+                work_job = mapper_fn(job)
+                if not work_job:
+                    logging.warning('Unable to fill in job %r', job)
+                    continue
+                job = work_job
+            job['storage_url'] = storage_url
+            job['token'] = token
+
+            if active >= concurrency:
+                result_job = self.queue.reserve()
+                self.process_result_to(result_job, result_processor)
+                active -= 1
+            self.queue.put(yaml.dump(job), priority=priority)
+            active += 1
+
+            # Sink any ready results non-blockingly
+            result_job = self.queue.reserve(timeout=0)
+            while result_job:
+                self.process_result_to(result_job, result_processor)
+                active -= 1
+                result_job = self.queue.reserve(timeout=0)
+
+        # Drain the results
+        while active > 0:
+            result_job = self.queue.reserve()
+            self.process_result_to(result_job, result_processor)
+            active -= 1
+
+    def run_scenario(self, auth_url, user, key, scenario):
+        """Runs a CRUD scenario, given cluster parameters and a Scenario object.
+        
+        :auth_url: Authentication URL for the Swift cluster
+        :user: Account/Username to use (format is <account>:<username>)
+        :key: Password for the Account/Username
+        :scenario: Scenario object describing the benchmark run
+        :returns: Collected result records from workers
+        """
+
+        run_state = RunState()
+
+        self.drain_stats_queue()
+        storage_url, token = client.get_auth(auth_url, user, key)
+
+        logging.info('Starting scenario run for %r', scenario.name)
+
+        # Ensure containers exist
+        logging.info('Creating containers (%s_*) with concurrency %d...',
+                     scenario.container_base, scenario.container_concurrency)
+        pool = eventlet.GreenPool(scenario.container_concurrency)
+        for container in scenario.containers:
+            pool.spawn_n(_container_creator, storage_url, token, container)
+        pool.waitall()
+
+        self.queue.use(ssbench.WORK_TUBE)
+
+        # Enqueue initialization jobs
+        logging.info('Initializing cluster with stock data (up to %d '
+                     'concurrent workers)', scenario.user_count)
+
+        self.do_a_run(scenario.user_count, scenario.initial_jobs(),
+                      run_state.handle_initialization_result,
+                      ssbench.PRIORITY_SETUP, storage_url, token)
+
+        logging.info('Starting benchmark run (up to %d concurrent '
+                     'workers)', scenario.user_count)
+        self.do_a_run(scenario.user_count, scenario.bench_jobs(),
+                      run_state.handle_run_result,
+                      ssbench.PRIORITY_WORK, storage_url, token,
+                      mapper_fn=run_state.fill_in_job)
+
+        logging.info('Deleting population objects from cluster')
+        self.do_a_run(scenario.user_count,
+                      run_state.cleanup_object_infos(),
+                      lambda *_: None,
+                      ssbench.PRIORITY_CLEANUP, storage_url, token,
+                      mapper_fn=_gen_cleanup_job)
+
+        return run_state.run_results
+
+    def drain_stats_queue(self):
+        job = self.queue.reserve(timeout=0)
+        while job:
+            job.delete()
+            job = self.queue.reserve(timeout=0)
+
+    def write_rps_histogram(self, stats, csv_file):
+        csv_file.write('"Seconds Since Start","Requests Completed"\n')
+        for i, req_count in enumerate(stats['time_series']['data'], 1):
+            csv_file.write('%d,%d\n' % (i, req_count))
+
+    def scenario_template(self):
+        return """
+${scenario.name}
+  C   R   U   D     Worker count: ${'%3d' % agg_stats['worker_count']}   Concurrency: ${'%3d' % scenario.user_count}
+%% ${'%02.0f  %02.0f  %02.0f  %02.0f' % (crud_pcts[0], crud_pcts[1], crud_pcts[2], crud_pcts[3])}
+% for label, stats, sstats in stat_list:
+
+${label}
+       Count: ${'%5d' % stats['req_count']}  Average requests per second: ${'%5.1f' % stats['avg_req_per_sec']}
+                           min      max     avg     std_dev   median
+       First-byte latency: ${'%5.2f' % stats['first_byte_latency']['min']} - ${'%6.2f' % stats['first_byte_latency']['max']}  ${'%6.2f' % stats['first_byte_latency']['avg']}  (${'%6.2f' % stats['first_byte_latency']['std_dev']})  ${'%6.2f' % stats['first_byte_latency']['median']}  (${'%15s' % 'all obj sizes'})
+       Last-byte  latency: ${'%5.2f' % stats['last_byte_latency']['min']} - ${'%6.2f' % stats['last_byte_latency']['max']}  ${'%6.2f' % stats['last_byte_latency']['avg']}  (${'%6.2f' % stats['last_byte_latency']['std_dev']})  ${'%6.2f' % stats['last_byte_latency']['median']}  (${'%15s' % 'all obj sizes'})
+% for size_str, byte_stats in sstats.iteritems():
+       First-byte latency: ${'%5.2f' % byte_stats['first_byte_latency']['min']} - ${'%6.2f' % byte_stats['first_byte_latency']['max']}  ${'%6.2f' % byte_stats['first_byte_latency']['avg']}  (${'%6.2f' % byte_stats['first_byte_latency']['std_dev']})  ${'%6.2f' % byte_stats['first_byte_latency']['median']}  (${size_str} objs)
+       Last-byte  latency: ${'%5.2f' % byte_stats['last_byte_latency']['min']} - ${'%6.2f' % byte_stats['last_byte_latency']['max']}  ${'%6.2f' % byte_stats['last_byte_latency']['avg']}  (${'%6.2f' % byte_stats['last_byte_latency']['std_dev']})  ${'%6.2f' % byte_stats['last_byte_latency']['median']}  (${size_str} objs)
+% endfor
+% endfor
+
+
+"""
 
     def generate_scenario_report(self, scenario, stats):
         """Format a report based on calculated statistics for an executed
@@ -29,20 +174,20 @@ class Master:
             'crud_pcts': scenario.crud_pcts,
             'stat_list': [
                 ('TOTAL', stats['agg_stats'], stats['size_stats']),
-                ('CREATE', stats['op_stats'][CREATE_OBJECT],
-                 stats['op_stats'][CREATE_OBJECT]['size_stats']),
-                ('READ', stats['op_stats'][READ_OBJECT],
-                 stats['op_stats'][READ_OBJECT]['size_stats']),
-                ('UPDATE', stats['op_stats'][UPDATE_OBJECT],
-                 stats['op_stats'][UPDATE_OBJECT]['size_stats']),
-                ('DELETE', stats['op_stats'][DELETE_OBJECT],
-                 stats['op_stats'][DELETE_OBJECT]['size_stats']),
+                ('CREATE', stats['op_stats'][ssbench.CREATE_OBJECT],
+                 stats['op_stats'][ssbench.CREATE_OBJECT]['size_stats']),
+                ('READ', stats['op_stats'][ssbench.READ_OBJECT],
+                 stats['op_stats'][ssbench.READ_OBJECT]['size_stats']),
+                ('UPDATE', stats['op_stats'][ssbench.UPDATE_OBJECT],
+                 stats['op_stats'][ssbench.UPDATE_OBJECT]['size_stats']),
+                ('DELETE', stats['op_stats'][ssbench.DELETE_OBJECT],
+                 stats['op_stats'][ssbench.DELETE_OBJECT]['size_stats']),
             ],
             'agg_stats': stats['agg_stats'],
         }
         return template.render(scenario=scenario, stats=stats, **tmpl_vars)
 
-    def calculate_scenario_stats(self, results):
+    def calculate_scenario_stats(self, scenario, results):
         """Given a list of worker job result dicts, compute various statistics.
        
         :results: A list of worker job result dicts
@@ -82,7 +227,7 @@ class Master:
                         'first_byte_latency': SERIES_STATS,
                         'last_byte_latency': SERIES_STATS,
                         'size_stats': {
-                            1: { # keys are file size byte-counts
+                            'small': { # keys are size_str values
                                 'req_count': 1, # num requests of this type and size
                                 'avg_req_per_sec': 1.1, # total_requests / sum(last_byte_latencies)
                                 'first_byte_latency': SERIES_STATS,
@@ -94,7 +239,7 @@ class Master:
                     # ...
                 },
                 'size_stats': {
-                    1: { # keys are file size byte-counts
+                    'small': { # keys are size_str values
                         'req_count': 1, # num requests of this size (for all CRUD types)
                         'avg_req_per_sec': 1.1, # total_requests / sum(last_byte_latencies)
                         'first_byte_latency': SERIES_STATS,
@@ -115,7 +260,7 @@ class Master:
         # {
         #   'worker_id': 1,
         #   'type': 'get_object',
-        #   'object_size': 4900000,
+        #   'size': 4900000,
         #   'first_byte_latency': 0.9137639999389648,
         #   'last_byte_latency': 0.913769006729126,
         #   'completed_at': 1324372892.360802,
@@ -130,24 +275,25 @@ class Master:
         logging.info('Calculating statistics for %d result items...', len(results))
         agg_stats = dict(start=2**32, stop=0, req_count=0)
         op_stats = {}
-        for crud_type in [CREATE_OBJECT, READ_OBJECT, UPDATE_OBJECT, DELETE_OBJECT]:
+        for crud_type in [ssbench.CREATE_OBJECT, ssbench.READ_OBJECT,
+                          ssbench.UPDATE_OBJECT, ssbench.DELETE_OBJECT]:
             op_stats[crud_type] = dict(
-                req_count=0, avg_req_per_sec=0, size_stats = {},
-            )
+                req_count=0, avg_req_per_sec=0,
+                size_stats=OrderedDict.fromkeys(scenario.sizes_by_name.keys()))
 
         req_completion_seconds = {}
         completion_time_max = 0
         completion_time_min = 2**32
         stats = dict(
-            agg_stats = agg_stats,
-            worker_stats = {},
-            op_stats = op_stats,
-            size_stats = {},
-        )
+            agg_stats=agg_stats,
+            worker_stats={},
+            op_stats=op_stats,
+            size_stats=OrderedDict.fromkeys(scenario.sizes_by_name.keys()))
         for result in results:
             if result.has_key('exception'):
                 # skip but log exceptions
-                logging.warn('Exception from worker %d: %s',
+                logging.warn('calculate_scenario_stats: exception from '
+                             'worker %d: %s',
                              result['worker_id'], result['exception'])
                 continue
             completion_time = int(result['completed_at'])
@@ -165,17 +311,19 @@ class Master:
             self._add_result_to(stats['worker_stats'][result['worker_id']], result)
 
             # Stats per-file-size
-            if not stats['size_stats'].has_key(result['object_size']):
-                stats['size_stats'][result['object_size']] = {}
-            self._add_result_to(stats['size_stats'][result['object_size']], result)
+            if not stats['size_stats'][result['size_str']]:
+                stats['size_stats'][result['size_str']] = {}
+            self._add_result_to(stats['size_stats'][result['size_str']], result)
 
             self._add_result_to(agg_stats, result)
             self._add_result_to(op_stats[result['type']], result)
 
             # Stats per-operation-per-file-size
-            if not op_stats[result['type']]['size_stats'].has_key(result['object_size']):
-                op_stats[result['type']]['size_stats'][result['object_size']] = {}
-            self._add_result_to(op_stats[result['type']]['size_stats'][result['object_size']], result)
+            if not op_stats[result['type']]['size_stats'][result['size_str']]:
+                op_stats[result['type']]['size_stats'][result['size_str']] = {}
+            self._add_result_to(
+                op_stats[result['type']]['size_stats'][result['size_str']],
+                result)
         agg_stats['worker_count'] = len(stats['worker_stats'].keys())
         self._compute_req_per_sec(agg_stats)
         self._compute_latency_stats(agg_stats)
@@ -186,12 +334,19 @@ class Master:
             if op_stats_dict['req_count']:
                 self._compute_req_per_sec(op_stats_dict)
                 self._compute_latency_stats(op_stats_dict)
-                for size_stats in op_stats_dict['size_stats'].values():
-                    self._compute_req_per_sec(size_stats)
-                    self._compute_latency_stats(size_stats)
-        for size_stats in stats['size_stats'].values():
-            self._compute_req_per_sec(size_stats)
-            self._compute_latency_stats(size_stats)
+                for size_str, size_stats in \
+                        op_stats_dict['size_stats'].iteritems():
+                    if size_stats:
+                        self._compute_req_per_sec(size_stats)
+                        self._compute_latency_stats(size_stats)
+                    else:
+                        op_stats_dict['size_stats'].pop(size_str)
+        for size_str, size_stats in stats['size_stats'].iteritems():
+            if size_stats:
+                self._compute_req_per_sec(size_stats)
+                self._compute_latency_stats(size_stats)
+            else:
+                stats['size_stats'].pop(size_str)
         time_series_data = [
             req_completion_seconds.get(t, 0) for t in range(completion_time_min, completion_time_max + 1)
         ]
@@ -201,8 +356,12 @@ class Master:
         return stats
 
     def _compute_latency_stats(self, stat_dict):
-        for latency_type in ('first_byte_latency', 'last_byte_latency'):
-            stat_dict[latency_type] = self._series_stats(stat_dict[latency_type])
+        try:
+            for latency_type in ('first_byte_latency', 'last_byte_latency'):
+                stat_dict[latency_type] = self._series_stats(stat_dict[latency_type])
+        except KeyError:
+            logging.exception('stat_dict: %r', stat_dict)
+            raise
  
     def _compute_req_per_sec(self, stat_dict):
         stat_dict['avg_req_per_sec'] = round(stat_dict['req_count'] /
@@ -244,203 +403,3 @@ class Master:
                 stats_dict[latency_type].append(result[latency_type])
             else:
                 stats_dict[latency_type] = [result[latency_type]]
-
-    def run_scenario(self, auth_url, user, key, scenario):
-        """Runs a CRUD scenario, given cluter parameters and a Scenario object.
-        
-        :auth_url: Authentication URL for the Swift cluster
-        :user: Account/Username to use (format is <account>:<username>)
-        :key: Password for the Account/Username
-        :scenario: Scenario object describing the benchmark run
-        :returns: Collected result records from workers
-        """
-    
-        self.drain_stats_queue()
-        url, token = client.get_auth(auth_url, user, key)
-
-        logging.info('Starting scenario run for %r', scenario.name)
-        # Ensure containers exist
-        logging.info('Making sure benchmark containers exist...')
-        for container in ['Picture', 'Audio', 'Document', 'Video',
-                          'Application']:
-            if not self.container_exists(url, token, container):
-                logging.info('  creating container %r', container)
-                self.create_container(url, token, container)
-
-        self.queue.use('work_%04d' % scenario.user_count)
-
-        # Enqueue initialization jobs
-        logging.info('Initializing cluster with stock data (up to %d concurrent workers)',
-                     scenario.user_count)
-        initial_jobs = scenario.initial_jobs()
-        for initial_job in initial_jobs:
-            initial_job.update(url=url, token=token)
-            self.queue.put(yaml.dump(initial_job), priority=PRIORITY_SETUP)
-
-        # Wait for them to all finish
-        results = self.gather_results(len(initial_jobs),
-                                      timeout=600,
-                                      label='initial population')
-
-        # Enqueue bench jobs
-        logging.info('Starting benchmark run (up to %d concurrent workers)',
-                     scenario.user_count)
-        bench_jobs = scenario.bench_jobs()
-        for bench_job in bench_jobs:
-            bench_job.update(url=url, token=token)
-            self.queue.put(yaml.dump(bench_job), priority=PRIORITY_WORK)
-
-        # Wait for them to all finish and return the results
-        results = self.gather_results(len(bench_jobs), timeout=600, label='benchmark run')
-
-        logging.info('Deleting population objects from cluster')
-        del_pop_job = dict(type=DELETE_POPULATION, url=url, token=token)
-        for _ in range(scenario.user_count):
-            self.queue.put(yaml.dump(del_pop_job), priority=PRIORITY_CLEANUP)
-        self.gather_results(scenario.user_count, timeout=600)
-
-        return results
-
-    def bench_container_creation(self, auth_url, user, key, count):
-        self.drain_stats_queue()
-        url, token = client.get_auth(auth_url, user, key)
-
-        for i in range(count):
-            job = {
-                "type": CREATE_CONTAINER,
-                "url":  url,
-                "token": token,
-                "container": self.container_name(i),
-                }
-            self.queue.put(yaml.dump(job), priority=PRIORITY_WORK)
-
-        results = self.gather_results(count)
-
-        for i in range(count):
-            job = {
-                "type": DELETE_CONTAINER,
-                "url":  url,
-                "token": token,
-                "container": self.container_name(i),
-                }
-            self.queue.put(yaml.dump(job), priority=PRIORITY_CLEANUP)
-
-        return results
-
-    def bench_object_creation(self, auth_url, user, key, containers, size, object_count):
-        self.drain_stats_queue()
-        url, token = client.get_auth(auth_url, user, key)
-
-        for c in containers:
-            if not self.container_exists(url, token, c):
-                self.create_container(url, token, c)
-
-        for i in range(object_count):
-            job = {
-                "type": CREATE_OBJECT,
-                "url":  url,
-                "token": token,
-                "container": containers[i % len(containers)],
-                "object_name": self.object_name(i),
-                "object_size": size,
-                }
-
-            self.queue.put(yaml.dump(job), priority=PRIORITY_WORK)
-
-        results = self.gather_results(object_count)
-
-        for i in range(object_count):
-            job = {
-                "type": DELETE_OBJECT,
-                "url":  url,
-                "token": token,
-                "container": containers[i % len(containers)],
-                "object_name": self.object_name(i),
-                }
-
-            self.queue.put(yaml.dump(job), priority=PRIORITY_CLEANUP)
-
-        return results
-
-    def drain_stats_queue(self):
-        self.gather_results(count=0,   # no limit
-                            timeout=0) # no waiting
-
-    def gather_results(self, count=0, timeout=15, label=None):
-        results = []
-        if label:
-            sys.stderr.write("Gathering results for %s (expect %d)\n" % (label, count))
-        job = self.queue.reserve(timeout=timeout)
-        while job:
-            job.delete()
-            result = yaml.load(job.body)
-            results.append(result)
-            if label:
-                if result.has_key('first_byte_latency'):
-                    if result['first_byte_latency'] < 1:
-                        sys.stderr.write('.')
-                    elif result['first_byte_latency'] < 3:
-                        sys.stderr.write('o')
-                    elif result['first_byte_latency'] < 10:
-                        sys.stderr.write('O')
-                    else:
-                        sys.stderr.write('*')
-                elif result.has_key('exception'):
-                    sys.stderr.write('X')
-                else:
-                    sys.stderr.write('_')
-                sys.stderr.flush()
-                if len(results) % 40 == 0:
-                    sys.stderr.write(' (%3d/%3d)\n' % (len(results), count))
-            if (count <= 0 or len(results) < count):
-                job = self.queue.reserve(timeout=timeout)
-                if not job and label:
-                    sys.stderr.write('TIMED OUT AFTER %s SECONDS' % timeout)
-                    sys.stderr.flush()
-            else:
-                job = None
-        if label:
-            sys.stderr.write(' (%3d/%3d)\n' % (len(results), count))
-        return results
-
-    def container_exists(self, url, token, container):
-        try:
-            client.head_container(url, token, container)
-            return True
-        except client.ClientException:
-            return False
-
-    def create_container(self, url, token, container):
-        client.put_container(url, token, container)
-
-    def container_name(self, index):
-        return "ssbench-container%d" % (index,)
-
-    def object_name(self, index):
-        return "ssbench-obj%d" % (index,)
-
-    def write_rps_histogram(self, stats, csv_file):
-        csv_file.write('"Seconds Since Start","Requests Completed"\n')
-        for i, req_count in enumerate(stats['time_series']['data'], 1):
-            csv_file.write('%d,%d\n' % (i, req_count))
-
-    def scenario_template(self):
-        return """
-${scenario.name}
-  C   R   U   D     Worker count: ${'%3d' % agg_stats['worker_count']}
-%% ${'%02.0f  %02.0f  %02.0f  %02.0f' % (crud_pcts[0], crud_pcts[1], crud_pcts[2], crud_pcts[3])}
-% for label, stats, sstats in stat_list:
-
-${label}
-       Count: ${'%5d' % stats['req_count']}  Average requests per second: ${'%5.1f' % stats['avg_req_per_sec']}
-                           min     max    avg    std_dev  median
-       First-byte latency: ${'%5.2f' % stats['first_byte_latency']['min']} - ${'%6.2f' % stats['first_byte_latency']['max']}  ${'%6.2f' % stats['first_byte_latency']['avg']}  (${'%6.2f' % stats['first_byte_latency']['std_dev']})  ${'%6.2f' % stats['first_byte_latency']['median']}  (${'%15s' % 'all obj sizes'})
-       Last-byte  latency: ${'%5.2f' % stats['last_byte_latency']['min']} - ${'%6.2f' % stats['last_byte_latency']['max']}  ${'%6.2f' % stats['last_byte_latency']['avg']}  (${'%6.2f' % stats['last_byte_latency']['std_dev']})  ${'%6.2f' % stats['last_byte_latency']['median']}  (${'%15s' % 'all obj sizes'})
-% for byte_count, byte_stats in sorted(sstats.iteritems(), cmp=lambda x,y: cmp(x[0], y[0])):
-       First-byte latency: ${'%5.2f' % byte_stats['first_byte_latency']['min']} - ${'%6.2f' % byte_stats['first_byte_latency']['max']}  ${'%6.2f' % byte_stats['first_byte_latency']['avg']}  (${'%6.2f' % byte_stats['first_byte_latency']['std_dev']})  ${'%6.2f' % byte_stats['first_byte_latency']['median']}  (${'%7.0f' % (byte_count / 1000.0)} kB objs)
-       Last-byte  latency: ${'%5.2f' % byte_stats['last_byte_latency']['min']} - ${'%6.2f' % byte_stats['last_byte_latency']['max']}  ${'%6.2f' % byte_stats['last_byte_latency']['avg']}  (${'%6.2f' % byte_stats['last_byte_latency']['std_dev']})  ${'%6.2f' % byte_stats['last_byte_latency']['median']}  (${'%7.0f' % (byte_count / 1000.0)} kB objs)
-% endfor
-% endfor
-
-
-"""

@@ -1,3 +1,4 @@
+# Copyright (c) 2012-2013 SwiftStack, Inc.
 # Copyright (c) 2010-2011 OpenStack, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,14 +38,14 @@ try:
 except ImportError:
     from time import sleep
 
+#try:
+#    from swift.common.bufferedhttp \
+#        import BufferedHTTPConnection as HTTPConnection
+#except ImportError:
 try:
-    from swift.common.bufferedhttp \
-        import BufferedHTTPConnection as HTTPConnection
+    from eventlet.green.httplib import HTTPConnection
 except ImportError:
-    try:
-        from eventlet.green.httplib import HTTPConnection
-    except ImportError:
-        from httplib import HTTPConnection
+    from httplib import HTTPConnection
 
 
 def quote(value, safe='/'):

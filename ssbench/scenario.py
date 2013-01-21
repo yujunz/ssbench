@@ -1,11 +1,13 @@
+import copy
 import json
 import random
-
 import logging
-from ssbench.constants import *
-from ssbench.scenario_file import ScenarioFile, SIZE_STRS
+from collections import OrderedDict
+
+import ssbench
 
 from pprint import pprint
+
 
 class Scenario(object):
     """Encapsulation of a benchmark "CRUD" scenario."""
@@ -24,144 +26,128 @@ class Scenario(object):
             raise
 
         # Sanity-check user_count
-        if self._scenario_data['user_count'] < 1 or self._scenario_data['user_count'] > MAX_WORKERS:
-            raise ValueError('user_count must be between 1 and %d' % MAX_WORKERS)
+        if self._scenario_data['user_count'] < 1:
+            raise ValueError('user_count must be > 1')
+
+        self.user_count = self._scenario_data['user_count']
+        self.operation_count = self._scenario_data['operation_count']
+        self.name = self._scenario_data['name']
+        self.container_base = self._scenario_data.get('container_base',
+                                                      'ssbench')
+        self.container_count = self._scenario_data.get('container_count', 100)
+        self.containers = ['%s_%06d' % (self.container_base, i)
+                           for i in xrange(self.container_count)]
+        self.container_concurrency = self._scenario_data.get(
+            'controller_concurrency', 10)
+
+        # Set up sizes
+        self.sizes_by_name = OrderedDict()
+        for size_data in self._scenario_data['sizes']:
+            self.sizes_by_name[size_data['name']] = size_data
 
         # Calculate probability thresholds for each size (from the initial_files)
-        initial_sum = sum([self._scenario_data['initial_files'][size_str] for
-                           size_str in SIZE_STRS])
-        last, self.bench_size_thresholds = 0, {}
-        for size_str in SIZE_STRS:
-            last = last + float(self._scenario_data['initial_files'][size_str]) / initial_sum
+        initial_sum = sum(self._scenario_data['initial_files'].itervalues())
+        last, self.bench_size_thresholds = 0, OrderedDict()
+        for size_str in self.sizes_by_name.iterkeys():
+            last = last + float(
+                self._scenario_data['initial_files'][size_str]) / initial_sum
             self.bench_size_thresholds[size_str] = last
 
         # Calculate probability thresholds for each CRUD element
         initial_sum = sum(self._scenario_data['crud_profile'])
         last, self.bench_crud_thresholds = 0, [1, 1, 1, 1]
-        for i in range(4):
-            last = last + float(self._scenario_data['crud_profile'][i]) / initial_sum
+        for i in xrange(4):
+            last = last + float(
+                self._scenario_data['crud_profile'][i]) / initial_sum
             self.bench_crud_thresholds[i] = last
-
-    @property
-    def user_count(self):
-        return self._scenario_data['user_count']
-
-    @property
-    def name(self):
-        return self._scenario_data['name']
 
     @property
     def crud_pcts(self):
         total = sum(self._scenario_data['crud_profile'])
-        return [float(c) / total  * 100 for c in self._scenario_data['crud_profile']]
+        return [float(c) / total  * 100
+                for c in self._scenario_data['crud_profile']]
 
+    def job(self, size_str, **kwargs):
+        job = {'size_str': size_str}
+        job.update(kwargs)
+        return job
 
-    def initial_job(self, size_str, i):
-        """Creates an initializing job dict of a given size.
-        
-        :size_str: One of 'tiny', 'small', etc.
-        :i: The job index (for this size)
-        :returns: A dictionary representing the initialization job
+    def create_job(self, size_str, i):
+        """
+        Creates job dict which will create an object.
         """
 
-        sfile = ScenarioFile('S', size_str, i)
-        return {
-            "type": CREATE_OBJECT,
-            "container": sfile.container,
-            "object_name": sfile.name,
-            "object_size": sfile.size,
-        }
+        return self.job(size_str,
+                        type=ssbench.CREATE_OBJECT,
+                        container=random.choice(self.containers),
+                        name='%s_%06d' % (size_str, i),
+                        size=random.randint(
+                            self.sizes_by_name[size_str]['size_min'],
+                            self.sizes_by_name[size_str]['size_max']))
 
     def bench_job(self, size_str, crud_index, i):
         """Creates a benchmark work job dict of a given size and crud "index"
         (where 0 is Create, 1 is Read, etc.).
         
-        :size_str: One of 'tiny', 'small', etc.
+        :size_str: One of the size strings defined in the scenario file
         :crud_index: An index into the CRUD array (0 is Create, etc.)
         :i: The job index
         :returns: A dictionary representing benchmark work job
         """
    
-        sfile = ScenarioFile('P', size_str, i)
         if crud_index == 0:
-            # Create
-            return dict(
-                type=CREATE_OBJECT,
-                container=sfile.container,
-                object_name=sfile.name,
-                object_size=sfile.size,
-            )
+            return self.create_job(size_str, i)
         elif crud_index == 1:
-            # Read
-            return dict(
-                type=READ_OBJECT,
-                container=sfile.container,
-                object_size=sfile.size,
-            )
+            return self.job(size_str, type=ssbench.READ_OBJECT)
         elif crud_index == 2:
-            # Update
-            return dict(
-                type=UPDATE_OBJECT,
-                container=sfile.container,
-                object_size=sfile.size,
-            )
+            return self.job(
+                size_str, type=ssbench.UPDATE_OBJECT,
+                size=random.randint(
+                    self.sizes_by_name[size_str]['size_min'],
+                    self.sizes_by_name[size_str]['size_max']))
         elif crud_index == 3:
-            # Delete
-            return dict(
-                type=DELETE_OBJECT,
-                container=sfile.container,
-                object_size=sfile.size,
-            )
-
+            return self.job(size_str, type=ssbench.DELETE_OBJECT)
 
     def initial_jobs(self):
-        """Returns the worker jobs necessary to initialize the cluster contents
-        for the scenario.
-
-        :returns: A list of job objects (dicts)
         """
-    
-        counts, indexes = {}, {}
-        for size in SIZE_STRS:
-            counts[size] = self._scenario_data['initial_files'][size]
-            indexes[size] = 1
+        Generator for the worker jobs necessary to initialize the cluster
+        contents for the scenario.
 
-        initial_jobs = []
-        pushed = True
-        while pushed:
-            pushed = False
-            for size in SIZE_STRS:
-                if counts[size]:
-                    initial_jobs.append(
-                        self.initial_job(size, indexes[size])
-                    )
-                    counts[size] -= 1
-                    indexes[size] += 1
-                    pushed = True
+        :returns: A generator which yields job objects (dicts)
+        """
 
-        return initial_jobs
+        count_by_size = copy.copy(self._scenario_data['initial_files'])
+        index_per_size = dict.fromkeys(count_by_size.iterkeys(), 1)
 
+        yielded = True
+        while yielded:
+            yielded = False
+            for size_str in self.sizes_by_name.iterkeys():
+                if count_by_size[size_str]:
+                    yield self.create_job(size_str, index_per_size[size_str])
+                    count_by_size[size_str] -= 1
+                    index_per_size[size_str] += 1
+                    yielded = True
 
     def bench_jobs(self):
-        """Returns the worker jobs necessary to actually run the scenario.
-
-        :returns: A list of job objects (dicts)
         """
-    
-        bench_jobs = []
-        for index in range(1, self._scenario_data['file_count'] + 1):
+        Generator for the worker jobs necessary to actually run the scenario.
+
+        :returns: A generator which yields job objects (dicts)
+        """
+
+        max_index_size = max(self._scenario_data['initial_files'].itervalues())
+        for index in xrange(max_index_size + 1,
+                            max_index_size + self.operation_count + 1):
             r = random.random()  # uniform on [0, 1)
-            for size_str in SIZE_STRS:
-                if r < self.bench_size_thresholds[size_str]:
+            for size_str, prob in self.bench_size_thresholds.iteritems():
+                if r < prob:
                     this_size_str = size_str
                     break
             # Determine which C/R/U/D type this job will be
             r = random.random()  # uniform on [0, 1)
-            for crud_index in range(4):
-                if r < self.bench_crud_thresholds[crud_index]:
+            for crud_index, prob in enumerate(self.bench_crud_thresholds):
+                if r < prob:
                     this_crud_index = crud_index
                     break
-            bench_jobs.append(self.bench_job(this_size_str, this_crud_index, index))
-        return bench_jobs
-
-
+            yield self.bench_job(this_size_str, this_crud_index, index)

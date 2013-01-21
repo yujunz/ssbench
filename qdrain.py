@@ -6,7 +6,7 @@ import argparse
 import beanstalkc
 import sys
 
-from ssbench.constants import *
+import ssbench
 
 
 arg_parser = argparse.ArgumentParser(description='Drain the queue')
@@ -16,7 +16,7 @@ arg_parser.add_argument('--qport', default=11300, type=int)
 args = arg_parser.parse_args(sys.argv[1:])
 
 beanq = beanstalkc.Connection(host=args.qhost, port=args.qport)
-beanq.watch(STATS_TUBE)
+beanq.watch(ssbench.STATS_TUBE)
 
 job = beanq.reserve(timeout=1)
 while job:

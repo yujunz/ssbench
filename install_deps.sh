@@ -1,4 +1,4 @@
 #!/bin/sh
 
 sudo apt-get install beanstalkd
-sudo pip install -r ./requirements.txt
+sudo pip install --upgrade -r ./requirements.txt

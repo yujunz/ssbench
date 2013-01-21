@@ -1,5 +1,6 @@
+eventlet
+msgpack-python
 beanstalkc
-argparse
 Mako
 PyYAML
 statlib
