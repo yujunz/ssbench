@@ -49,7 +49,8 @@ def run_scenario(master, args):
     if args.stats_file == DEFAULT_STATS_PATH % '<scenario_name>':
         munged_name = re.sub('[%s\s]+' % os.path.sep, '_', scenario.name)
         args.stats_file = DEFAULT_STATS_PATH % munged_name
-        os.makedirs(os.path.dirname(args.stats_file))
+        if not os.path.exists(os.path.dirname(args.stats_file)):
+            os.makedirs(os.path.dirname(args.stats_file))
     args.stats_file = open(args.stats_file, 'w+')
 
     results = master.run_scenario(auth_url=args.auth_url, user=args.user,
