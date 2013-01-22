@@ -17,9 +17,11 @@
 import os
 from setuptools import setup, find_packages
 
+
 thispath = os.path.dirname(__file__)
 with open(os.path.join(thispath, '.requirements.txt'), 'r') as f:
     requires = [x.strip() for x in f if x.strip()]
+
 
 def readme():
     with open(os.path.join(thispath, 'README.md'), 'r') as f:
