@@ -24,12 +24,12 @@ with open(os.path.join(thispath, '.requirements.txt'), 'r') as f:
 
 
 def readme():
-    with open(os.path.join(thispath, 'README.md'), 'r') as f:
+    with open(os.path.join(thispath, 'README.rst'), 'r') as f:
         return f.read()
 
 setup(
     name='ssbench',
-    version='0.0.1',
+    version='0.0.2',
     description='SwiftStack Swift Benchmarking Suite',
     long_description=readme(),
     license='Apache License (2.0)',
