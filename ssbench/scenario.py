@@ -14,7 +14,7 @@ class Scenario(object):
 
     def __init__(self, scenario_filename):
         """Initializes the object from a scenario file on disk.
-        
+
         :scenario_filename: path to a scenario file
         """
 
@@ -22,7 +22,8 @@ class Scenario(object):
             fp = open(scenario_filename)
             self._scenario_data = json.load(fp)
         except:
-            logging.exception('Error loading scenario file %r', scenario_filename)
+            logging.exception('Error loading scenario file %r',
+                              scenario_filename)
             raise
 
         # Sanity-check user_count
@@ -45,7 +46,8 @@ class Scenario(object):
         for size_data in self._scenario_data['sizes']:
             self.sizes_by_name[size_data['name']] = size_data
 
-        # Calculate probability thresholds for each size (from the initial_files)
+        # Calculate probability thresholds for each size (from the
+        # initial_files)
         initial_sum = sum(self._scenario_data['initial_files'].itervalues())
         last, self.bench_size_thresholds = 0, OrderedDict()
         for size_str in self.sizes_by_name.iterkeys():
@@ -64,7 +66,7 @@ class Scenario(object):
     @property
     def crud_pcts(self):
         total = sum(self._scenario_data['crud_profile'])
-        return [float(c) / total  * 100
+        return [float(c) / total * 100
                 for c in self._scenario_data['crud_profile']]
 
     def job(self, size_str, **kwargs):
@@ -88,13 +90,13 @@ class Scenario(object):
     def bench_job(self, size_str, crud_index, i):
         """Creates a benchmark work job dict of a given size and crud "index"
         (where 0 is Create, 1 is Read, etc.).
-        
+
         :size_str: One of the size strings defined in the scenario file
         :crud_index: An index into the CRUD array (0 is Create, etc.)
         :i: The job index
         :returns: A dictionary representing benchmark work job
         """
-   
+
         if crud_index == 0:
             return self.create_job(size_str, i)
         elif crud_index == 1:

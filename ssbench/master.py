@@ -6,7 +6,7 @@ from mako.template import Template
 from collections import OrderedDict
 
 import eventlet
-import eventlet.pools 
+import eventlet.pools
 from eventlet.green.httplib import CannotSendRequest
 
 import ssbench
@@ -79,8 +79,9 @@ class Master:
             active -= 1
 
     def run_scenario(self, auth_url, user, key, scenario):
-        """Runs a CRUD scenario, given cluster parameters and a Scenario object.
-        
+        """
+        Runs a CRUD scenario, given cluster parameters and a Scenario object.
+
         :auth_url: Authentication URL for the Swift cluster
         :user: Account/Username to use (format is <account>:<username>)
         :key: Password for the Account/Username
@@ -164,7 +165,7 @@ ${label}
     def generate_scenario_report(self, scenario, stats):
         """Format a report based on calculated statistics for an executed
         scenario.
-        
+
         :stats: A python data structure with calculated statistics
         :returns: A report (string) suitable for printing, emailing, etc.
         """
@@ -189,7 +190,7 @@ ${label}
 
     def calculate_scenario_stats(self, scenario, results):
         """Given a list of worker job result dicts, compute various statistics.
-       
+
         :results: A list of worker job result dicts
         :returns: A stats python dict which looks like:
             SERIES_STATS = {
@@ -271,8 +272,9 @@ ${label}
         #   'type': 'get_object',
         #   'completed_at': 1324372892.360802,
         #   'exception': '...',
-        # } 
-        logging.info('Calculating statistics for %d result items...', len(results))
+        # }
+        logging.info('Calculating statistics for %d result items...',
+                     len(results))
         agg_stats = dict(start=2**32, stop=0, req_count=0)
         op_stats = {}
         for crud_type in [ssbench.CREATE_OBJECT, ssbench.READ_OBJECT,
@@ -290,7 +292,7 @@ ${label}
             op_stats=op_stats,
             size_stats=OrderedDict.fromkeys(scenario.sizes_by_name.keys()))
         for result in results:
-            if result.has_key('exception'):
+            if 'exception' in result:
                 # skip but log exceptions
                 logging.warn('calculate_scenario_stats: exception from '
                              'worker %d: %s',
@@ -303,17 +305,20 @@ ${label}
                 completion_time_max = completion_time
             req_completion_seconds[completion_time] = \
                 1 + req_completion_seconds.get(completion_time, 0)
-            result['start'] = result['completed_at'] - result['last_byte_latency']
+            result['start'] = (
+                result['completed_at'] - result['last_byte_latency'])
 
             # Stats per-worker
-            if not stats['worker_stats'].has_key(result['worker_id']):
+            if result['worker_id'] not in stats['worker_stats']:
                 stats['worker_stats'][result['worker_id']] = {}
-            self._add_result_to(stats['worker_stats'][result['worker_id']], result)
+            self._add_result_to(stats['worker_stats'][result['worker_id']],
+                                result)
 
             # Stats per-file-size
             if not stats['size_stats'][result['size_str']]:
                 stats['size_stats'][result['size_str']] = {}
-            self._add_result_to(stats['size_stats'][result['size_str']], result)
+            self._add_result_to(stats['size_stats'][result['size_str']],
+                                result)
 
             self._add_result_to(agg_stats, result)
             self._add_result_to(op_stats[result['type']], result)
@@ -347,9 +352,9 @@ ${label}
                 self._compute_latency_stats(size_stats)
             else:
                 stats['size_stats'].pop(size_str)
-        time_series_data = [
-            req_completion_seconds.get(t, 0) for t in range(completion_time_min, completion_time_max + 1)
-        ]
+        time_series_data = [req_completion_seconds.get(t, 0)
+                            for t in range(completion_time_min,
+                                           completion_time_max + 1)]
         stats['time_series'] = dict(start=completion_time_min,
                                     data=time_series_data)
 
@@ -358,23 +363,24 @@ ${label}
     def _compute_latency_stats(self, stat_dict):
         try:
             for latency_type in ('first_byte_latency', 'last_byte_latency'):
-                stat_dict[latency_type] = self._series_stats(stat_dict[latency_type])
+                stat_dict[latency_type] = self._series_stats(
+                    stat_dict[latency_type])
         except KeyError:
             logging.exception('stat_dict: %r', stat_dict)
             raise
- 
+
     def _compute_req_per_sec(self, stat_dict):
         stat_dict['avg_req_per_sec'] = round(stat_dict['req_count'] /
                                              (stat_dict['stop'] -
                                               stat_dict['start']), 6)
 
-
     def _add_result_to(self, stat_dict, result):
-        if not stat_dict.has_key('start') or result['start'] < stat_dict['start']:
+        if 'start' not in stat_dict or result['start'] < stat_dict['start']:
             stat_dict['start'] = result['start']
-        if not stat_dict.has_key('stop') or result['completed_at'] > stat_dict['stop']:
+        if 'stop' not in stat_dict or \
+                result['completed_at'] > stat_dict['stop']:
             stat_dict['stop'] = result['completed_at']
-        if not stat_dict.has_key('req_count'):
+        if 'req_count' not in stat_dict:
             stat_dict['req_count'] = 1
         else:
             stat_dict['req_count'] += 1
@@ -383,14 +389,14 @@ ${label}
     def _series_stats(self, sequence):
         try:
             n, (minval, maxval), mean, std_dev, skew, kurtosis = \
-                    statlib.stats.ldescribe(sequence)
+                statlib.stats.ldescribe(sequence)
         except ZeroDivisionError:
             # Handle the case of a single-element sequence (population standard
             # deviation divides by N-1)
-            minval=sequence[0]
-            maxval=sequence[0]
-            mean=sequence[0]
-            std_dev=0
+            minval = sequence[0]
+            maxval = sequence[0]
+            mean = sequence[0]
+            std_dev = 0
         return dict(
             min=round(minval, 6), max=round(maxval, 6), avg=round(mean, 6),
             std_dev=round(statlib.stats.lsamplestdev(sequence), 6),
@@ -399,7 +405,7 @@ ${label}
 
     def _rec_latency(self, stats_dict, result):
         for latency_type in ('first_byte_latency', 'last_byte_latency'):
-            if stats_dict.has_key(latency_type):
+            if latency_type in stats_dict:
                 stats_dict[latency_type].append(result[latency_type])
             else:
                 stats_dict[latency_type] = [result[latency_type]]

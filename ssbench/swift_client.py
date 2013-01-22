@@ -38,10 +38,10 @@ try:
 except ImportError:
     from time import sleep
 
-#try:
+# try:
 #    from swift.common.bufferedhttp \
 #        import BufferedHTTPConnection as HTTPConnection
-#except ImportError:
+# except ImportError:
 try:
     from eventlet.green.httplib import HTTPConnection
 except ImportError:
@@ -190,9 +190,9 @@ def get_auth(url, user, key, snet=False):
     resp.read()
     if resp.status < 200 or resp.status >= 300:
         raise ClientException('Auth GET failed', http_scheme=parsed.scheme,
-                http_host=conn.host, http_port=conn.port,
-                http_path=parsed.path, http_status=resp.status,
-                http_reason=resp.reason)
+                              http_host=conn.host, http_port=conn.port,
+                              http_path=parsed.path, http_status=resp.status,
+                              http_reason=resp.reason)
     url = resp.getheader('x-storage-url')
     if snet:
         parsed = list(urlparse(url))
@@ -250,9 +250,9 @@ def get_account(url, token, marker=None, limit=None, prefix=None,
     if resp.status < 200 or resp.status >= 300:
         resp.read()
         raise ClientException('Account GET failed', http_scheme=parsed.scheme,
-                http_host=conn.host, http_port=conn.port,
-                http_path=parsed.path, http_query=qs, http_status=resp.status,
-                http_reason=resp.reason)
+                              http_host=conn.host, http_port=conn.port,
+                              http_path=parsed.path, http_query=qs,
+                              http_status=resp.status, http_reason=resp.reason)
     if resp.status == 204:
         resp.read()
         return resp_headers, []
@@ -280,9 +280,9 @@ def head_account(url, token, http_conn=None):
     resp.read()
     if resp.status < 200 or resp.status >= 300:
         raise ClientException('Account HEAD failed', http_scheme=parsed.scheme,
-                http_host=conn.host, http_port=conn.port,
-                http_path=parsed.path, http_status=resp.status,
-                http_reason=resp.reason)
+                              http_host=conn.host, http_port=conn.port,
+                              http_path=parsed.path, http_status=resp.status,
+                              http_reason=resp.reason)
     resp_headers = {}
     for header, value in resp.getheaders():
         resp_headers[header.lower()] = value
@@ -310,9 +310,9 @@ def post_account(url, token, headers, http_conn=None):
     resp.read()
     if resp.status < 200 or resp.status >= 300:
         raise ClientException('Account POST failed',
-                http_scheme=parsed.scheme, http_host=conn.host,
-                http_port=conn.port, http_path=path, http_status=resp.status,
-                http_reason=resp.reason)
+                              http_scheme=parsed.scheme, http_host=conn.host,
+                              http_port=conn.port, http_path=path,
+                              http_status=resp.status, http_reason=resp.reason)
 
 
 def get_container(url, token, container, marker=None, limit=None,
@@ -368,9 +368,10 @@ def get_container(url, token, container, marker=None, limit=None,
     if resp.status < 200 or resp.status >= 300:
         resp.read()
         raise ClientException('Container GET failed',
-                http_scheme=parsed.scheme, http_host=conn.host,
-                http_port=conn.port, http_path=path, http_query=qs,
-                http_status=resp.status, http_reason=resp.reason)
+                              http_scheme=parsed.scheme, http_host=conn.host,
+                              http_port=conn.port, http_path=path,
+                              http_query=qs, http_status=resp.status,
+                              http_reason=resp.reason)
     resp_headers = {}
     for header, value in resp.getheaders():
         resp_headers[header.lower()] = value
@@ -403,9 +404,9 @@ def head_container(url, token, container, http_conn=None):
     resp.read()
     if resp.status < 200 or resp.status >= 300:
         raise ClientException('Container HEAD failed',
-                http_scheme=parsed.scheme, http_host=conn.host,
-                http_port=conn.port, http_path=path, http_status=resp.status,
-                http_reason=resp.reason)
+                              http_scheme=parsed.scheme, http_host=conn.host,
+                              http_port=conn.port, http_path=path,
+                              http_status=resp.status, http_reason=resp.reason)
     resp_headers = {}
     for header, value in resp.getheaders():
         resp_headers[header.lower()] = value
@@ -437,9 +438,9 @@ def put_container(url, token, container, headers=None, http_conn=None):
     resp.read()
     if resp.status < 200 or resp.status >= 300:
         raise ClientException('Container PUT failed',
-                http_scheme=parsed.scheme, http_host=conn.host,
-                http_port=conn.port, http_path=path, http_status=resp.status,
-                http_reason=resp.reason)
+                              http_scheme=parsed.scheme, http_host=conn.host,
+                              http_port=conn.port, http_path=path,
+                              http_status=resp.status, http_reason=resp.reason)
 
 
 def post_container(url, token, container, headers, http_conn=None):
@@ -465,9 +466,9 @@ def post_container(url, token, container, headers, http_conn=None):
     resp.read()
     if resp.status < 200 or resp.status >= 300:
         raise ClientException('Container POST failed',
-                http_scheme=parsed.scheme, http_host=conn.host,
-                http_port=conn.port, http_path=path, http_status=resp.status,
-                http_reason=resp.reason)
+                              http_scheme=parsed.scheme, http_host=conn.host,
+                              http_port=conn.port, http_path=path,
+                              http_status=resp.status, http_reason=resp.reason)
 
 
 def delete_container(url, token, container, http_conn=None):
@@ -491,9 +492,9 @@ def delete_container(url, token, container, http_conn=None):
     resp.read()
     if resp.status < 200 or resp.status >= 300:
         raise ClientException('Container DELETE failed',
-                http_scheme=parsed.scheme, http_host=conn.host,
-                http_port=conn.port, http_path=path, http_status=resp.status,
-                http_reason=resp.reason)
+                              http_scheme=parsed.scheme, http_host=conn.host,
+                              http_port=conn.port, http_path=path,
+                              http_status=resp.status, http_reason=resp.reason)
 
 
 def get_object(url, token, container, name, http_conn=None,
@@ -527,8 +528,9 @@ def get_object(url, token, container, name, http_conn=None,
     if resp.status < 200 or resp.status >= 300:
         resp.read()
         raise ClientException('Object GET failed', http_scheme=parsed.scheme,
-                http_host=conn.host, http_port=conn.port, http_path=path,
-                http_status=resp.status, http_reason=resp.reason)
+                              http_host=conn.host, http_port=conn.port,
+                              http_path=path, http_status=resp.status,
+                              http_reason=resp.reason)
     if resp_chunk_size:
 
         def _object_body():
@@ -572,8 +574,9 @@ def head_object(url, token, container, name, http_conn=None):
     resp.read()
     if resp.status < 200 or resp.status >= 300:
         raise ClientException('Object HEAD failed', http_scheme=parsed.scheme,
-                http_host=conn.host, http_port=conn.port, http_path=path,
-                http_status=resp.status, http_reason=resp.reason)
+                              http_host=conn.host, http_port=conn.port,
+                              http_path=path, http_status=resp.status,
+                              http_reason=resp.reason)
     resp_headers = {}
     for header, value in resp.getheaders():
         resp_headers[header.lower()] = value
@@ -668,8 +671,9 @@ def put_object(url, token=None, container=None, name=None, contents=None,
     resp.read()
     if resp.status < 200 or resp.status >= 300:
         raise ClientException('Object PUT failed', http_scheme=parsed.scheme,
-                http_host=conn.host, http_port=conn.port, http_path=path,
-                http_status=resp.status, http_reason=resp.reason)
+                              http_host=conn.host, http_port=conn.port,
+                              http_path=path, http_status=resp.status,
+                              http_reason=resp.reason)
     now = time()
     return {
         'x-swiftstack-first-byte-latency': now - response_start,
@@ -701,8 +705,9 @@ def post_object(url, token, container, name, headers, http_conn=None):
     resp.read()
     if resp.status < 200 or resp.status >= 300:
         raise ClientException('Object POST failed', http_scheme=parsed.scheme,
-                http_host=conn.host, http_port=conn.port, http_path=path,
-                http_status=resp.status, http_reason=resp.reason)
+                              http_host=conn.host, http_port=conn.port,
+                              http_path=path, http_status=resp.status,
+                              http_reason=resp.reason)
 
 
 def delete_object(url, token=None, container=None, name=None, http_conn=None,
@@ -746,9 +751,9 @@ def delete_object(url, token=None, container=None, name=None, http_conn=None,
     resp.read()
     if resp.status < 200 or resp.status >= 300:
         raise ClientException('Object DELETE failed',
-                http_scheme=parsed.scheme, http_host=conn.host,
-                http_port=conn.port, http_path=path, http_status=resp.status,
-                http_reason=resp.reason)
+                              http_scheme=parsed.scheme, http_host=conn.host,
+                              http_port=conn.port, http_path=path,
+                              http_status=resp.status, http_reason=resp.reason)
     return {
         'x-swiftstack-first-byte-latency': first_byte_latency,
         'x-swiftstack-last-byte-latency': time() - start,
@@ -882,7 +887,8 @@ class Connection(object):
 
         def _default_reset(*args, **kwargs):
             raise ClientException('put_object(%r, %r, ...) failure and no '
-                'ability to reset contents for reupload.' % (container, obj))
+                                  'ability to reset contents for reupload.' % (
+                                      container, obj))
 
         reset_func = _default_reset
         tell = getattr(contents, 'tell', None)
@@ -894,8 +900,9 @@ class Connection(object):
             reset_func = lambda *a, **k: None
 
         return self._retry(reset_func, put_object, container, obj, contents,
-            content_length=content_length, etag=etag, chunk_size=chunk_size,
-            content_type=content_type, headers=headers)
+                           content_length=content_length, etag=etag,
+                           chunk_size=chunk_size, content_type=content_type,
+                           headers=headers)
 
     def post_object(self, container, obj, headers):
         """Wrapper for :func:`post_object`"""

@@ -45,7 +45,7 @@ def add_dicts(*args, **kwargs):
         result.update(d)
     result.update(kwargs)
     return result
- 
+
 
 class ConnectionPool(eventlet.pools.Pool):
     def __init__(self, storage_url, size):
@@ -54,18 +54,18 @@ class ConnectionPool(eventlet.pools.Pool):
 
     def create(self):
         return client.http_connection(self.storage_url)
-    
+
 
 class ChunkedReader(object):
     def __init__(self, letter, size):
         self.size = size
         self.letter = letter
-        self.bytes_left = int(size) # in case it's a float
+        self.bytes_left = int(size)  # in case it's a float
 
     def __eq__(self, other_reader):
         if isinstance(other_reader, ChunkedReader):
             return self.size == other_reader.size and \
-                    self.letter == other_reader.letter
+                self.letter == other_reader.letter
 
     def read(self, chunk_size):
         if self.bytes_left == 0:
@@ -192,9 +192,9 @@ class Worker:
     def put_results(self, *args, **kwargs):
         """
         Put work result into stats queue.  Given *args and **kwargs are
-        combined per add_dicts().  This worker's "ID" and the time of completion
-        are included in the results.
-        
+        combined per add_dicts().  This worker's "ID" and the time of
+        completion are included in the results.
+
         :*args: An optional list of dicts (to be combined via add_dicts())
         :**kwargs: An optional set of key/value pairs (to be combined via
                    add_dicts())

@@ -1,0 +1,121 @@
+#!/usr/bin/env python
+
+import os
+import re
+import sys
+import math
+import logging
+import argparse
+import cPickle as pickle
+from datetime import datetime
+
+import eventlet
+beanstalkc = eventlet.import_patched('beanstalkc')
+
+from collections import Counter
+from ssbench.master import Master
+from ssbench.scenario import Scenario
+
+DEFAULT_OBJECTS_PER_CONTAINER = 1000
+DEFAULT_STATS_PATH = '/tmp/ssbench-results/%s.stat'
+
+
+def print_unixtime_histogram(results):
+    counted = Counter([int(item['completed_at']) for item in results])
+    print "unixtime,count"
+    for item in sorted(set(counted.elements())):
+        print "%s,%s" % (item, counted[item])
+
+
+def run_scenario(master, args):
+    scenario = Scenario(args.scenario_file)
+
+    # Possibly attempt open prior to benchmark run so we get errors earlier
+    # if there's a problem.
+    if args.stats_file == DEFAULT_STATS_PATH % '<scenario_name>':
+        munged_name = re.sub('[%s\s]+' % os.path.sep, '_', scenario.name)
+        args.stats_file = DEFAULT_STATS_PATH % munged_name
+        os.makedirs(os.path.dirname(args.stats_file))
+    args.stats_file = open(args.stats_file, 'w+')
+
+    results = master.run_scenario(auth_url=args.auth_url, user=args.user,
+                                  key=args.key, scenario=scenario)
+
+    pickle.dump([scenario, results], args.stats_file)
+
+    if not args.no_default_report:
+        args.stats_file.flush()
+        args.stats_file.seek(0)
+        args.report_file = sys.stdout
+        args.rps_histogram = None
+        report_scenario(master, args)
+    args.stats_file.close()
+
+
+def report_scenario(master, args):
+    scenario, results = pickle.load(args.stats_file)
+    stats = master.calculate_scenario_stats(scenario, results)
+    args.report_file.write(master.generate_scenario_report(scenario, stats))
+    if args.rps_histogram:
+        master.write_rps_histogram(stats, args.rps_histogram)
+        # Note: not explicitly closing here in case it's redirected to STDOUT
+        # (i.e. "-")
+
+
+def add_swift_args(parser):
+    parser.add_argument('-A', '--auth-url', required=True)
+    parser.add_argument('-K', '--key', required=True)
+    parser.add_argument('-U', '--user', required=True)
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+
+    arg_parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description='Benchmark your Swift installation')
+    arg_parser.add_argument('--qhost', default="localhost",
+                            help='beanstalkd host')
+    arg_parser.add_argument('--qport', default=11300, type=int,
+                            help='beanstalkd port')
+
+    subparsers = arg_parser.add_subparsers()
+
+    run_scenario_arg_parser = subparsers.add_parser(
+        "run-scenario", help="Run CRUD scenario, saving statistics",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    add_swift_args(run_scenario_arg_parser)
+    run_scenario_arg_parser.add_argument(
+        '-f', '--scenario-file', required=True, type=str)
+    run_scenario_arg_parser.add_argument(
+        '-s', '--stats-file', type=str,
+        help='File into which benchmarking statistics will be saved',
+        default=DEFAULT_STATS_PATH % '<scenario_name>')
+    run_scenario_arg_parser.add_argument(
+        '-r', '--no-default-report', action='store_true', default=False,
+        help="Suppress the default immediate generation of a benchmark "
+        "report to STDOUT after saving stats-file")
+    run_scenario_arg_parser.set_defaults(func=run_scenario)
+
+    report_scenario_arg_parser = subparsers.add_parser(
+        "report-scenario",
+        help="Generate a report from saved scenario statistics",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    report_scenario_arg_parser.add_argument(
+        '-s', '--stats-file', type=argparse.FileType('r'), required=True,
+        help='An existing stats file from a previous '
+        '--run-scenario invocation')
+    report_scenario_arg_parser.add_argument(
+        '-f', '--report-file', type=argparse.FileType('w'), default=sys.stdout,
+        help='The file to which the report should be written (def: STDOUT)')
+    report_scenario_arg_parser.add_argument(
+        '-r', '--rps-histogram', type=argparse.FileType('w'),
+        help='Also write a CSV file with requests completed per second '
+        'histogram data')
+    report_scenario_arg_parser.set_defaults(func=report_scenario)
+
+    args = arg_parser.parse_args(sys.argv[1:])
+    beanq = beanstalkc.Connection(host=args.qhost, port=args.qport)
+    master = Master(beanq)
+
+    args.func(master, args)

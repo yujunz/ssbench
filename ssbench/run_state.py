@@ -7,6 +7,7 @@ import ssbench
 
 from pprint import pprint, pformat
 
+
 class RunState(object):
     """
     An object to track the dynamic "state" of a benchmark run.
