@@ -36,7 +36,8 @@ setup(
     author='SwiftStack, Inc.',
     author_email='darrell@swiftstack.com',
     url='http://github.com/SwiftStack/ssbench',
-    packages=find_packages(exclude=['ssbench.test', 'bin']),
+    packages=find_packages(exclude=['ssbench.tests', 'ssbench.tests.*',
+                                    'bin']),
     test_suite='nose.collector',
     tests_require=['nose'],
     classifiers=[
