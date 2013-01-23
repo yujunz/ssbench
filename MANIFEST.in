@@ -1,2 +1,3 @@
 include README.rst
 include scenarios/*
+include .requirements.txt
