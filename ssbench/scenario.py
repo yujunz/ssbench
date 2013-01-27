@@ -27,7 +27,8 @@ from pprint import pprint
 class Scenario(object):
     """Encapsulation of a benchmark "CRUD" scenario."""
 
-    def __init__(self, scenario_filename):
+    def __init__(self, scenario_filename, container_count=None,
+                 user_count=None):
         """Initializes the object from a scenario file on disk.
 
         :scenario_filename: path to a scenario file
@@ -42,19 +43,26 @@ class Scenario(object):
             raise
 
         # Sanity-check user_count
-        if self._scenario_data['user_count'] < 1:
+        if user_count is not None:
+            self.user_count = user_count
+        else:
+            self.user_count = self._scenario_data['user_count']
+        if self.user_count < 1:
             raise ValueError('user_count must be > 1')
 
-        self.user_count = self._scenario_data['user_count']
         self.operation_count = self._scenario_data['operation_count']
         self.name = self._scenario_data['name']
         self.container_base = self._scenario_data.get('container_base',
                                                       'ssbench')
-        self.container_count = self._scenario_data.get('container_count', 100)
+        if container_count is not None:
+            self.container_count = container_count
+        else:
+            self.container_count = self._scenario_data.get(
+                'container_count', 100)
         self.containers = ['%s_%06d' % (self.container_base, i)
                            for i in xrange(self.container_count)]
         self.container_concurrency = self._scenario_data.get(
-            'controller_concurrency', 10)
+            'container_concurrency', 10)
 
         # Set up sizes
         self.sizes_by_name = OrderedDict()

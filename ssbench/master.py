@@ -58,6 +58,10 @@ class Master:
     def process_result_to(self, job, processor):
         job.delete()
         result = yaml.load(job.body)
+        logging.debug('RESULT: %13s %s/%-17s %.4f/%.4f',
+                      result['type'], result['container'], result['name'],
+                      result['first_byte_latency'],
+                      result['last_byte_latency'])
         processor(result)
 
     def do_a_run(self, concurrency, job_generator, result_processor, priority,
@@ -93,7 +97,7 @@ class Master:
             self.process_result_to(result_job, result_processor)
             active -= 1
 
-    def run_scenario(self, auth_url, user, key, scenario):
+    def run_scenario(self, auth_url, user, key, storage_url, token, scenario):
         """
         Runs a CRUD scenario, given cluster parameters and a Scenario object.
 
@@ -107,13 +111,19 @@ class Master:
         run_state = RunState()
 
         self.drain_stats_queue()
-        storage_url, token = client.get_auth(auth_url, user, key)
+        if not storage_url or not token:
+            logging.debug('Authenticating to %s with %s/%s', auth_url, user,
+                          key)
+            storage_url, token = client.get_auth(auth_url, user, key)
+        else:
+            logging.debug('Using token %s at %s', token, storage_url)
 
-        logging.info('Starting scenario run for %r', scenario.name)
+        logging.info(u'Starting scenario run for "%s"', scenario.name)
 
         # Ensure containers exist
-        logging.info('Creating containers (%s_*) with concurrency %d...',
-                     scenario.container_base, scenario.container_concurrency)
+        logging.info('Ensuring %d containers (%s_*) exist; concurrency=%d...',
+                     len(scenario.containers), scenario.container_base,
+                     scenario.container_concurrency)
         pool = eventlet.GreenPool(scenario.container_concurrency)
         for container in scenario.containers:
             pool.spawn_n(_container_creator, storage_url, token, container)

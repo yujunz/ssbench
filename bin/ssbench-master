@@ -42,7 +42,12 @@ def print_unixtime_histogram(results):
 
 
 def run_scenario(master, args):
-    scenario = Scenario(args.scenario_file)
+    container_count = int(args.container_count) \
+            if args.container_count != 'value from scenario' else None
+    user_count = int(args.user_count) \
+            if args.user_count != 'value from scenario' else None
+    scenario = Scenario(args.scenario_file, container_count=container_count,
+                        user_count=user_count)
 
     # Possibly attempt open prior to benchmark run so we get errors earlier
     # if there's a problem.
@@ -54,7 +59,8 @@ def run_scenario(master, args):
     args.stats_file = open(args.stats_file, 'w+')
 
     results = master.run_scenario(auth_url=args.auth_url, user=args.user,
-                                  key=args.key, scenario=scenario)
+                                  key=args.key, storage_url=args.storage_url,
+                                  token=args.token, scenario=scenario)
 
     pickle.dump([scenario, results], args.stats_file)
 
@@ -77,15 +83,7 @@ def report_scenario(master, args):
         # (i.e. "-")
 
 
-def add_swift_args(parser):
-    parser.add_argument('-A', '--auth-url', required=True)
-    parser.add_argument('-K', '--key', required=True)
-    parser.add_argument('-U', '--user', required=True)
-
-
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-
     arg_parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description='Benchmark your Swift installation')
@@ -93,13 +91,44 @@ if __name__ == "__main__":
                             help='beanstalkd host')
     arg_parser.add_argument('--qport', default=11300, type=int,
                             help='beanstalkd port')
+    arg_parser.add_argument('-v', '--verbose', action='store_true',
+                            default=False, help='Enable more verbose output.')
 
     subparsers = arg_parser.add_subparsers()
 
     run_scenario_arg_parser = subparsers.add_parser(
-        "run-scenario", help="Run CRUD scenario, saving statistics",
+        "run-scenario", help="""
+        Run CRUD scenario, saving statistics.
+
+        You must supply *either* the -A, -U, and -K options, or the -S and -T
+        options.
+        """.strip(),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    add_swift_args(run_scenario_arg_parser)
+    run_scenario_arg_parser.add_argument(
+        '-A', '--auth-url', default=os.environ.get('ST_AUTH', None),
+        help='Auth URL for the Swift cluster under test.')
+    run_scenario_arg_parser.add_argument(
+        '-U', '--user', default=os.environ.get('ST_USER', None),
+        help='The X-Auth-User value to use for authentication.')
+    run_scenario_arg_parser.add_argument(
+        '-K', '--key', default=os.environ.get('ST_KEY', None),
+        help='The X-Auth-Key value to use for authentication.')
+    #
+    run_scenario_arg_parser.add_argument(
+        '-S', '--storage-url', help='A specific X-Storage-Url to use; mutually '
+        'exclusive with -A, -U, and -K; requires -T')
+    run_scenario_arg_parser.add_argument(
+        '-T', '--token', help='A specific X-Storage-Token to use; mutually '
+        'exclusive with -A, -U, and -K; requires -S')
+
+    run_scenario_arg_parser.add_argument(
+        '-c', '--container-count', default='value from scenario',
+        help='Override the container count specified in the scenario file.')
+    run_scenario_arg_parser.add_argument(
+        '-u', '--user-count', default='value from scenario',
+        help='Override the user count (concurrency) specified in the '
+        'scenario file.')
+
     run_scenario_arg_parser.add_argument(
         '-f', '--scenario-file', required=True, type=str)
     run_scenario_arg_parser.add_argument(
@@ -130,6 +159,22 @@ if __name__ == "__main__":
     report_scenario_arg_parser.set_defaults(func=report_scenario)
 
     args = arg_parser.parse_args(sys.argv[1:])
+
+    if args.func == run_scenario:
+        if args.storage_url and args.token:
+            args.auth_url = None
+            args.user = None
+            args.key = None
+        elif not (args.auth_url and args.user and args.key):
+            print >>sys.stderr, 'Must specifiy -A, -U, -K or -S and -T.'
+            run_scenario_arg_parser.print_help(file=sys.stderr)
+            exit(1)
+    os.environ.pop('ST_AUTH', None)
+    os.environ.pop('ST_USER', None)
+    os.environ.pop('ST_KEY', None)
+
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+
     beanq = beanstalkc.Connection(host=args.qhost, port=args.qport)
     master = Master(beanq)
 

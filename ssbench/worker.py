@@ -20,6 +20,7 @@ import re
 import yaml
 import random
 import time
+import resource
 from functools import partial
 from contextlib import contextmanager
 import logging
@@ -77,10 +78,14 @@ class ChunkedReader(object):
 
 
 class Worker:
-    def __init__(self, queue_host, queue_port, worker_id, max_retries,
-                 concurrency):
+    def __init__(self, queue_host, queue_port, worker_id, max_retries):
         self.queue_host = queue_host
         self.queue_port = queue_port
+        self.worker_id = worker_id
+        self.max_retries = max_retries
+        soft_nofile, hard_nofile = resource.getrlimit(resource.RLIMIT_NOFILE)
+        resource.setrlimit(resource.RLIMIT_NOFILE, (1024, hard_nofile))
+        self.concurrency = 256
 
         # Only one greenthread will be pulling out work...
         self.work_queue = beanstalkc.Connection(host=queue_host,
@@ -89,11 +94,9 @@ class Worker:
 
         # This greenpool is for sending results
         self.result_queue_pool = eventlet.pools.Pool(
-            concurrency, concurrency, create=self.create_result_queue)
+            self.concurrency, self.concurrency,
+            create=self.create_result_queue)
 
-        self.worker_id = worker_id
-        self.max_retries = max_retries
-        self.concurrency = concurrency
         # The connection pool is lazily-created when the first work job comes
         # in which will have the storage_url in it.
         self.conn_pool = None
@@ -132,7 +135,9 @@ class Worker:
             job_data = yaml.load(job.body)
             if self.conn_pool is None:
                 self.create_conn_pool(job_data['storage_url'])
-            logging.debug('%r', job_data)
+            logging.debug('WORK: %13s %s/%-17s',
+                          job_data['type'], job_data['container'],
+                          job_data['name'])
             pool.spawn_n(self.handle_job, job_data)
             job = self.work_queue.reserve()
 
