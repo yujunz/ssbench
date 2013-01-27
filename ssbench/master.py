@@ -84,7 +84,6 @@ class Master:
                  storage_url, token, mapper_fn=None, label=''):
         if label and not self.quiet:
             print >>sys.stderr, label + '\n' + """
-%s
   .  <  1s first-byte-latency
   o  <  3s first-byte-latency
   O  < 10s first-byte-latency

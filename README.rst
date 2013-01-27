@@ -45,9 +45,7 @@ benchmark run.  Specifically, it defines:
 ``ssbench`` comes with a few canned scenarios, but users are encouraged to
 experiment and define their own.
 
-Here is an example JSON scenario file:
-
-::
+Here is an example JSON scenario file::
 
   {
     "name": "Small test scenario",
@@ -80,55 +78,79 @@ an `OpenStack Swift`_ cluster to benchmark.
 Usage
 -----
 
-::
+The ``ssbench-worker`` script::
 
   $ ssbench-worker --help
-  usage: ssbench-worker [-h] [--qhost QHOST] [--qport QPORT] [--retries RETRIES]
-                        [--concurrency CONCURRENCY]
+  usage: ssbench-worker [-h] [--qhost QHOST] [--qport QPORT] [-v]
+                        [--retries RETRIES]
                         worker_id
 
   Benchmark your Swift installation
 
   positional arguments:
-    worker_id             An integer ID number; must be unique among all workers
+    worker_id          An integer ID number; must be unique among all workers
 
   optional arguments:
-    -h, --help            show this help message and exit
-    --qhost QHOST         beanstalkd host (def: localhost)
-    --qport QPORT         beanstalkd port (def: 11300)
-    --retries RETRIES     Maximum number of times to retry a job.
-    --concurrency CONCURRENCY
-                          Number of concurrent connections for this worker
+    -h, --help         show this help message and exit
+    --qhost QHOST      beanstalkd host (default: 127.0.0.1)
+    --qport QPORT      beanstalkd port (default: 11300)
+    -v, --verbose      Enable more verbose output. (default: False)
+    --retries RETRIES  Maximum number of times to retry a job. (default: 10)
 
-::
+Basic usage of ``ssbench-master`` (requires one of ``run-scenario`` to actually
+run a benchmark scenario, or ``report-scenario`` to report on an existing
+scenario result data file::
 
-  $ ssbench-master -h
-  usage: ssbench-master [-h] [--qhost QHOST] [--qport QPORT]
+  usage: ssbench-master [-h] [--qhost QHOST] [--qport QPORT] [-v]
                         {run-scenario,report-scenario} ...
 
   Benchmark your Swift installation
 
   positional arguments:
     {run-scenario,report-scenario}
-      run-scenario        Run CRUD scenario, saving statistics
+      run-scenario        Run CRUD scenario, saving statistics. You must supply
+                          *either* the -A, -U, and -K options, or the -S and -T
+                          options.
       report-scenario     Generate a report from saved scenario statistics
 
   optional arguments:
     -h, --help            show this help message and exit
     --qhost QHOST         beanstalkd host (default: localhost)
     --qport QPORT         beanstalkd port (default: 11300)
+    -v, --verbose         Enable more verbose output. (default: False)
 
-::
+The ``run-scenario`` sub-command of ``ssbench-master`` which actually
+runs a benchmark scenario::
 
   $ ssbench-master run-scenario -h
-  usage: ssbench-master run-scenario [-h] -A AUTH_URL -K KEY -U USER -f
-                                     SCENARIO_FILE [-s STATS_FILE] [-r]
+  usage: ssbench-master run-scenario [-h] [-A AUTH_URL] [-U USER] [-K KEY]
+                                     [-S STORAGE_URL] [-T TOKEN]
+                                     [-c CONTAINER_COUNT] [-u USER_COUNT] [-q]
+                                     -f SCENARIO_FILE [-s STATS_FILE] [-r]
 
   optional arguments:
     -h, --help            show this help message and exit
     -A AUTH_URL, --auth-url AUTH_URL
-    -K KEY, --key KEY
-    -U USER, --user USER
+                          Auth URL for the Swift cluster under test. (default:
+                          http://192.168.22.100/auth/v1.0)
+    -U USER, --user USER  The X-Auth-User value to use for authentication.
+                          (default: dev:admin)
+    -K KEY, --key KEY     The X-Auth-Key value to use for authentication.
+                          (default: admin)
+    -S STORAGE_URL, --storage-url STORAGE_URL
+                          A specific X-Storage-Url to use; mutually exclusive
+                          with -A, -U, and -K; requires -T (default: None)
+    -T TOKEN, --token TOKEN
+                          A specific X-Storage-Token to use; mutually exclusive
+                          with -A, -U, and -K; requires -S (default: None)
+    -c CONTAINER_COUNT, --container-count CONTAINER_COUNT
+                          Override the container count specified in the scenario
+                          file. (default: value from scenario)
+    -u USER_COUNT, --user-count USER_COUNT
+                          Override the user count (concurrency) specified in the
+                          scenario file. (default: value from scenario)
+    -q, --quiet           Suppress most output (including progress characters
+                          during run). (default: False)
     -f SCENARIO_FILE, --scenario-file SCENARIO_FILE
     -s STATS_FILE, --stats-file STATS_FILE
                           File into which benchmarking statistics will be saved
@@ -138,7 +160,8 @@ Usage
                           benchmark report to STDOUT after saving stats-file
                           (default: False)
 
-::
+The ``report-scenario`` sub-command of ``ssbench-master`` which can report on a
+previously-run benchmark scenario::
 
   $ ssbench-master report-scenario -h
   usage: ssbench-master report-scenario [-h] -s STATS_FILE [-f REPORT_FILE]
@@ -161,82 +184,88 @@ Usage
 Example Run
 -----------
 
-First make sure ``beanstalkd`` is running.
-
-::
+First make sure ``beanstalkd`` is running.  Note that you may need to ensure
+its maximum file descriptor limit is raised, which may require root privileges
+and a more complicated invocation than the simple example below::
 
   $ beanstalkd -l 127.0.0.1 &
 
-Then, start one or more ``ssbench-worker`` processes.
-
-::
+Then, start one or more ``ssbench-worker`` processes (each process is currently
+hard-coded to a maximum eventlet-based concurrency of 256)::
 
   $ ssbench-worker 1 &
   $ ssbench-worker 2 &
 
 Finally, run one ``ssbench-master`` process which will manage and coordinate
-the benchmark run.
+the benchmark run::
 
-::
-
-  $ ssbench-master run-scenario -A http://192.168.22.100/auth/v1.0 -U dev:admin -K admin -f very_small.scenario
-  INFO:root:Starting scenario run for u'Small test scenario'
-  INFO:root:Creating containers (ssbench_*) with concurrency 10...
-  INFO:root:Initializing cluster with stock data (up to 7 concurrent workers)
-  INFO:root:Starting benchmark run (up to 7 concurrent workers)
+  $ ssbench-master run-scenario -f scenarios/very_small.scenario -c 200 -u 4 -S http://192.168.22.100/v1/AUTH_dev -T AUTH_tkfc57b0bb67f84afbb054fb8db2d034d7 
+  INFO:root:Starting scenario run for "Small test scenario"
+  INFO:root:Ensuring 200 containers (ssbench_*) exist; concurrency=10...
+  INFO:root:Initializing cluster with stock data (up to 4 concurrent workers)
+  INFO:root:Starting benchmark run (up to 4 concurrent workers)
+  Benchmark Run:
+    .  <  1s first-byte-latency
+    o  <  3s first-byte-latency
+    O  < 10s first-byte-latency
+    * >= 10s first-byte-latency
+    X    work job raised an exception
+    _    no first-byte-latency available
+  ....................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
   INFO:root:Deleting population objects from cluster
   INFO:root:Calculating statistics for 500 result items...
 
   Small test scenario
-    C   R   U   D     Worker count:   2   Concurrency:   7
+    C   R   U   D     Worker count:   2   Concurrency:   4
   % 27  36  18  18
 
   TOTAL
-         Count:   500  Average requests per second:  45.5
+         Count:   500  Average requests per second:  45.3
                              min      max     avg     std_dev   median
-         First-byte latency:  0.01 -   0.44    0.11  (  0.09)    0.07  (  all obj sizes)
-         Last-byte  latency:  0.01 -   0.44    0.11  (  0.09)    0.07  (  all obj sizes)
-         First-byte latency:  0.01 -   0.44    0.11  (  0.09)    0.07  (tiny objs)
-         Last-byte  latency:  0.01 -   0.44    0.11  (  0.09)    0.07  (tiny objs)
-         First-byte latency:  0.01 -   0.38    0.13  (  0.10)    0.09  (small objs)
-         Last-byte  latency:  0.01 -   0.38    0.13  (  0.10)    0.09  (small objs)
+         First-byte latency:  0.01 -   0.33    0.06  (  0.05)    0.04  (  all obj sizes)
+         Last-byte  latency:  0.01 -   0.33    0.06  (  0.05)    0.04  (  all obj sizes)
+         First-byte latency:  0.01 -   0.33    0.06  (  0.05)    0.04  (tiny objs)
+         Last-byte  latency:  0.01 -   0.33    0.06  (  0.05)    0.04  (tiny objs)
+         First-byte latency:  0.01 -   0.23    0.07  (  0.05)    0.05  (small objs)
+         Last-byte  latency:  0.01 -   0.23    0.07  (  0.06)    0.05  (small objs)
 
   CREATE
-         Count:   133  Average requests per second:  12.3
+         Count:   144  Average requests per second:  13.1
                              min      max     avg     std_dev   median
-         First-byte latency:  0.03 -   0.44    0.16  (  0.10)    0.13  (  all obj sizes)
-         Last-byte  latency:  0.03 -   0.44    0.16  (  0.10)    0.14  (  all obj sizes)
-         First-byte latency:  0.03 -   0.44    0.16  (  0.10)    0.13  (tiny objs)
-         Last-byte  latency:  0.03 -   0.44    0.16  (  0.10)    0.13  (tiny objs)
-         First-byte latency:  0.08 -   0.38    0.20  (  0.10)    0.23  (small objs)
-         Last-byte  latency:  0.08 -   0.38    0.21  (  0.10)    0.23  (small objs)
+         First-byte latency:  0.02 -   0.33    0.09  (  0.05)    0.07  (  all obj sizes)
+         Last-byte  latency:  0.02 -   0.33    0.09  (  0.05)    0.07  (  all obj sizes)
+         First-byte latency:  0.02 -   0.33    0.09  (  0.05)    0.07  (tiny objs)
+         Last-byte  latency:  0.02 -   0.33    0.09  (  0.05)    0.07  (tiny objs)
+         First-byte latency:  0.06 -   0.23    0.11  (  0.05)    0.10  (small objs)
+         Last-byte  latency:  0.06 -   0.23    0.11  (  0.05)    0.10  (small objs)
 
   READ
-         Count:   176  Average requests per second:  16.2
+         Count:   178  Average requests per second:  16.5
                              min      max     avg     std_dev   median
-         First-byte latency:  0.01 -   0.16    0.04  (  0.03)    0.03  (  all obj sizes)
-         Last-byte  latency:  0.01 -   0.16    0.04  (  0.03)    0.03  (  all obj sizes)
-         First-byte latency:  0.01 -   0.16    0.04  (  0.03)    0.03  (tiny objs)
-         Last-byte  latency:  0.01 -   0.16    0.04  (  0.03)    0.03  (tiny objs)
-         First-byte latency:  0.01 -   0.08    0.04  (  0.02)    0.04  (small objs)
-         Last-byte  latency:  0.01 -   0.08    0.04  (  0.02)    0.04  (small objs)
+         First-byte latency:  0.01 -   0.07    0.02  (  0.01)    0.02  (  all obj sizes)
+         Last-byte  latency:  0.01 -   0.07    0.02  (  0.01)    0.02  (  all obj sizes)
+         First-byte latency:  0.01 -   0.06    0.02  (  0.01)    0.02  (tiny objs)
+         Last-byte  latency:  0.01 -   0.06    0.02  (  0.01)    0.02  (tiny objs)
+         First-byte latency:  0.01 -   0.07    0.03  (  0.02)    0.03  (small objs)
+         Last-byte  latency:  0.01 -   0.07    0.03  (  0.02)    0.03  (small objs)
 
   UPDATE
-         Count:   100  Average requests per second:   9.2
+         Count:    85  Average requests per second:   7.8
                              min      max     avg     std_dev   median
-         First-byte latency:  0.03 -   0.36    0.15  (  0.08)    0.13  (  all obj sizes)
-         Last-byte  latency:  0.03 -   0.36    0.15  (  0.08)    0.13  (  all obj sizes)
-         First-byte latency:  0.03 -   0.36    0.14  (  0.08)    0.13  (tiny objs)
-         Last-byte  latency:  0.03 -   0.36    0.14  (  0.08)    0.13  (tiny objs)
-         First-byte latency:  0.06 -   0.33    0.20  (  0.09)    0.21  (small objs)
-         Last-byte  latency:  0.08 -   0.33    0.20  (  0.08)    0.21  (small objs)
+         First-byte latency:  0.02 -   0.20    0.08  (  0.05)    0.07  (  all obj sizes)
+         Last-byte  latency:  0.02 -   0.20    0.08  (  0.05)    0.07  (  all obj sizes)
+         First-byte latency:  0.02 -   0.20    0.08  (  0.05)    0.07  (tiny objs)
+         Last-byte  latency:  0.02 -   0.20    0.08  (  0.05)    0.07  (tiny objs)
+         First-byte latency:  0.06 -   0.16    0.11  (  0.04)    0.12  (small objs)
+         Last-byte  latency:  0.06 -   0.18    0.12  (  0.04)    0.12  (small objs)
 
   DELETE
-         Count:    91  Average requests per second:   8.3
+         Count:    93  Average requests per second:   8.5
                              min      max     avg     std_dev   median
-         First-byte latency:  0.02 -   0.33    0.11  (  0.08)    0.12  (  all obj sizes)
-         Last-byte  latency:  0.02 -   0.33    0.11  (  0.08)    0.12  (  all obj sizes)
-         First-byte latency:  0.02 -   0.33    0.12  (  0.08)    0.12  (tiny objs)
-         Last-byte  latency:  0.02 -   0.33    0.12  (  0.08)    0.12  (tiny objs)
-         First-byte latency:  0.03 -   0.14    0.07  (  0.04)    0.04  (small objs)
-         Last-byte  latency:  0.03 -   0.14    0.07  (  0.04)    0.04  (small objs)
+         First-byte latency:  0.01 -   0.18    0.05  (  0.04)    0.03  (  all obj sizes)
+         Last-byte  latency:  0.01 -   0.18    0.05  (  0.04)    0.03  (  all obj sizes)
+         First-byte latency:  0.01 -   0.18    0.05  (  0.04)    0.03  (tiny objs)
+         Last-byte  latency:  0.01 -   0.18    0.05  (  0.04)    0.03  (tiny objs)
+         First-byte latency:  0.02 -   0.05    0.03  (  0.01)    0.02  (small objs)
+         Last-byte  latency:  0.02 -   0.05    0.03  (  0.01)    0.02  (small objs)
+
