@@ -59,10 +59,13 @@ class Master:
     def process_result_to(self, job, processor, label=''):
         job.delete()
         result = yaml.load(job.body)
-        logging.debug('RESULT: %13s %s/%-17s %.4f/%.4f',
+        logging.debug('RESULT: %13s %s/%-17s %s/%s %s',
                       result['type'], result['container'], result['name'],
-                      result.get('first_byte_latency', 0),
-                      result.get('last_byte_latency', 0))
+                      '%7.4f' % result.get('first_byte_latency')
+                      if result.get('first_byte_latency', None) else ' (none)',
+                      '%7.4f' % result.get('last_byte_latency')
+                      if result.get('last_byte_latency', None) else '(none) ',
+                      result.get('trans_id', ''))
         if label and not self.quiet:
             if 'first_byte_latency' in result:
                 if result['first_byte_latency'] < 1:
@@ -206,12 +209,12 @@ ${scenario.name}
 
 ${label}
        Count: ${'%5d' % stats['req_count']}  Average requests per second: ${'%5.1f' % stats['avg_req_per_sec']}
-                           min      max     avg     std_dev   median
-       First-byte latency: ${'%5.2f' % stats['first_byte_latency']['min']} - ${'%6.2f' % stats['first_byte_latency']['max']}  ${'%6.2f' % stats['first_byte_latency']['avg']}  (${'%6.2f' % stats['first_byte_latency']['std_dev']})  ${'%6.2f' % stats['first_byte_latency']['median']}  (${'%15s' % 'all obj sizes'})
-       Last-byte  latency: ${'%5.2f' % stats['last_byte_latency']['min']} - ${'%6.2f' % stats['last_byte_latency']['max']}  ${'%6.2f' % stats['last_byte_latency']['avg']}  (${'%6.2f' % stats['last_byte_latency']['std_dev']})  ${'%6.2f' % stats['last_byte_latency']['median']}  (${'%15s' % 'all obj sizes'})
-% for size_str, byte_stats in sstats.iteritems():
-       First-byte latency: ${'%5.2f' % byte_stats['first_byte_latency']['min']} - ${'%6.2f' % byte_stats['first_byte_latency']['max']}  ${'%6.2f' % byte_stats['first_byte_latency']['avg']}  (${'%6.2f' % byte_stats['first_byte_latency']['std_dev']})  ${'%6.2f' % byte_stats['first_byte_latency']['median']}  (${size_str} objs)
-       Last-byte  latency: ${'%5.2f' % byte_stats['last_byte_latency']['min']} - ${'%6.2f' % byte_stats['last_byte_latency']['max']}  ${'%6.2f' % byte_stats['last_byte_latency']['avg']}  (${'%6.2f' % byte_stats['last_byte_latency']['std_dev']})  ${'%6.2f' % byte_stats['last_byte_latency']['median']}  (${size_str} objs)
+                            min       max      avg      std_dev    median
+       First-byte latency: ${stats['first_byte_latency']['min']} - ${stats['first_byte_latency']['max']}  ${stats['first_byte_latency']['avg']}  (${stats['first_byte_latency']['std_dev']})  ${stats['first_byte_latency']['median']}  (all obj sizes)
+       Last-byte  latency: ${stats['last_byte_latency']['min']} - ${stats['last_byte_latency']['max']}  ${stats['last_byte_latency']['avg']}  (${stats['last_byte_latency']['std_dev']})  ${stats['last_byte_latency']['median']}  (all obj sizes)
+% for size_str, per_size_stats in sstats.iteritems():
+       First-byte latency: ${per_size_stats['first_byte_latency']['min']} - ${per_size_stats['first_byte_latency']['max']}  ${per_size_stats['first_byte_latency']['avg']}  (${per_size_stats['first_byte_latency']['std_dev']})  ${per_size_stats['first_byte_latency']['median']}  (${size_str} objs)
+       Last-byte  latency: ${per_size_stats['last_byte_latency']['min']} - ${per_size_stats['last_byte_latency']['max']}  ${per_size_stats['last_byte_latency']['avg']}  (${per_size_stats['last_byte_latency']['std_dev']})  ${per_size_stats['last_byte_latency']['median']}  (${size_str} objs)
 % endfor
 % endfor
 
@@ -391,7 +394,7 @@ ${label}
         for worker_stats in stats['worker_stats'].values():
             self._compute_req_per_sec(worker_stats)
             self._compute_latency_stats(worker_stats)
-        for op_stats_dict in op_stats.values():
+        for op_stat, op_stats_dict in op_stats.iteritems():
             if op_stats_dict['req_count']:
                 self._compute_req_per_sec(op_stats_dict)
                 self._compute_latency_stats(op_stats_dict)
@@ -443,6 +446,14 @@ ${label}
         self._rec_latency(stat_dict, result)
 
     def _series_stats(self, sequence):
+        pre_filter = len(sequence)
+        sequence = filter(None, sequence)
+        logging.debug('_series_stats pre/post seq len: %d/%d', pre_filter,
+                      len(sequence))
+        if not sequence:
+            # No data available
+            return dict(min=' N/A  ', max='  N/A  ', avg='  N/A  ',
+                        std_dev='  N/A  ', median='  N/A  ')
         try:
             n, (minval, maxval), mean, std_dev, skew, kurtosis = \
                 statlib.stats.ldescribe(sequence)
@@ -454,10 +465,11 @@ ${label}
             mean = sequence[0]
             std_dev = 0
         return dict(
-            min=round(minval, 6), max=round(maxval, 6), avg=round(mean, 6),
-            std_dev=round(statlib.stats.lsamplestdev(sequence), 6),
-            median=round(statlib.stats.lmedianscore(sequence), 6),
-        )
+            min='%6.3f' % minval,
+            max='%7.3f' % maxval,
+            avg='%7.3f' % mean,
+            std_dev='%7.3f' % statlib.stats.lsamplestdev(sequence),
+            median='%7.3f' % statlib.stats.lmedianscore(sequence))
 
     def _rec_latency(self, stats_dict, result):
         for latency_type in ('first_byte_latency', 'last_byte_latency'):

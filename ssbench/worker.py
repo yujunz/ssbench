@@ -210,17 +210,21 @@ class Worker:
                 yaml.dump(add_dicts(*args, completed_at=time.time(),
                                     worker_id=self.worker_id, **kwargs)))
 
+    def _put_results_from_response(self, object_info, resp_headers):
+        self.put_results(
+            object_info,
+            first_byte_latency=resp_headers.get(
+                'x-swiftstack-first-byte-latency', None),
+            last_byte_latency=resp_headers.get(
+                'x-swiftstack-last-byte-latency', None),
+            trans_id=resp_headers.get('x-trans-id', None))
+
     def handle_upload_object(self, object_info, letter='A'):
-        results = self.ignoring_http_responses(
+        headers = self.ignoring_http_responses(
             (503,), client.put_object, object_info,
             content_length=object_info['size'],
             contents=ChunkedReader(letter, object_info['size']))
-        self.put_results(
-            object_info,
-            first_byte_latency=results.get(
-                'x-swiftstack-first-byte-latency', None),
-            last_byte_latency=results.get(
-                'x-swiftstack-last-byte-latency', None))
+        self._put_results_from_response(object_info, headers)
 
     # By the time a job gets to the worker, an object create and update look
     # the same: it's just a PUT.
@@ -228,25 +232,15 @@ class Worker:
         return self.handle_upload_object(object_info, letter='B')
 
     def handle_delete_object(self, object_info):
-        results = self.ignoring_http_responses(
+        headers = self.ignoring_http_responses(
             (404, 503), client.delete_object, object_info)
-        self.put_results(
-            object_info,
-            first_byte_latency=results.get(
-                'x-swiftstack-first-byte-latency', None),
-            last_byte_latency=results.get(
-                'x-swiftstack-last-byte-latency', None))
+        self._put_results_from_response(object_info, headers)
 
     def handle_get_object(self, object_info):
-        results = self.ignoring_http_responses(
+        headers, body_iter = self.ignoring_http_responses(
             (404, 503), client.get_object, object_info,
-            resp_chunk_size=2**16)
-        # Read (and throw away) all the file contents (chunked)
-        for chunk in results[1]:
-            pass
-        self.put_results(
-            object_info,
-            first_byte_latency=results[0].get(
-                'x-swiftstack-first-byte-latency', None),
-            last_byte_latency=results[0].get(
-                'x-swiftstack-last-byte-latency', None))
+            resp_chunk_size=2**16, toss_body=True)
+        # Having passed in toss_body=True, we don't need to "read" body_iter
+        # (which will actually just be an empty-string), and we'll have an
+        # accurate last_byte_latency in the headers.
+        self._put_results_from_response(object_info, headers)

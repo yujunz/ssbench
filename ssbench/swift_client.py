@@ -498,7 +498,7 @@ def delete_container(url, token, container, http_conn=None):
 
 
 def get_object(url, token, container, name, http_conn=None,
-               resp_chunk_size=None):
+               resp_chunk_size=None, toss_body=False):
     """
     Get an object
 
@@ -531,23 +531,39 @@ def get_object(url, token, container, name, http_conn=None,
                               http_host=conn.host, http_port=conn.port,
                               http_path=path, http_status=resp.status,
                               http_reason=resp.reason)
+    last_byte_latency = None
     if resp_chunk_size:
-
         def _object_body():
             buf = resp.read(resp_chunk_size)
             while buf:
                 yield buf
                 buf = resp.read(resp_chunk_size)
-        object_body = _object_body()
+        if toss_body:
+            for _ in _object_body():
+                pass
+            object_body = ''
+            last_byte_latency = time() - start
+        else:
+            object_body = _object_body()
     else:
         object_body = resp.read()
-    resp_headers = {
-        'x-swiftstack-first-byte-latency': first_byte_latency,
-        'x-swiftstack-last-byte-latency': time() - start,
-    }
+        last_byte_latency = time() - start
+    resp_headers = _decorated_response_headers(
+        resp, first_byte_latency=first_byte_latency,
+        last_byte_latency=last_byte_latency)
+    return resp_headers, object_body
+
+
+def _decorated_response_headers(resp, first_byte_latency=None,
+                                last_byte_latency=None):
+    resp_headers = {}
+    if first_byte_latency is not None:
+        resp_headers['x-swiftstack-first-byte-latency'] = first_byte_latency
+    if last_byte_latency is not None:
+        resp_headers['x-swiftstack-last-byte-latency'] = last_byte_latency
     for header, value in resp.getheaders():
         resp_headers[header.lower()] = value
-    return resp_headers, object_body
+    return resp_headers
 
 
 def head_object(url, token, container, name, http_conn=None):
@@ -569,6 +585,7 @@ def head_object(url, token, container, name, http_conn=None):
     else:
         parsed, conn = http_connection(url)
     path = '%s/%s/%s' % (parsed.path, quote(container), quote(name))
+    start_time = time()
     conn.request('HEAD', path, '', {'X-Auth-Token': token})
     resp = conn.getresponse()
     resp.read()
@@ -577,10 +594,10 @@ def head_object(url, token, container, name, http_conn=None):
                               http_host=conn.host, http_port=conn.port,
                               http_path=path, http_status=resp.status,
                               http_reason=resp.reason)
-    resp_headers = {}
-    for header, value in resp.getheaders():
-        resp_headers[header.lower()] = value
-    return resp_headers
+    now = time()
+    return _decorated_response_headers(
+        resp, first_byte_latency=now - start_time,
+        last_byte_latency=now - start_time)
 
 
 def put_object(url, token=None, container=None, name=None, contents=None,
@@ -674,11 +691,8 @@ def put_object(url, token=None, container=None, name=None, contents=None,
                               http_host=conn.host, http_port=conn.port,
                               http_path=path, http_status=resp.status,
                               http_reason=resp.reason)
-    now = time()
-    return {
-        'x-swiftstack-first-byte-latency': now - response_start,
-        'x-swiftstack-last-byte-latency': now - request_start,
-    }
+    return _decorated_response_headers(
+        resp, last_byte_latency=time() - request_start)
 
 
 def post_object(url, token, container, name, headers, http_conn=None):
@@ -726,7 +740,7 @@ def delete_object(url, token=None, container=None, name=None, http_conn=None,
     :param headers: additional headers to include in the request
     :param proxy: proxy to connect through, if any; None by default; str of the
                   format 'http://127.0.0.1:8888' to set one
-    :returns: a dict with benchmarking headers
+    :returns: A dict of response headers including observed latencies
     :raises ClientException: HTTP DELETE request failed
     """
     if http_conn:
@@ -754,10 +768,9 @@ def delete_object(url, token=None, container=None, name=None, http_conn=None,
                               http_scheme=parsed.scheme, http_host=conn.host,
                               http_port=conn.port, http_path=path,
                               http_status=resp.status, http_reason=resp.reason)
-    return {
-        'x-swiftstack-first-byte-latency': first_byte_latency,
-        'x-swiftstack-last-byte-latency': time() - start,
-    }
+    return _decorated_response_headers(
+        resp, first_byte_latency=first_byte_latency,
+        last_byte_latency=time() - start)
 
 
 class Connection(object):

@@ -179,13 +179,13 @@ if __name__ == "__main__":
 
     if args.verbose:
         log_level = logging.DEBUG
-    elif args.quiet:
+    elif args.func == run_scenario and args.quiet:
         log_level = logging.WARNING
     else:
         log_level = logging.INFO
     logging.basicConfig(level=log_level)
 
     beanq = beanstalkc.Connection(host=args.qhost, port=args.qport)
-    master = Master(beanq, quiet=args.quiet)
+    master = Master(beanq, quiet=args.func == run_scenario and args.quiet)
 
     args.func(master, args)
