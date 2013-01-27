@@ -50,22 +50,48 @@ def _gen_cleanup_job(object_info):
 
 
 class Master:
-    def __init__(self, queue):
+    def __init__(self, queue, quiet=False):
         queue.watch(ssbench.STATS_TUBE)
         queue.ignore('default')
         self.queue = queue
+        self.quiet = quiet
 
-    def process_result_to(self, job, processor):
+    def process_result_to(self, job, processor, label=''):
         job.delete()
         result = yaml.load(job.body)
         logging.debug('RESULT: %13s %s/%-17s %.4f/%.4f',
                       result['type'], result['container'], result['name'],
-                      result['first_byte_latency'],
-                      result['last_byte_latency'])
+                      result.get('first_byte_latency', 0),
+                      result.get('last_byte_latency', 0))
+        if label and not self.quiet:
+            if 'first_byte_latency' in result:
+                if result['first_byte_latency'] < 1:
+                    sys.stderr.write('.')
+                elif result['first_byte_latency'] < 3:
+                    sys.stderr.write('o')
+                elif result['first_byte_latency'] < 10:
+                    sys.stderr.write('O')
+                else:
+                    sys.stderr.write('*')
+            elif result.has_key('exception'):
+                sys.stderr.write('X')
+            else:
+                sys.stderr.write('_')
+            sys.stderr.flush()
         processor(result)
 
     def do_a_run(self, concurrency, job_generator, result_processor, priority,
-                 storage_url, token, mapper_fn=None):
+                 storage_url, token, mapper_fn=None, label=''):
+        if label and not self.quiet:
+            print >>sys.stderr, label + '\n' + """
+%s
+  .  <  1s first-byte-latency
+  o  <  3s first-byte-latency
+  O  < 10s first-byte-latency
+  * >= 10s first-byte-latency
+  X    work job raised an exception
+  _    no first-byte-latency available
+            """.strip()
         active = 0
         for job in job_generator:
             if mapper_fn is not None:
@@ -79,7 +105,8 @@ class Master:
 
             if active >= concurrency:
                 result_job = self.queue.reserve()
-                self.process_result_to(result_job, result_processor)
+                self.process_result_to(result_job, result_processor,
+                                       label=label)
                 active -= 1
             self.queue.put(yaml.dump(job), priority=priority)
             active += 1
@@ -87,15 +114,19 @@ class Master:
             # Sink any ready results non-blockingly
             result_job = self.queue.reserve(timeout=0)
             while result_job:
-                self.process_result_to(result_job, result_processor)
+                self.process_result_to(result_job, result_processor,
+                                       label=label)
                 active -= 1
                 result_job = self.queue.reserve(timeout=0)
 
         # Drain the results
         while active > 0:
             result_job = self.queue.reserve()
-            self.process_result_to(result_job, result_processor)
+            self.process_result_to(result_job, result_processor, label=label)
             active -= 1
+        if label and not self.quiet:
+            sys.stderr.write('\n')
+            sys.stderr.flush()
 
     def run_scenario(self, auth_url, user, key, storage_url, token, scenario):
         """
@@ -144,7 +175,8 @@ class Master:
         self.do_a_run(scenario.user_count, scenario.bench_jobs(),
                       run_state.handle_run_result,
                       ssbench.PRIORITY_WORK, storage_url, token,
-                      mapper_fn=run_state.fill_in_job)
+                      mapper_fn=run_state.fill_in_job,
+                      label='Benchmark Run:')
 
         logging.info('Deleting population objects from cluster')
         self.do_a_run(scenario.user_count,

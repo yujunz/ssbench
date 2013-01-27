@@ -128,6 +128,10 @@ if __name__ == "__main__":
         '-u', '--user-count', default='value from scenario',
         help='Override the user count (concurrency) specified in the '
         'scenario file.')
+    run_scenario_arg_parser.add_argument(
+        '-q', '--quiet', action='store_true', default=False,
+        help='Suppress most output (including progress characters during '
+        'run).')
 
     run_scenario_arg_parser.add_argument(
         '-f', '--scenario-file', required=True, type=str)
@@ -173,9 +177,15 @@ if __name__ == "__main__":
     os.environ.pop('ST_USER', None)
     os.environ.pop('ST_KEY', None)
 
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+    if args.verbose:
+        log_level = logging.DEBUG
+    elif args.quiet:
+        log_level = logging.WARNING
+    else:
+        log_level = logging.INFO
+    logging.basicConfig(level=log_level)
 
     beanq = beanstalkc.Connection(host=args.qhost, port=args.qport)
-    master = Master(beanq)
+    master = Master(beanq, quiet=args.quiet)
 
     args.func(master, args)

@@ -33,23 +33,23 @@ class TestWorker(object):
         self.qhost = 'some.host'
         self.qport = 8530
         self.max_retries = 9
-        self.concurrency = 12
+        self.concurrency = 256  # hard-coded in the code
         self.worker_id = 3
 
         self.mock_queue = flexmock()
         self.mock_connection = flexmock(beanstalkc.Connection)
         self.mock_connection.new_instances(self.mock_queue).with_args(
             beanstalkc.Connection, host=self.qhost, port=self.qport,
-        ).times(1 + 12)
+        ).times(1 + self.concurrency)
         # ^^--once for self.work_queue and <concurrecy> times by
         # self.result_queue_pool(?)
         self.mock_queue.should_receive('watch').with_args(
             ssbench.WORK_TUBE).once
         self.mock_queue.should_receive('use').with_args(
-            ssbench.STATS_TUBE).times(12)
+            ssbench.STATS_TUBE).times(self.concurrency)
 
         self.worker = worker.Worker(self.qhost, self.qport, self.worker_id,
-                                    self.max_retries, self.concurrency)
+                                    self.max_retries)
         self.mock_worker = flexmock(self.worker)
 
         self.stub_time = 98438243.3921
