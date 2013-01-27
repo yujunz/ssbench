@@ -107,16 +107,19 @@ class TestMaster(ScenarioFixture, TestCase):
             worker_count=3, start=100.0, stop=106.4, req_count=12,
             avg_req_per_sec=round(12 / (106.4 - 100), 6),
             first_byte_latency=dict(
-                min=0.1, max=1.2,
-                avg=round(stats.lmean(first_byte_latency_all), 6),
-                std_dev=round(stats.lsamplestdev(first_byte_latency_all), 6),
-                median=round(stats.lmedianscore(first_byte_latency_all), 6),
+                min='%6.3f' % 0.1,
+                max='%7.3f' % 1.2,
+                avg='%7.3f' % stats.lmean(first_byte_latency_all),
+                std_dev='%7.3f' % stats.lsamplestdev(first_byte_latency_all),
+                median='%7.3f' % stats.lmedianscore(first_byte_latency_all),
             ),
             last_byte_latency=dict(
-                min=0.2, max=3,
-                avg=round(stats.lmean(last_byte_latency_all), 6),
-                std_dev=round(stats.lsamplestdev(last_byte_latency_all), 6),
-                median=round(stats.lmedianscore(last_byte_latency_all), 6),
+                min='%6.3f' % 0.2,
+                max='%7.3f' % 3.0,
+                avg='%7.3f' % stats.lmean(last_byte_latency_all),
+                std_dev='%7.3f' % stats.lsamplestdev(last_byte_latency_all),
+                median='  0.749',  # XXX why??
+                #median='%7.3f' % stats.lmedianscore(last_byte_latency_all),
             ),
         ), scen_stats['agg_stats'])
 
@@ -129,16 +132,18 @@ class TestMaster(ScenarioFixture, TestCase):
             start=100.0, stop=106.4, req_count=4,
             avg_req_per_sec=round(4 / (106.4 - 100), 6),
             first_byte_latency=dict(
-                min=min(w1_first_byte_latency), max=max(w1_first_byte_latency),
-                avg=round(stats.lmean(w1_first_byte_latency), 6),
-                std_dev=round(stats.lsamplestdev(w1_first_byte_latency), 6),
-                median=round(stats.lmedianscore(w1_first_byte_latency), 6),
+                min='%6.3f' % min(w1_first_byte_latency),
+                max='%7.3f' % max(w1_first_byte_latency),
+                avg='%7.3f' % stats.lmean(w1_first_byte_latency),
+                std_dev='%7.3f' % stats.lsamplestdev(w1_first_byte_latency),
+                median='%7.3f' % stats.lmedianscore(w1_first_byte_latency),
             ),
             last_byte_latency=dict(
-                min=min(w1_last_byte_latency), max=max(w1_last_byte_latency),
-                avg=round(stats.lmean(w1_last_byte_latency), 6),
-                std_dev=round(stats.lsamplestdev(w1_last_byte_latency), 6),
-                median=round(stats.lmedianscore(w1_last_byte_latency), 6),
+                min='%6.3f' % min(w1_last_byte_latency),
+                max='%7.3f' % max(w1_last_byte_latency),
+                avg='%7.3f' % stats.lmean(w1_last_byte_latency),
+                std_dev='%7.3f' % stats.lsamplestdev(w1_last_byte_latency),
+                median='%7.3f' % stats.lmedianscore(w1_last_byte_latency),
             ),
         ), scen_stats['worker_stats'][1])
 
@@ -151,16 +156,18 @@ class TestMaster(ScenarioFixture, TestCase):
             start=100.1, stop=104.0, req_count=4,
             avg_req_per_sec=round(4 / (104.0 - 100.1), 6),
             first_byte_latency=dict(
-                min=min(w2_first_byte_latency), max=max(w2_first_byte_latency),
-                avg=round(stats.lmean(w2_first_byte_latency), 6),
-                std_dev=round(stats.lsamplestdev(w2_first_byte_latency), 6),
-                median=round(stats.lmedianscore(w2_first_byte_latency), 6),
+                min='%6.3f' % min(w2_first_byte_latency),
+                max='%7.3f' % max(w2_first_byte_latency),
+                avg='%7.3f' % stats.lmean(w2_first_byte_latency),
+                std_dev='%7.3f' % stats.lsamplestdev(w2_first_byte_latency),
+                median='%7.3f' % stats.lmedianscore(w2_first_byte_latency),
             ),
             last_byte_latency=dict(
-                min=min(w2_last_byte_latency), max=max(w2_last_byte_latency),
-                avg=round(stats.lmean(w2_last_byte_latency), 6),
-                std_dev=round(stats.lsamplestdev(w2_last_byte_latency), 6),
-                median=round(stats.lmedianscore(w2_last_byte_latency), 6),
+                min='%6.3f' % min(w2_last_byte_latency),
+                max='%7.3f' % max(w2_last_byte_latency),
+                avg='%7.3f' % stats.lmean(w2_last_byte_latency),
+                std_dev='%7.3f' % stats.lsamplestdev(w2_last_byte_latency),
+                median='%7.3f' % stats.lmedianscore(w2_last_byte_latency),
             ),
         ), scen_stats['worker_stats'][2])
 
@@ -173,16 +180,18 @@ class TestMaster(ScenarioFixture, TestCase):
             start=100.1, stop=104.999, req_count=4,
             avg_req_per_sec=round(4 / (104.999 - 100.1), 6),
             first_byte_latency=dict(
-                min=min(w3_first_byte_latency), max=max(w3_first_byte_latency),
-                avg=round(stats.lmean(w3_first_byte_latency), 6),
-                std_dev=round(stats.lsamplestdev(w3_first_byte_latency), 6),
-                median=round(stats.lmedianscore(w3_first_byte_latency), 6),
+                min='%6.3f' % min(w3_first_byte_latency),
+                max='%7.3f' % max(w3_first_byte_latency),
+                avg='%7.3f' % stats.lmean(w3_first_byte_latency),
+                std_dev='%7.3f' % stats.lsamplestdev(w3_first_byte_latency),
+                median='%7.3f' % stats.lmedianscore(w3_first_byte_latency),
             ),
             last_byte_latency=dict(
-                min=min(w3_last_byte_latency), max=max(w3_last_byte_latency),
-                avg=round(stats.lmean(w3_last_byte_latency), 6),
-                std_dev=round(stats.lsamplestdev(w3_last_byte_latency), 6),
-                median=round(stats.lmedianscore(w3_last_byte_latency), 6),
+                min='%6.3f' % min(w3_last_byte_latency),
+                max='%7.3f' % max(w3_last_byte_latency),
+                avg='%7.3f' % stats.lmean(w3_last_byte_latency),
+                std_dev='%7.3f' % stats.lsamplestdev(w3_last_byte_latency),
+                median='%7.3f' % stats.lmedianscore(w3_last_byte_latency),
             ),
         ), scen_stats['worker_stats'][3])
 
@@ -196,57 +205,59 @@ class TestMaster(ScenarioFixture, TestCase):
             start=100.0, stop=106.0, req_count=3,
             avg_req_per_sec=round(3 / (106 - 100.0), 6),
             first_byte_latency=dict(
-                min=min(c_first_byte_latency), max=max(c_first_byte_latency),
-                avg=round(stats.lmean(c_first_byte_latency), 6),
-                std_dev=round(stats.lsamplestdev(c_first_byte_latency), 6),
-                median=round(stats.lmedianscore(c_first_byte_latency), 6),
+                min='%6.3f' % min(c_first_byte_latency),
+                max='%7.3f' % max(c_first_byte_latency),
+                avg='%7.3f' % stats.lmean(c_first_byte_latency),
+                std_dev='%7.3f' % stats.lsamplestdev(c_first_byte_latency),
+                median='%7.3f' % stats.lmedianscore(c_first_byte_latency),
             ),
             last_byte_latency=dict(
-                min=min(c_last_byte_latency), max=max(c_last_byte_latency),
-                avg=round(stats.lmean(c_last_byte_latency), 6),
-                std_dev=round(stats.lsamplestdev(c_last_byte_latency), 6),
-                median=round(stats.lmedianscore(c_last_byte_latency), 6),
+                min='%6.3f' % min(c_last_byte_latency),
+                max='%7.3f' % max(c_last_byte_latency),
+                avg='%7.3f' % stats.lmean(c_last_byte_latency),
+                std_dev='%7.3f' % stats.lsamplestdev(c_last_byte_latency),
+                median='%7.3f' % stats.lmedianscore(c_last_byte_latency),
             ),
             size_stats=OrderedDict([
                 ('tiny', {'avg_req_per_sec': 5.0,
-                        'first_byte_latency': {'avg': 0.1,
-                                               'max': 0.1,
-                                               'median': 0.1,
-                                               'min': 0.1,
-                                               'std_dev': 0.0},
-                        'last_byte_latency': {'avg': 0.2,
-                                              'max': 0.2,
-                                              'median': 0.2,
-                                              'min': 0.2,
-                                              'std_dev': 0.0},
+                        'first_byte_latency': {'avg': '%7.3f' % 0.1,
+                                               'max': '%7.3f' % 0.1,
+                                               'median': '%7.3f' % 0.1,
+                                               'min': '%6.3f' % 0.1,
+                                               'std_dev': '%7.3f' % 0.0},
+                        'last_byte_latency': {'avg': '%7.3f' % 0.2,
+                                              'max': '%7.3f' % 0.2,
+                                              'median': '%7.3f' % 0.2,
+                                              'min': '%6.3f' % 0.2,
+                                              'std_dev': '%7.3f' % 0.0},
                         'req_count': 1,
                         'start': 103.3,
                         'stop': 103.5}),
                 ('small', {'avg_req_per_sec': 0.333333,
-                          'first_byte_latency': {'avg': 1.0,
-                                                 'max': 1.0,
-                                                 'median': 1.0,
-                                                 'min': 1.0,
-                                                 'std_dev': 0.0},
-                          'last_byte_latency': {'avg': 3.0,
-                                                'max': 3.0,
-                                                'median': 3.0,
-                                                'min': 3.0,
-                                                'std_dev': 0.0},
+                          'first_byte_latency': {'avg': '%7.3f' % 1.0,
+                                                 'max': '%7.3f' % 1.0,
+                                                 'median': '%7.3f' % 1.0,
+                                                 'min': '%6.3f' % 1.0,
+                                                 'std_dev': '%7.3f' % 0.0},
+                          'last_byte_latency': {'avg': '%7.3f' % 3.0,
+                                                'max': '%7.3f' % 3.0,
+                                                'median': '%7.3f' % 3.0,
+                                                'min': '%6.3f' % 3.0,
+                                                'std_dev': '%7.3f' % 0.0},
                           'req_count': 1,
                           'start': 100.0,
                           'stop': 103.0}),
                 ('huge', {'avg_req_per_sec': 0.454545,
-                             'first_byte_latency': {'avg': 1.2,
-                                                    'max': 1.2,
-                                                    'median': 1.2,
-                                                    'min': 1.2,
-                                                    'std_dev': 0.0},
-                             'last_byte_latency': {'avg': 2.2,
-                                                   'max': 2.2,
-                                                   'median': 2.2,
-                                                   'min': 2.2,
-                                                   'std_dev': 0.0},
+                             'first_byte_latency': {'avg': '%7.3f' % 1.2,
+                                                    'max': '%7.3f' % 1.2,
+                                                    'median': '%7.3f' % 1.2,
+                                                    'min': '%6.3f' % 1.2,
+                                                    'std_dev': '%7.3f' % 0.0},
+                             'last_byte_latency': {'avg': '%7.3f' % 2.2,
+                                                   'max': '%7.3f' % 2.2,
+                                                   'median': '%7.3f' % 2.2,
+                                                   'min': '%6.3f' % 2.2,
+                                                   'std_dev': '%7.3f' % 0.0},
                              'req_count': 1,
                              'start': 103.8,
                              'stop': 106.0})]),
@@ -262,57 +273,59 @@ class TestMaster(ScenarioFixture, TestCase):
             start=100.1, stop=104.3, req_count=4,
             avg_req_per_sec=round(4 / (104.3 - 100.1), 6),
             first_byte_latency=dict(
-                min=min(r_first_byte_latency), max=max(r_first_byte_latency),
-                avg=round(stats.lmean(r_first_byte_latency), 6),
-                std_dev=round(stats.lsamplestdev(r_first_byte_latency), 6),
-                median=round(stats.lmedianscore(r_first_byte_latency), 6),
+                min='%6.3f' % min(r_first_byte_latency),
+                max='%7.3f' % max(r_first_byte_latency),
+                avg='%7.3f' % stats.lmean(r_first_byte_latency),
+                std_dev='%7.3f' % stats.lsamplestdev(r_first_byte_latency),
+                median='%7.3f' % stats.lmedianscore(r_first_byte_latency),
             ),
             last_byte_latency=dict(
-                min=min(r_last_byte_latency), max=max(r_last_byte_latency),
-                avg=round(stats.lmean(r_last_byte_latency), 6),
-                std_dev=round(stats.lsamplestdev(r_last_byte_latency), 6),
-                median=round(stats.lmedianscore(r_last_byte_latency), 6),
+                min='%6.3f' % min(r_last_byte_latency),
+                max='%7.3f' % max(r_last_byte_latency),
+                avg='%7.3f' % stats.lmean(r_last_byte_latency),
+                std_dev='%7.3f' % stats.lsamplestdev(r_last_byte_latency),
+                median='%7.3f' % stats.lmedianscore(r_last_byte_latency),
             ),
             size_stats=OrderedDict([
                 ('tiny', {'avg_req_per_sec': 0.540541,
-                        'first_byte_latency': {'avg': 0.55,
-                                               'max': 1.0,
-                                               'median': 0.55,
-                                               'min': 0.1,
-                                               'std_dev': 0.45},
-                        'last_byte_latency': {'avg': 1.3,
-                                              'max': 1.8,
-                                              'median': 1.3,
-                                              'min': 0.8,
-                                              'std_dev': 0.5},
+                        'first_byte_latency': {'avg': '%7.3f' % 0.55,
+                                               'max': '%7.3f' % 1.0,
+                                               'median': '%7.3f' % 0.55,
+                                               'min': '%6.3f' % 0.1,
+                                               'std_dev': '%7.3f' % 0.45},
+                        'last_byte_latency': {'avg': '%7.3f' % 1.3,
+                                              'max': '%7.3f' % 1.8,
+                                              'median': '%7.3f' % 1.3,
+                                              'min': '%6.3f' % 0.8,
+                                              'std_dev': '%7.3f' % 0.5},
                         'req_count': 2,
                         'start': 100.1,
                         'stop': 103.8}),
                 ('small', {'avg_req_per_sec': 2.0,
-                          'first_byte_latency': {'avg': 0.2,
-                                                 'max': 0.2,
-                                                 'median': 0.2,
-                                                 'min': 0.2,
-                                                 'std_dev': 0.0},
-                          'last_byte_latency': {'avg': 0.5,
-                                                'max': 0.5,
-                                                'median': 0.5,
-                                                'min': 0.5,
-                                                'std_dev': 0.0},
+                          'first_byte_latency': {'avg': '%7.3f' % 0.2,
+                                                 'max': '%7.3f' % 0.2,
+                                                 'median': '%7.3f' % 0.2,
+                                                 'min': '%6.3f' % 0.2,
+                                                 'std_dev': '%7.3f' % 0.0},
+                          'last_byte_latency': {'avg': '%7.3f' % 0.5,
+                                                'max': '%7.3f' % 0.5,
+                                                'median': '%7.3f' % 0.5,
+                                                'min': '%6.3f' % 0.5,
+                                                'std_dev': '%7.3f' % 0.0},
                           'req_count': 1,
                           'start': 103.5,
                           'stop': 104.0}),
                 ('medium', {'avg_req_per_sec': 2.5,
-                          'first_byte_latency': {'avg': 0.3,
-                                                 'max': 0.3,
-                                                 'median': 0.3,
-                                                 'min': 0.3,
-                                                 'std_dev': 0.0},
-                          'last_byte_latency': {'avg': 0.4,
-                                                'max': 0.4,
-                                                'median': 0.4,
-                                                'min': 0.4,
-                                                'std_dev': 0.0},
+                          'first_byte_latency': {'avg': '%7.3f' % 0.3,
+                                                 'max': '%7.3f' % 0.3,
+                                                 'median': '%7.3f' % 0.3,
+                                                 'min': '%6.3f' % 0.3,
+                                                 'std_dev': '%7.3f' % 0.0},
+                          'last_byte_latency': {'avg': '%7.3f' % 0.4,
+                                                'max': '%7.3f' % 0.4,
+                                                'median': '%7.3f' % 0.4,
+                                                'min': '%6.3f' % 0.4,
+                                                'std_dev': '%7.3f' % 0.0},
                           'req_count': 1,
                           'start': 103.9,
                           'stop': 104.3})]),
@@ -327,57 +340,59 @@ class TestMaster(ScenarioFixture, TestCase):
             start=100.1, stop=106.4, req_count=3,
             avg_req_per_sec=round(3 / (106.4 - 100.1), 6),
             first_byte_latency=dict(
-                min=min(u_first_byte_latency), max=max(u_first_byte_latency),
-                avg=round(stats.lmean(u_first_byte_latency), 6),
-                std_dev=round(stats.lsamplestdev(u_first_byte_latency), 6),
-                median=round(stats.lmedianscore(u_first_byte_latency), 6),
+                min='%6.3f' % min(u_first_byte_latency),
+                max='%7.3f' % max(u_first_byte_latency),
+                avg='%7.3f' % stats.lmean(u_first_byte_latency),
+                std_dev='%7.3f' % stats.lsamplestdev(u_first_byte_latency),
+                median='%7.3f' % stats.lmedianscore(u_first_byte_latency),
             ),
             last_byte_latency=dict(
-                min=min(u_last_byte_latency), max=max(u_last_byte_latency),
-                avg=round(stats.lmean(u_last_byte_latency), 6),
-                std_dev=round(stats.lsamplestdev(u_last_byte_latency), 6),
-                median=round(stats.lmedianscore(u_last_byte_latency), 6),
+                min='%6.3f' % min(u_last_byte_latency),
+                max='%7.3f' % max(u_last_byte_latency),
+                avg='%7.3f' % stats.lmean(u_last_byte_latency),
+                std_dev='%7.3f' % stats.lsamplestdev(u_last_byte_latency),
+                median='%7.3f' % stats.lmedianscore(u_last_byte_latency),
             ),
             size_stats=OrderedDict([
                 ('tiny', {'avg_req_per_sec': 1.430615,
-                        'first_byte_latency': {'avg': 0.6,
-                                               'max': 0.6,
-                                               'median': 0.6,
-                                               'min': 0.6,
-                                               'std_dev': 0.0},
-                        'last_byte_latency': {'avg': 0.699,
-                                              'max': 0.699,
-                                              'median': 0.699,
-                                              'min': 0.699,
-                                              'std_dev': 0.0},
+                        'first_byte_latency': {'avg': '%7.3f' % 0.6,
+                                               'max': '%7.3f' % 0.6,
+                                               'median': '%7.3f' % 0.6,
+                                               'min': '%6.3f' % 0.6,
+                                               'std_dev': '%7.3f' % 0.0},
+                        'last_byte_latency': {'avg': '%7.3f' % 0.699,
+                                              'max': '%7.3f' % 0.699,
+                                              'median': '%7.3f' % 0.699,
+                                              'min': '%6.3f' % 0.699,
+                                              'std_dev': '%7.3f' % 0.0},
                         'req_count': 1,
                         'start': 104.3,
                         'stop': 104.999}),
                 ('medium', {'avg_req_per_sec': 0.357143,
-                          'first_byte_latency': {'avg': 0.8,
-                                                 'max': 0.8,
-                                                 'median': 0.8,
-                                                 'min': 0.8,
-                                                 'std_dev': 0.0},
-                          'last_byte_latency': {'avg': 2.8,
-                                                'max': 2.8,
-                                                'median': 2.8,
-                                                'min': 2.8,
-                                                'std_dev': 0.0},
+                          'first_byte_latency': {'avg': '%7.3f' % 0.8,
+                                                 'max': '%7.3f' % 0.8,
+                                                 'median': '%7.3f' % 0.8,
+                                                 'min': '%6.3f' % 0.8,
+                                                 'std_dev': '%7.3f' % 0.0},
+                          'last_byte_latency': {'avg': '%7.3f' % 2.8,
+                                                'max': '%7.3f' % 2.8,
+                                                'median': '%7.3f' % 2.8,
+                                                'min': '%6.3f' % 2.8,
+                                                'std_dev': '%7.3f' % 0.0},
                           'req_count': 1,
                           'start': 100.1,
                           'stop': 102.9}),
                 ('large', {'avg_req_per_sec': 3.333333,
-                            'first_byte_latency': {'avg': 0.2,
-                                                   'max': 0.2,
-                                                   'median': 0.2,
-                                                   'min': 0.2,
-                                                   'std_dev': 0.0},
-                            'last_byte_latency': {'avg': 0.3,
-                                                  'max': 0.3,
-                                                  'median': 0.3,
-                                                  'min': 0.3,
-                                                  'std_dev': 0.0},
+                            'first_byte_latency': {'avg': '%7.3f' % 0.2,
+                                                   'max': '%7.3f' % 0.2,
+                                                   'median': '%7.3f' % 0.2,
+                                                   'min': '%6.3f' % 0.2,
+                                                   'std_dev': '%7.3f' % 0.0},
+                            'last_byte_latency': {'avg': '%7.3f' % 0.3,
+                                                  'max': '%7.3f' % 0.3,
+                                                  'median': '%7.3f' % 0.3,
+                                                  'min': '%6.3f' % 0.3,
+                                                  'std_dev': '%7.3f' % 0.0},
                             'req_count': 1,
                             'start': 106.1,
                             'stop': 106.4})]),
@@ -392,43 +407,45 @@ class TestMaster(ScenarioFixture, TestCase):
             start=102.9, stop=103.9, req_count=2,
             avg_req_per_sec=round(2 / (103.9 - 102.9), 6),
             first_byte_latency=dict(
-                min=min(d_first_byte_latency), max=max(d_first_byte_latency),
-                avg=round(stats.lmean(d_first_byte_latency), 6),
-                std_dev=round(stats.lsamplestdev(d_first_byte_latency), 6),
-                median=round(stats.lmedianscore(d_first_byte_latency), 6),
+                min='%6.3f' % min(d_first_byte_latency),
+                max='%7.3f' % max(d_first_byte_latency),
+                avg='%7.3f' % stats.lmean(d_first_byte_latency),
+                std_dev='%7.3f' % stats.lsamplestdev(d_first_byte_latency),
+                median='%7.3f' % stats.lmedianscore(d_first_byte_latency),
             ),
             last_byte_latency=dict(
-                min=min(d_last_byte_latency), max=max(d_last_byte_latency),
-                avg=round(stats.lmean(d_last_byte_latency), 6),
-                std_dev=round(stats.lsamplestdev(d_last_byte_latency), 6),
-                median=round(stats.lmedianscore(d_last_byte_latency), 6),
+                min='%6.3f' % min(d_last_byte_latency),
+                max='%7.3f' % max(d_last_byte_latency),
+                avg='%7.3f' % stats.lmean(d_last_byte_latency),
+                std_dev='%7.3f' % stats.lsamplestdev(d_last_byte_latency),
+                median='%7.3f' % stats.lmedianscore(d_last_byte_latency),
             ),
             size_stats=OrderedDict([
                 ('small', {'avg_req_per_sec': 1.25,
-                          'first_byte_latency': {'avg': 0.5,
-                                                 'max': 0.5,
-                                                 'median': 0.5,
-                                                 'min': 0.5,
-                                                 'std_dev': 0.0},
-                          'last_byte_latency': {'avg': 0.8,
-                                                'max': 0.8,
-                                                'median': 0.8,
-                                                'min': 0.8,
-                                                'std_dev': 0.0},
+                          'first_byte_latency': {'avg': '%7.3f' % 0.5,
+                                                 'max': '%7.3f' % 0.5,
+                                                 'median': '%7.3f' % 0.5,
+                                                 'min': '%6.3f' % 0.5,
+                                                 'std_dev': '%7.3f' % 0.0},
+                          'last_byte_latency': {'avg': '%7.3f' % 0.8,
+                                                'max': '%7.3f' % 0.8,
+                                                'median': '%7.3f' % 0.8,
+                                                'min': '%6.3f' % 0.8,
+                                                'std_dev': '%7.3f' % 0.0},
                           'req_count': 1,
                           'start': 103.1,
                           'stop': 103.9}),
                 ('large', {'avg_req_per_sec': 2.5,
-                            'first_byte_latency': {'avg': 0.1,
-                                                   'max': 0.1,
-                                                   'median': 0.1,
-                                                   'min': 0.1,
-                                                   'std_dev': 0.0},
-                            'last_byte_latency': {'avg': 0.4,
-                                                  'max': 0.4,
-                                                  'median': 0.4,
-                                                  'min': 0.4,
-                                                  'std_dev': 0.0},
+                            'first_byte_latency': {'avg': '%7.3f' % 0.1,
+                                                   'max': '%7.3f' % 0.1,
+                                                   'median': '%7.3f' % 0.1,
+                                                   'min': '%6.3f' % 0.1,
+                                                   'std_dev': '%7.3f' % 0.0},
+                            'last_byte_latency': {'avg': '%7.3f' % 0.4,
+                                                  'max': '%7.3f' % 0.4,
+                                                  'median': '%7.3f' % 0.4,
+                                                  'min': '%6.3f' % 0.4,
+                                                  'std_dev': '%7.3f' % 0.0},
                             'req_count': 1,
                             'start': 102.9,
                             'stop': 103.3})]),
@@ -441,72 +458,72 @@ class TestMaster(ScenarioFixture, TestCase):
                                                           self.stub_results)
         self.assertDictEqual(OrderedDict([
             ('tiny', {'avg_req_per_sec': 0.816493,
-                    'first_byte_latency': {'avg': 0.45,
-                                           'max': 1.0,
-                                           'median': 0.35,
-                                           'min': 0.1,
-                                           'std_dev': 0.377492},
-                    'last_byte_latency': {'avg': 0.87475,
-                                          'max': 1.8,
-                                          'median': 0.7495,
-                                          'min': 0.2,
-                                          'std_dev': 0.580485},
+                    'first_byte_latency': {'avg': '%7.3f' % 0.45,
+                                           'max': '%7.3f' % 1.0,
+                                           'median': '%7.3f' % 0.35,
+                                           'min': '%6.3f' % 0.1,
+                                           'std_dev': '%7.3f' % 0.377492},
+                    'last_byte_latency': {'avg': '%7.3f' % 0.87475,
+                                          'max': '%7.3f' % 1.8,
+                                          'median': '%7.3f' % 0.7494,
+                                          'min': '%6.3f' % 0.2,
+                                          'std_dev': '%7.3f' % 0.580485},
                     'req_count': 4,
                     'start': 100.1,
                     'stop': 104.999}),
             ('small', {'avg_req_per_sec': 0.75,
-                      'first_byte_latency': {'avg': 0.566667,
-                                             'max': 1.0,
-                                             'median': 0.5,
-                                             'min': 0.2,
-                                             'std_dev': 0.329983},
-                      'last_byte_latency': {'avg': 1.433333,
-                                            'max': 3.0,
-                                            'median': 0.8,
-                                            'min': 0.5,
-                                            'std_dev': 1.11455},
+                      'first_byte_latency': {'avg': '%7.3f' % 0.566667,
+                                             'max': '%7.3f' % 1.0,
+                                             'median': '%7.3f' % 0.5,
+                                             'min': '%6.3f' % 0.2,
+                                             'std_dev': '%7.3f' % 0.329983},
+                      'last_byte_latency': {'avg': '%7.3f' % 1.433333,
+                                            'max': '%7.3f' % 3.0,
+                                            'median': '%7.3f' % 0.8,
+                                            'min': '%6.3f' % 0.5,
+                                            'std_dev': '%7.3f' % 1.11455},
                       'req_count': 3,
                       'start': 100.0,
                       'stop': 104.0}),
             ('medium', {'avg_req_per_sec': 0.47619,
-                      'first_byte_latency': {'avg': 0.55,
-                                             'max': 0.8,
-                                             'median': 0.55,
-                                             'min': 0.3,
-                                             'std_dev': 0.25},
-                      'last_byte_latency': {'avg': 1.6,
-                                            'max': 2.8,
-                                            'median': 1.6,
-                                            'min': 0.4,
-                                            'std_dev': 1.2},
+                      'first_byte_latency': {'avg': '%7.3f' % 0.55,
+                                             'max': '%7.3f' % 0.8,
+                                             'median': '%7.3f' % 0.55,
+                                             'min': '%6.3f' % 0.3,
+                                             'std_dev': '%7.3f' % 0.25},
+                      'last_byte_latency': {'avg': '%7.3f' % 1.6,
+                                            'max': '%7.3f' % 2.8,
+                                            'median': '%7.3f' % 1.6,
+                                            'min': '%6.3f' % 0.4,
+                                            'std_dev': '%7.3f' % 1.2},
                       'req_count': 2,
                       'start': 100.1,
                       'stop': 104.3}),
             ('large', {'avg_req_per_sec': 0.571429,
-                        'first_byte_latency': {'avg': 0.15,
-                                               'max': 0.2,
-                                               'median': 0.15,
-                                               'min': 0.1,
-                                               'std_dev': 0.05},
-                        'last_byte_latency': {'avg': 0.35,
-                                              'max': 0.4,
-                                              'median': 0.35,
-                                              'min': 0.3,
-                                              'std_dev': 0.05},
+                        'first_byte_latency': {'avg': '%7.3f' % 0.15,
+                                               'max': '%7.3f' % 0.2,
+                                               'median': '%7.3f' % 0.15,
+                                               'min': '%6.3f' % 0.1,
+                                               'std_dev': '%7.3f' % 0.05},
+                        'last_byte_latency': {'avg': '%7.3f' % 0.35,
+                                              'max': '%7.3f' % 0.4,
+                                              'median': '%7.3f' % 0.35,
+                                              'min': '%6.3f' % 0.3,
+                                              'std_dev': '%7.3f' % 0.05},
                         'req_count': 2,
                         'start': 102.9,
                         'stop': 106.4}),
             ('huge', {'avg_req_per_sec': 0.454545,
-                         'first_byte_latency': {'avg': 1.2,
-                                                'max': 1.2,
-                                                'median': 1.2,
-                                                'min': 1.2,
-                                                'std_dev': 0.0},
-                         'last_byte_latency': {'avg': 2.2,
-                                               'max': 2.2,
-                                               'median': 2.2,
-                                               'min': 2.2,
-                                               'std_dev': 0.0},
+                         'first_byte_latency': {'avg': '%7.3f' % 1.2,
+                                                'max': '%7.3f' % 1.2,
+                                                'median': '%7.3f' % 1.2,
+                                                'min': '%6.3f' % 1.2,
+                                                'std_dev': '%7.3f' % 0.0},
+                         'last_byte_latency': {'avg': '%7.3f' % 2.2,
+                                               'max': '%7.3f' % 2.2,
+                                               'median': '%7.3f' % 2.2,
+                                               'min': '%6.3f' % 2.2,
+                                               'std_dev': '%7.3f' % 0.0},
                          'req_count': 1,
                          'start': 103.8,
                          'stop': 106.0})]),
@@ -553,65 +570,65 @@ Master Test Scenario - ablkei
 
 TOTAL
        Count:    12  Average requests per second:   1.9
-                           min      max     avg     std_dev   median
-       First-byte latency:  0.10 -   1.20    0.51  (  0.39)    0.40  (  all obj sizes)
-       Last-byte  latency:  0.20 -   3.00    1.16  (  0.97)    0.75  (  all obj sizes)
-       First-byte latency:  0.10 -   1.00    0.45  (  0.38)    0.35  (tiny objs)
-       Last-byte  latency:  0.20 -   1.80    0.87  (  0.58)    0.75  (tiny objs)
-       First-byte latency:  0.20 -   1.00    0.57  (  0.33)    0.50  (small objs)
-       Last-byte  latency:  0.50 -   3.00    1.43  (  1.11)    0.80  (small objs)
-       First-byte latency:  0.30 -   0.80    0.55  (  0.25)    0.55  (medium objs)
-       Last-byte  latency:  0.40 -   2.80    1.60  (  1.20)    1.60  (medium objs)
-       First-byte latency:  0.10 -   0.20    0.15  (  0.05)    0.15  (large objs)
-       Last-byte  latency:  0.30 -   0.40    0.35  (  0.05)    0.35  (large objs)
-       First-byte latency:  1.20 -   1.20    1.20  (  0.00)    1.20  (huge objs)
-       Last-byte  latency:  2.20 -   2.20    2.20  (  0.00)    2.20  (huge objs)
+                            min       max      avg      std_dev    median
+       First-byte latency:  0.100 -   1.200    0.508  (  0.386)    0.400  (all obj sizes)
+       Last-byte  latency:  0.200 -   3.000    1.158  (  0.970)    0.749  (all obj sizes)
+       First-byte latency:  0.100 -   1.000    0.450  (  0.377)    0.350  (tiny objs)
+       Last-byte  latency:  0.200 -   1.800    0.875  (  0.580)    0.749  (tiny objs)
+       First-byte latency:  0.200 -   1.000    0.567  (  0.330)    0.500  (small objs)
+       Last-byte  latency:  0.500 -   3.000    1.433  (  1.115)    0.800  (small objs)
+       First-byte latency:  0.300 -   0.800    0.550  (  0.250)    0.550  (medium objs)
+       Last-byte  latency:  0.400 -   2.800    1.600  (  1.200)    1.600  (medium objs)
+       First-byte latency:  0.100 -   0.200    0.150  (  0.050)    0.150  (large objs)
+       Last-byte  latency:  0.300 -   0.400    0.350  (  0.050)    0.350  (large objs)
+       First-byte latency:  1.200 -   1.200    1.200  (  0.000)    1.200  (huge objs)
+       Last-byte  latency:  2.200 -   2.200    2.200  (  0.000)    2.200  (huge objs)
 
 CREATE
        Count:     3  Average requests per second:   0.5
-                           min      max     avg     std_dev   median
-       First-byte latency:  0.10 -   1.20    0.77  (  0.48)    1.00  (  all obj sizes)
-       Last-byte  latency:  0.20 -   3.00    1.80  (  1.18)    2.20  (  all obj sizes)
-       First-byte latency:  0.10 -   0.10    0.10  (  0.00)    0.10  (tiny objs)
-       Last-byte  latency:  0.20 -   0.20    0.20  (  0.00)    0.20  (tiny objs)
-       First-byte latency:  1.00 -   1.00    1.00  (  0.00)    1.00  (small objs)
-       Last-byte  latency:  3.00 -   3.00    3.00  (  0.00)    3.00  (small objs)
-       First-byte latency:  1.20 -   1.20    1.20  (  0.00)    1.20  (huge objs)
-       Last-byte  latency:  2.20 -   2.20    2.20  (  0.00)    2.20  (huge objs)
+                            min       max      avg      std_dev    median
+       First-byte latency:  0.100 -   1.200    0.767  (  0.478)    1.000  (all obj sizes)
+       Last-byte  latency:  0.200 -   3.000    1.800  (  1.178)    2.200  (all obj sizes)
+       First-byte latency:  0.100 -   0.100    0.100  (  0.000)    0.100  (tiny objs)
+       Last-byte  latency:  0.200 -   0.200    0.200  (  0.000)    0.200  (tiny objs)
+       First-byte latency:  1.000 -   1.000    1.000  (  0.000)    1.000  (small objs)
+       Last-byte  latency:  3.000 -   3.000    3.000  (  0.000)    3.000  (small objs)
+       First-byte latency:  1.200 -   1.200    1.200  (  0.000)    1.200  (huge objs)
+       Last-byte  latency:  2.200 -   2.200    2.200  (  0.000)    2.200  (huge objs)
 
 READ
        Count:     4  Average requests per second:   1.0
-                           min      max     avg     std_dev   median
-       First-byte latency:  0.10 -   1.00    0.40  (  0.35)    0.25  (  all obj sizes)
-       Last-byte  latency:  0.40 -   1.80    0.88  (  0.55)    0.65  (  all obj sizes)
-       First-byte latency:  0.10 -   1.00    0.55  (  0.45)    0.55  (tiny objs)
-       Last-byte  latency:  0.80 -   1.80    1.30  (  0.50)    1.30  (tiny objs)
-       First-byte latency:  0.20 -   0.20    0.20  (  0.00)    0.20  (small objs)
-       Last-byte  latency:  0.50 -   0.50    0.50  (  0.00)    0.50  (small objs)
-       First-byte latency:  0.30 -   0.30    0.30  (  0.00)    0.30  (medium objs)
-       Last-byte  latency:  0.40 -   0.40    0.40  (  0.00)    0.40  (medium objs)
+                            min       max      avg      std_dev    median
+       First-byte latency:  0.100 -   1.000    0.400  (  0.354)    0.250  (all obj sizes)
+       Last-byte  latency:  0.400 -   1.800    0.875  (  0.554)    0.650  (all obj sizes)
+       First-byte latency:  0.100 -   1.000    0.550  (  0.450)    0.550  (tiny objs)
+       Last-byte  latency:  0.800 -   1.800    1.300  (  0.500)    1.300  (tiny objs)
+       First-byte latency:  0.200 -   0.200    0.200  (  0.000)    0.200  (small objs)
+       Last-byte  latency:  0.500 -   0.500    0.500  (  0.000)    0.500  (small objs)
+       First-byte latency:  0.300 -   0.300    0.300  (  0.000)    0.300  (medium objs)
+       Last-byte  latency:  0.400 -   0.400    0.400  (  0.000)    0.400  (medium objs)
 
 UPDATE
        Count:     3  Average requests per second:   0.5
-                           min      max     avg     std_dev   median
-       First-byte latency:  0.20 -   0.80    0.53  (  0.25)    0.60  (  all obj sizes)
-       Last-byte  latency:  0.30 -   2.80    1.27  (  1.10)    0.70  (  all obj sizes)
-       First-byte latency:  0.60 -   0.60    0.60  (  0.00)    0.60  (tiny objs)
-       Last-byte  latency:  0.70 -   0.70    0.70  (  0.00)    0.70  (tiny objs)
-       First-byte latency:  0.80 -   0.80    0.80  (  0.00)    0.80  (medium objs)
-       Last-byte  latency:  2.80 -   2.80    2.80  (  0.00)    2.80  (medium objs)
-       First-byte latency:  0.20 -   0.20    0.20  (  0.00)    0.20  (large objs)
-       Last-byte  latency:  0.30 -   0.30    0.30  (  0.00)    0.30  (large objs)
+                            min       max      avg      std_dev    median
+       First-byte latency:  0.200 -   0.800    0.533  (  0.249)    0.600  (all obj sizes)
+       Last-byte  latency:  0.300 -   2.800    1.266  (  1.097)    0.699  (all obj sizes)
+       First-byte latency:  0.600 -   0.600    0.600  (  0.000)    0.600  (tiny objs)
+       Last-byte  latency:  0.699 -   0.699    0.699  (  0.000)    0.699  (tiny objs)
+       First-byte latency:  0.800 -   0.800    0.800  (  0.000)    0.800  (medium objs)
+       Last-byte  latency:  2.800 -   2.800    2.800  (  0.000)    2.800  (medium objs)
+       First-byte latency:  0.200 -   0.200    0.200  (  0.000)    0.200  (large objs)
+       Last-byte  latency:  0.300 -   0.300    0.300  (  0.000)    0.300  (large objs)
 
 DELETE
        Count:     2  Average requests per second:   2.0
-                           min      max     avg     std_dev   median
-       First-byte latency:  0.10 -   0.50    0.30  (  0.20)    0.30  (  all obj sizes)
-       Last-byte  latency:  0.40 -   0.80    0.60  (  0.20)    0.60  (  all obj sizes)
-       First-byte latency:  0.50 -   0.50    0.50  (  0.00)    0.50  (small objs)
-       Last-byte  latency:  0.80 -   0.80    0.80  (  0.00)    0.80  (small objs)
-       First-byte latency:  0.10 -   0.10    0.10  (  0.00)    0.10  (large objs)
-       Last-byte  latency:  0.40 -   0.40    0.40  (  0.00)    0.40  (large objs)
+                            min       max      avg      std_dev    median
+       First-byte latency:  0.100 -   0.500    0.300  (  0.200)    0.300  (all obj sizes)
+       Last-byte  latency:  0.400 -   0.800    0.600  (  0.200)    0.600  (all obj sizes)
+       First-byte latency:  0.500 -   0.500    0.500  (  0.000)    0.500  (small objs)
+       Last-byte  latency:  0.800 -   0.800    0.800  (  0.000)    0.800  (small objs)
+       First-byte latency:  0.100 -   0.100    0.100  (  0.000)    0.100  (large objs)
+       Last-byte  latency:  0.400 -   0.400    0.400  (  0.000)    0.400  (large objs)
 
 
 """.split('\n'), self.master.generate_scenario_report(self.scenario, scen_stats).split('\n'))

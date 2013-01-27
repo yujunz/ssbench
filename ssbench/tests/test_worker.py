@@ -74,6 +74,7 @@ class TestWorker(object):
         ).and_return({
             'x-swiftstack-first-byte-latency': 0.492393,
             'x-swiftstack-last-byte-latency': 8.23283,
+            'x-trans-id': 'abcdef',
         }).once
         self.time_expectation.once
         self.mock_queue.should_receive('put').with_args(
@@ -81,6 +82,7 @@ class TestWorker(object):
                                        worker_id=self.worker_id,
                                        first_byte_latency=0.492393,
                                        last_byte_latency=8.23283,
+                                       trans_id='abcdef',
                                        completed_at=self.stub_time)),
         ).once
         self.mock_worker.handle_upload_object(object_info)
@@ -98,13 +100,15 @@ class TestWorker(object):
         ).and_return({
             'x-swiftstack-first-byte-latency': 0.94932,
             'x-swiftstack-last-byte-latency': 8.3273,
+            'x-trans-id': '9bjkk',
         }).once
         self.mock_queue.should_receive('put').with_args(
             yaml.dump(worker.add_dicts(object_info,
-                                worker_id=self.worker_id,
-                                first_byte_latency=0.94932,
-                                last_byte_latency=8.3273,
-                                completed_at=self.stub_time)),
+                                       worker_id=self.worker_id,
+                                       first_byte_latency=0.94932,
+                                       last_byte_latency=8.3273,
+                                       trans_id='9bjkk',
+                                       completed_at=self.stub_time)),
         ).once
         self.mock_worker.handle_delete_object(object_info)
         
@@ -125,13 +129,15 @@ class TestWorker(object):
         ).and_return({
             'x-swiftstack-first-byte-latency': 4.45,
             'x-swiftstack-last-byte-latency': 23.283,
+            'x-trans-id': 'biejs',
         }).once
         self.mock_queue.should_receive('put').with_args(
             yaml.dump(worker.add_dicts(object_info,
-                                worker_id=self.worker_id,
-                                completed_at=self.stub_time,
-                                first_byte_latency=4.45,
-                                last_byte_latency=23.283)),
+                                       worker_id=self.worker_id,
+                                       completed_at=self.stub_time,
+                                       trans_id='biejs',
+                                       first_byte_latency=4.45,
+                                       last_byte_latency=23.283)),
         ).once
 
         self.mock_worker.handle_update_object(object_info)
@@ -147,17 +153,19 @@ class TestWorker(object):
             'ignoring_http_responses',
         ).with_args(
             (404, 503), client.get_object, object_info,
-            resp_chunk_size=65536,
+            resp_chunk_size=65536, toss_body=True,
         ).and_return(({
             'x-swiftstack-first-byte-latency': 5.33,
             'x-swiftstack-last-byte-latency': 9.99,
+            'x-trans-id': 'bies',
         }, ['object_data'])).once
         self.mock_queue.should_receive('put').with_args(
             yaml.dump(worker.add_dicts(object_info,
-                                worker_id=self.worker_id,
-                                completed_at=self.stub_time,
-                                first_byte_latency=5.33,
-                                last_byte_latency=9.99)),
+                                       worker_id=self.worker_id,
+                                       completed_at=self.stub_time,
+                                       trans_id='bies',
+                                       first_byte_latency=5.33,
+                                       last_byte_latency=9.99)),
         ).once
 
         self.mock_worker.handle_get_object(object_info)
