@@ -56,7 +56,7 @@ def run_scenario(master, args):
         args.stats_file = DEFAULT_STATS_PATH % munged_name
         if not os.path.exists(os.path.dirname(args.stats_file)):
             os.makedirs(os.path.dirname(args.stats_file))
-    args.stats_file = open(args.stats_file, 'w+')
+    args.stats_file = open(args.stats_file, 'wb+')
 
     results = master.run_scenario(auth_url=args.auth_url, user=args.user,
                                   key=args.key, storage_url=args.storage_url,
@@ -150,7 +150,7 @@ if __name__ == "__main__":
         help="Generate a report from saved scenario statistics",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     report_scenario_arg_parser.add_argument(
-        '-s', '--stats-file', type=argparse.FileType('r'), required=True,
+        '-s', '--stats-file', type=argparse.FileType('rb'), required=True,
         help='An existing stats file from a previous '
         '--run-scenario invocation')
     report_scenario_arg_parser.add_argument(
