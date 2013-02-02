@@ -17,6 +17,7 @@ import sys
 import yaml  # *gag*; replace with msgpack!
 import logging
 import statlib.stats
+from datetime import datetime
 from mako.template import Template
 from collections import OrderedDict
 
@@ -29,6 +30,9 @@ import ssbench.swift_client as client
 from ssbench.run_state import RunState
 
 from pprint import pprint, pformat
+
+
+REPORT_TIME_FORMAT = '%F %T UTC'
 
 
 def _container_creator(storage_url, token, container):
@@ -203,8 +207,9 @@ class Master:
     def scenario_template(self):
         return """
 ${scenario.name}
-  C   R   U   D     Worker count: ${'%3d' % agg_stats['worker_count']}   Concurrency: ${'%3d' % scenario.user_count}
-%% ${'%02.0f  %02.0f  %02.0f  %02.0f' % (crud_pcts[0], crud_pcts[1], crud_pcts[2], crud_pcts[3])}
+  C   R   U   D       Worker count: ${'%3d' % agg_stats['worker_count']}   Concurrency: ${'%3d' % scenario.user_count}
+%% ${'%02.0f  %02.0f  %02.0f  %02.0f' % (crud_pcts[0], crud_pcts[1], crud_pcts[2], crud_pcts[3])}      Ran ${start_time} to ${stop_time} (${'%.0f' % round(duration)}s)
+
 % for label, stats, sstats in stat_list:
 % if stats['req_count']:
 ${label}
@@ -247,6 +252,13 @@ ${label}
                  stats['op_stats'][ssbench.DELETE_OBJECT]['size_stats']),
             ],
             'agg_stats': stats['agg_stats'],
+            'start_time': datetime.utcfromtimestamp(
+                stats['time_series']['start_time']
+            ).strftime(REPORT_TIME_FORMAT),
+            'stop_time': datetime.utcfromtimestamp(
+                stats['time_series']['stop']).strftime(REPORT_TIME_FORMAT),
+            'duration': stats['time_series']['stop']
+                - stats['time_series']['start_time'],
         }
         return template.render(scenario=scenario, stats=stats, **tmpl_vars)
 
@@ -346,6 +358,7 @@ ${label}
                 size_stats=OrderedDict.fromkeys(scenario.sizes_by_name.keys()))
 
         req_completion_seconds = {}
+        start_time = 0
         completion_time_max = 0
         completion_time_min = 2**32
         stats = dict(
@@ -363,6 +376,7 @@ ${label}
             completion_time = int(result['completed_at'])
             if completion_time < completion_time_min:
                 completion_time_min = completion_time
+                start_time = completion_time - result['last_byte_latency']
             if completion_time > completion_time_max:
                 completion_time_max = completion_time
             req_completion_seconds[completion_time] = \
@@ -418,6 +432,8 @@ ${label}
                             for t in range(completion_time_min,
                                            completion_time_max + 1)]
         stats['time_series'] = dict(start=completion_time_min,
+                                    start_time=start_time,
+                                    stop=completion_time_max,
                                     data=time_series_data)
 
         return stats
