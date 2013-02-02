@@ -586,6 +586,8 @@ class TestMaster(ScenarioFixture, TestCase):
                                                           self.stub_results)
         self.assertDictEqual(dict(
             start=101,
+            start_time=99.19999999999999,
+            stop=106,
             data=[1, 1, 5, 3, 0, 2],
         ), scen_stats['time_series'])
 
@@ -616,8 +618,8 @@ class TestMaster(ScenarioFixture, TestCase):
                                                           self.stub_results)
         self.assertListEqual(u"""
 Master Test Scenario - ablkei
-  C   R   U   D     Worker count:   3   Concurrency:   2
-% 50  30  10  10
+  C   R   U   D       Worker count:   3   Concurrency:   2
+% 50  30  10  10      Ran 1970-01-01 00:01:39 UTC to 1970-01-01 00:01:46 UTC (7s)
 
 TOTAL
        Count:    12  Average requests per second:   1.9
@@ -680,6 +682,7 @@ DELETE
        Last-byte  latency:  0.800 -   0.800    0.800  (  0.000)    0.800  (   small objs)  txID011
        First-byte latency:  0.100 -   0.100    0.100  (  0.000)    0.100  (   large objs)  txID007
        Last-byte  latency:  0.400 -   0.400    0.400  (  0.000)    0.400  (   large objs)  txID007
+
 
 
 """.split('\n'), self.master.generate_scenario_report(self.scenario, scen_stats).split('\n'))
