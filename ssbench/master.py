@@ -86,14 +86,14 @@ class Master:
     def do_a_run(self, concurrency, job_generator, result_processor, priority,
                  storage_url, token, mapper_fn=None, label=''):
         if label and not self.quiet:
-            print >>sys.stderr, label + '\n' + """
+            print >>sys.stderr, label + """
   .  <  1s first-byte-latency
   o  <  3s first-byte-latency
   O  < 10s first-byte-latency
   * >= 10s first-byte-latency
   X    work job raised an exception
   _    no first-byte-latency available
-            """.strip()
+            """.rstrip()
         active = 0
         for job in job_generator:
             if mapper_fn is not None:

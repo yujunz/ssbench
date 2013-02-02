@@ -31,7 +31,9 @@ from ssbench.master import Master
 from ssbench.scenario import Scenario
 
 DEFAULT_OBJECTS_PER_CONTAINER = 1000
-DEFAULT_STATS_PATH = '/tmp/ssbench-results/%s.stat'
+DEFAULT_STATS_PATH = '/tmp/ssbench-results/%s.%s.stat'
+DEFAULT_STATS_PATH_DEFAULT = '/tmp/ssbench-results/%s.%s.stat' % (
+    '<scenario_name>', '<timestamp>')
 
 
 def print_unixtime_histogram(results):
@@ -51,12 +53,14 @@ def run_scenario(master, args):
 
     # Possibly attempt open prior to benchmark run so we get errors earlier
     # if there's a problem.
-    if args.stats_file == DEFAULT_STATS_PATH % '<scenario_name>':
+    if args.stats_file == DEFAULT_STATS_PATH_DEFAULT:
         munged_name = re.sub('[%s\s]+' % os.path.sep, '_', scenario.name)
-        args.stats_file = DEFAULT_STATS_PATH % munged_name
+        timestamp = datetime.now().strftime('%F.%H%M%S')
+        args.stats_file = DEFAULT_STATS_PATH % (munged_name, timestamp)
         if not os.path.exists(os.path.dirname(args.stats_file)):
             os.makedirs(os.path.dirname(args.stats_file))
-    args.stats_file = open(args.stats_file, 'wb+')
+    stats_file_path = args.stats_file
+    args.stats_file = open(stats_file_path, 'wb+')
 
     results = master.run_scenario(auth_url=args.auth_url, user=args.user,
                                   key=args.key, storage_url=args.storage_url,
@@ -71,6 +75,10 @@ def run_scenario(master, args):
         args.rps_histogram = None
         report_scenario(master, args)
     args.stats_file.close()
+
+    logging.info('Scenario run results saved to %s', stats_file_path)
+    logging.info('You may generate a report with:\n  '
+                 '%s report-scenario -s %s', sys.argv[0], stats_file_path)
 
 
 def report_scenario(master, args):
@@ -138,7 +146,7 @@ if __name__ == "__main__":
     run_scenario_arg_parser.add_argument(
         '-s', '--stats-file', type=str,
         help='File into which benchmarking statistics will be saved',
-        default=DEFAULT_STATS_PATH % '<scenario_name>')
+        default=DEFAULT_STATS_PATH_DEFAULT)
     run_scenario_arg_parser.add_argument(
         '-r', '--no-default-report', action='store_true', default=False,
         help="Suppress the default immediate generation of a benchmark "
