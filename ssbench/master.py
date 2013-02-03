@@ -15,6 +15,7 @@
 
 import os
 import sys
+import math
 import logging
 import msgpack
 import statlib.stats
@@ -229,20 +230,18 @@ ${scenario.name}
 % if stats['req_count']:
 ${label}
        Count: ${'%5d' % stats['req_count']}  Average requests per second: ${'%5.1f' % stats['avg_req_per_sec']}
-                            min       max      avg      std_dev    median ${'%15s' % ''}  Swift TX ID for worst latency
-       First-byte latency: ${stats['first_byte_latency']['min']} - ${stats['first_byte_latency']['max']}  ${stats['first_byte_latency']['avg']}  (${stats['first_byte_latency']['std_dev']})  ${stats['first_byte_latency']['median']}  (all obj sizes)  ${stats['worst_first_byte_latency'][1] if 'worst_first_byte_latency' in stats else ''}
-       Last-byte  latency: ${stats['last_byte_latency']['min']} - ${stats['last_byte_latency']['max']}  ${stats['last_byte_latency']['avg']}  (${stats['last_byte_latency']['std_dev']})  ${stats['last_byte_latency']['median']}  (all obj sizes)  ${stats['worst_last_byte_latency'][1] if 'worst_last_byte_latency' in stats else ''}
+                            min       max      avg      std_dev  ${'%02d' % nth_pctile}%-ile  ${'%15s' % ''}  Swift TX ID for worst latency
+       First-byte latency: ${stats['first_byte_latency']['min']} - ${stats['first_byte_latency']['max']}  ${stats['first_byte_latency']['avg']}  (${stats['first_byte_latency']['std_dev']})  ${stats['first_byte_latency']['pctile']}  (all obj sizes)  ${stats['worst_first_byte_latency'][1] if 'worst_first_byte_latency' in stats else ''}
+       Last-byte  latency: ${stats['last_byte_latency']['min']} - ${stats['last_byte_latency']['max']}  ${stats['last_byte_latency']['avg']}  (${stats['last_byte_latency']['std_dev']})  ${stats['last_byte_latency']['pctile']}  (all obj sizes)  ${stats['worst_last_byte_latency'][1] if 'worst_last_byte_latency' in stats else ''}
 % for size_str, per_size_stats in sstats.iteritems():
 % if per_size_stats:
-       First-byte latency: ${per_size_stats['first_byte_latency']['min']} - ${per_size_stats['first_byte_latency']['max']}  ${per_size_stats['first_byte_latency']['avg']}  (${per_size_stats['first_byte_latency']['std_dev']})  ${per_size_stats['first_byte_latency']['median']}  ${'(%8s objs)' % size_str}  ${per_size_stats['worst_first_byte_latency'][1] if 'worst_first_byte_latency' in per_size_stats else ''}
-       Last-byte  latency: ${per_size_stats['last_byte_latency']['min']} - ${per_size_stats['last_byte_latency']['max']}  ${per_size_stats['last_byte_latency']['avg']}  (${per_size_stats['last_byte_latency']['std_dev']})  ${per_size_stats['last_byte_latency']['median']}  ${'(%8s objs)' % size_str}  ${per_size_stats['worst_last_byte_latency'][1] if 'worst_last_byte_latency' in per_size_stats else ''}
+       First-byte latency: ${per_size_stats['first_byte_latency']['min']} - ${per_size_stats['first_byte_latency']['max']}  ${per_size_stats['first_byte_latency']['avg']}  (${per_size_stats['first_byte_latency']['std_dev']})  ${per_size_stats['first_byte_latency']['pctile']}  ${'(%8s objs)' % size_str}  ${per_size_stats['worst_first_byte_latency'][1] if 'worst_first_byte_latency' in per_size_stats else ''}
+       Last-byte  latency: ${per_size_stats['last_byte_latency']['min']} - ${per_size_stats['last_byte_latency']['max']}  ${per_size_stats['last_byte_latency']['avg']}  (${per_size_stats['last_byte_latency']['std_dev']})  ${per_size_stats['last_byte_latency']['pctile']}  ${'(%8s objs)' % size_str}  ${per_size_stats['worst_last_byte_latency'][1] if 'worst_last_byte_latency' in per_size_stats else ''}
 % endif
 % endfor
 
 % endif
 % endfor
-
-
 """
 
     def generate_scenario_report(self, scenario, stats):
@@ -268,6 +267,7 @@ ${label}
                  stats['op_stats'][ssbench.DELETE_OBJECT]['size_stats']),
             ],
             'agg_stats': stats['agg_stats'],
+            'nth_pctile': stats['nth_pctile'],
             'start_time': datetime.utcfromtimestamp(
                 stats['time_series']['start_time']
             ).strftime(REPORT_TIME_FORMAT),
@@ -278,7 +278,7 @@ ${label}
         }
         return template.render(scenario=scenario, stats=stats, **tmpl_vars)
 
-    def calculate_scenario_stats(self, scenario, results):
+    def calculate_scenario_stats(self, scenario, results, nth_pctile=95):
         """Given a list of worker job result dicts, compute various statistics.
 
         :results: A list of worker job result dicts
@@ -378,6 +378,7 @@ ${label}
         completion_time_max = 0
         completion_time_min = 2**32
         stats = dict(
+            nth_pctile=nth_pctile,
             agg_stats=agg_stats,
             worker_stats={},
             op_stats=op_stats,
@@ -423,25 +424,25 @@ ${label}
                 result)
         agg_stats['worker_count'] = len(stats['worker_stats'].keys())
         self._compute_req_per_sec(agg_stats)
-        self._compute_latency_stats(agg_stats)
+        self._compute_latency_stats(agg_stats, nth_pctile)
         for worker_stats in stats['worker_stats'].values():
             self._compute_req_per_sec(worker_stats)
-            self._compute_latency_stats(worker_stats)
+            self._compute_latency_stats(worker_stats, nth_pctile)
         for op_stat, op_stats_dict in op_stats.iteritems():
             if op_stats_dict['req_count']:
                 self._compute_req_per_sec(op_stats_dict)
-                self._compute_latency_stats(op_stats_dict)
+                self._compute_latency_stats(op_stats_dict, nth_pctile)
                 for size_str, size_stats in \
                         op_stats_dict['size_stats'].iteritems():
                     if size_stats:
                         self._compute_req_per_sec(size_stats)
-                        self._compute_latency_stats(size_stats)
+                        self._compute_latency_stats(size_stats, nth_pctile)
                     else:
                         op_stats_dict['size_stats'].pop(size_str)
         for size_str, size_stats in stats['size_stats'].iteritems():
             if size_stats:
                 self._compute_req_per_sec(size_stats)
-                self._compute_latency_stats(size_stats)
+                self._compute_latency_stats(size_stats, nth_pctile)
             else:
                 stats['size_stats'].pop(size_str)
         time_series_data = [req_completion_seconds.get(t, 0)
@@ -454,11 +455,11 @@ ${label}
 
         return stats
 
-    def _compute_latency_stats(self, stat_dict):
+    def _compute_latency_stats(self, stat_dict, nth_pctile):
         try:
             for latency_type in ('first_byte_latency', 'last_byte_latency'):
                 stat_dict[latency_type] = self._series_stats(
-                    stat_dict[latency_type])
+                    stat_dict[latency_type], nth_pctile)
         except KeyError:
             logging.exception('stat_dict: %r', stat_dict)
             raise
@@ -480,15 +481,16 @@ ${label}
             stat_dict['req_count'] += 1
         self._rec_latency(stat_dict, result)
 
-    def _series_stats(self, sequence):
-        pre_filter = len(sequence)
+    def _series_stats(self, sequence, nth_pctile):
+        pre_filter_count = len(sequence)
         sequence = filter(None, sequence)
-        logging.debug('_series_stats pre/post seq len: %d/%d', pre_filter,
-                      len(sequence))
+        logging.debug('_series_stats pre/post seq len: %d/%d',
+                      pre_filter_count, len(sequence))
         if not sequence:
             # No data available
             return dict(min=' N/A  ', max='  N/A  ', avg='  N/A  ',
-                        std_dev='  N/A  ', median='  N/A  ')
+                        pctile='  N/A  ', std_dev='  N/A  ', median='  N/A  ')
+        sequence.sort()
         try:
             n, (minval, maxval), mean, std_dev, skew, kurtosis = \
                 statlib.stats.ldescribe(sequence)
@@ -503,8 +505,19 @@ ${label}
             min='%6.3f' % minval,
             max='%7.3f' % maxval,
             avg='%7.3f' % mean,
+            pctile='%7.3f' % self.pctile(sequence, nth_pctile),
             std_dev='%7.3f' % statlib.stats.lsamplestdev(sequence),
             median='%7.3f' % statlib.stats.lmedianscore(sequence))
+
+    def pctile(self, sequence, nth_pctile):
+        seq_len = len(sequence)
+        rank = seq_len * nth_pctile / 100.0
+        if float(int(rank)) == rank:
+            # integer rank means we interpolate between two values
+            rank = int(rank)
+            return (sequence[rank - 1] + sequence[rank]) / 2.0
+        else:
+            return sequence[int(math.ceil(rank)) - 1]
 
     def _rec_latency(self, stats_dict, result):
         for latency_type in ('first_byte_latency', 'last_byte_latency'):

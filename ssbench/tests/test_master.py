@@ -111,6 +111,7 @@ class TestMaster(ScenarioFixture, TestCase):
                 min='%6.3f' % 0.1,
                 max='%7.3f' % 1.2,
                 avg='%7.3f' % stats.lmean(first_byte_latency_all),
+                pctile='%7.3f' % 1.2,
                 std_dev='%7.3f' % stats.lsamplestdev(first_byte_latency_all),
                 median='%7.3f' % stats.lmedianscore(first_byte_latency_all),
             ),
@@ -118,6 +119,37 @@ class TestMaster(ScenarioFixture, TestCase):
                 min='%6.3f' % 0.2,
                 max='%7.3f' % 3.0,
                 avg='%7.3f' % stats.lmean(last_byte_latency_all),
+                pctile='%7.3f' % 3.0,
+                std_dev='%7.3f' % stats.lsamplestdev(last_byte_latency_all),
+                median='  0.749',  # XXX why??
+                #median='%7.3f' % stats.lmedianscore(last_byte_latency_all),
+            ),
+            worst_first_byte_latency=(1.2, 'txID004'),
+            worst_last_byte_latency=(3.0, 'txID002'),
+        ), scen_stats['agg_stats'])
+
+    def test_calculate_scenario_stats_aggregate_low_pctile(self):
+        first_byte_latency_all = [1, 0.1, 1.2, 0.2, 0.8, 0.1, 0.1, 0.2, 1, 0.5, 0.3, 0.6]
+        last_byte_latency_all =  [3, 0.8, 2.2, 0.3, 2.8, 0.4, 0.2, 0.5, 1.8, 0.8, 0.4, 0.699]
+        scen_stats = self.master.calculate_scenario_stats(self.scenario,
+                                                          self.stub_results,
+                                                          nth_pctile=20)
+        self.assertDictEqual(dict(
+            worker_count=3, start=100.0, stop=106.4, req_count=12,
+            avg_req_per_sec=round(12 / (106.4 - 100), 6),
+            first_byte_latency=dict(
+                min='%6.3f' % 0.1,
+                max='%7.3f' % 1.2,
+                avg='%7.3f' % stats.lmean(first_byte_latency_all),
+                pctile='%7.3f' % sorted(first_byte_latency_all)[2],
+                std_dev='%7.3f' % stats.lsamplestdev(first_byte_latency_all),
+                median='%7.3f' % stats.lmedianscore(first_byte_latency_all),
+            ),
+            last_byte_latency=dict(
+                min='%6.3f' % 0.2,
+                max='%7.3f' % 3.0,
+                avg='%7.3f' % stats.lmean(last_byte_latency_all),
+                pctile='%7.3f' % sorted(last_byte_latency_all)[2],
                 std_dev='%7.3f' % stats.lsamplestdev(last_byte_latency_all),
                 median='  0.749',  # XXX why??
                 #median='%7.3f' % stats.lmedianscore(last_byte_latency_all),
@@ -138,6 +170,7 @@ class TestMaster(ScenarioFixture, TestCase):
                 min='%6.3f' % min(w1_first_byte_latency),
                 max='%7.3f' % max(w1_first_byte_latency),
                 avg='%7.3f' % stats.lmean(w1_first_byte_latency),
+                pctile='%7.3f' % 1.2,
                 std_dev='%7.3f' % stats.lsamplestdev(w1_first_byte_latency),
                 median='%7.3f' % stats.lmedianscore(w1_first_byte_latency),
             ),
@@ -145,6 +178,7 @@ class TestMaster(ScenarioFixture, TestCase):
                 min='%6.3f' % min(w1_last_byte_latency),
                 max='%7.3f' % max(w1_last_byte_latency),
                 avg='%7.3f' % stats.lmean(w1_last_byte_latency),
+                pctile='%7.3f' % 3.0,
                 std_dev='%7.3f' % stats.lsamplestdev(w1_last_byte_latency),
                 median='%7.3f' % stats.lmedianscore(w1_last_byte_latency),
             ),
@@ -165,6 +199,7 @@ class TestMaster(ScenarioFixture, TestCase):
                 min='%6.3f' % min(w2_first_byte_latency),
                 max='%7.3f' % max(w2_first_byte_latency),
                 avg='%7.3f' % stats.lmean(w2_first_byte_latency),
+                pctile='%7.3f' % 0.8,
                 std_dev='%7.3f' % stats.lsamplestdev(w2_first_byte_latency),
                 median='%7.3f' % stats.lmedianscore(w2_first_byte_latency),
             ),
@@ -172,6 +207,7 @@ class TestMaster(ScenarioFixture, TestCase):
                 min='%6.3f' % min(w2_last_byte_latency),
                 max='%7.3f' % max(w2_last_byte_latency),
                 avg='%7.3f' % stats.lmean(w2_last_byte_latency),
+                pctile='%7.3f' % 2.8,
                 std_dev='%7.3f' % stats.lsamplestdev(w2_last_byte_latency),
                 median='%7.3f' % stats.lmedianscore(w2_last_byte_latency),
             ),
@@ -192,6 +228,7 @@ class TestMaster(ScenarioFixture, TestCase):
                 min='%6.3f' % min(w3_first_byte_latency),
                 max='%7.3f' % max(w3_first_byte_latency),
                 avg='%7.3f' % stats.lmean(w3_first_byte_latency),
+                pctile='%7.3f' % 1.0,
                 std_dev='%7.3f' % stats.lsamplestdev(w3_first_byte_latency),
                 median='%7.3f' % stats.lmedianscore(w3_first_byte_latency),
             ),
@@ -199,6 +236,7 @@ class TestMaster(ScenarioFixture, TestCase):
                 min='%6.3f' % min(w3_last_byte_latency),
                 max='%7.3f' % max(w3_last_byte_latency),
                 avg='%7.3f' % stats.lmean(w3_last_byte_latency),
+                pctile='%7.3f' % 1.8,
                 std_dev='%7.3f' % stats.lsamplestdev(w3_last_byte_latency),
                 median='%7.3f' % stats.lmedianscore(w3_last_byte_latency),
             ),
@@ -218,6 +256,7 @@ class TestMaster(ScenarioFixture, TestCase):
             first_byte_latency=dict(
                 min='%6.3f' % min(c_first_byte_latency),
                 max='%7.3f' % max(c_first_byte_latency),
+                pctile='%7.3f' % max(c_first_byte_latency),
                 avg='%7.3f' % stats.lmean(c_first_byte_latency),
                 std_dev='%7.3f' % stats.lsamplestdev(c_first_byte_latency),
                 median='%7.3f' % stats.lmedianscore(c_first_byte_latency),
@@ -225,6 +264,7 @@ class TestMaster(ScenarioFixture, TestCase):
             last_byte_latency=dict(
                 min='%6.3f' % min(c_last_byte_latency),
                 max='%7.3f' % max(c_last_byte_latency),
+                pctile='%7.3f' % max(c_last_byte_latency),
                 avg='%7.3f' % stats.lmean(c_last_byte_latency),
                 std_dev='%7.3f' % stats.lsamplestdev(c_last_byte_latency),
                 median='%7.3f' % stats.lmedianscore(c_last_byte_latency),
@@ -235,11 +275,13 @@ class TestMaster(ScenarioFixture, TestCase):
                 ('tiny', {'avg_req_per_sec': 5.0,
                           'first_byte_latency': {'avg': '%7.3f' % 0.1,
                                                  'max': '%7.3f' % 0.1,
+                                                 'pctile': '%7.3f' % 0.1,
                                                  'median': '%7.3f' % 0.1,
                                                  'min': '%6.3f' % 0.1,
                                                  'std_dev': '%7.3f' % 0.0},
                           'last_byte_latency': {'avg': '%7.3f' % 0.2,
                                                 'max': '%7.3f' % 0.2,
+                                                'pctile': '%7.3f' % 0.2,
                                                 'median': '%7.3f' % 0.2,
                                                 'min': '%6.3f' % 0.2,
                                                 'std_dev': '%7.3f' % 0.0},
@@ -251,11 +293,13 @@ class TestMaster(ScenarioFixture, TestCase):
                 ('small', {'avg_req_per_sec': 0.333333,
                            'first_byte_latency': {'avg': '%7.3f' % 1.0,
                                                   'max': '%7.3f' % 1.0,
+                                                  'pctile': '%7.3f' % 1.0,
                                                   'median': '%7.3f' % 1.0,
                                                   'min': '%6.3f' % 1.0,
                                                   'std_dev': '%7.3f' % 0.0},
                            'last_byte_latency': {'avg': '%7.3f' % 3.0,
                                                  'max': '%7.3f' % 3.0,
+                                                 'pctile': '%7.3f' % 3.0,
                                                  'median': '%7.3f' % 3.0,
                                                  'min': '%6.3f' % 3.0,
                                                  'std_dev': '%7.3f' % 0.0},
@@ -267,11 +311,13 @@ class TestMaster(ScenarioFixture, TestCase):
                 ('huge', {'avg_req_per_sec': 0.454545,
                           'first_byte_latency': {'avg': '%7.3f' % 1.2,
                                                  'max': '%7.3f' % 1.2,
+                                                 'pctile': '%7.3f' % 1.2,
                                                  'median': '%7.3f' % 1.2,
                                                  'min': '%6.3f' % 1.2,
                                                  'std_dev': '%7.3f' % 0.0},
                           'last_byte_latency': {'avg': '%7.3f' % 2.2,
                                                 'max': '%7.3f' % 2.2,
+                                                'pctile': '%7.3f' % 2.2,
                                                 'median': '%7.3f' % 2.2,
                                                 'min': '%6.3f' % 2.2,
                                                 'std_dev': '%7.3f' % 0.0},
@@ -294,6 +340,7 @@ class TestMaster(ScenarioFixture, TestCase):
             first_byte_latency=dict(
                 min='%6.3f' % min(r_first_byte_latency),
                 max='%7.3f' % max(r_first_byte_latency),
+                pctile='%7.3f' % max(r_first_byte_latency),
                 avg='%7.3f' % stats.lmean(r_first_byte_latency),
                 std_dev='%7.3f' % stats.lsamplestdev(r_first_byte_latency),
                 median='%7.3f' % stats.lmedianscore(r_first_byte_latency),
@@ -301,6 +348,7 @@ class TestMaster(ScenarioFixture, TestCase):
             last_byte_latency=dict(
                 min='%6.3f' % min(r_last_byte_latency),
                 max='%7.3f' % max(r_last_byte_latency),
+                pctile='%7.3f' % max(r_last_byte_latency),
                 avg='%7.3f' % stats.lmean(r_last_byte_latency),
                 std_dev='%7.3f' % stats.lsamplestdev(r_last_byte_latency),
                 median='%7.3f' % stats.lmedianscore(r_last_byte_latency),
@@ -311,11 +359,13 @@ class TestMaster(ScenarioFixture, TestCase):
                 ('tiny', {'avg_req_per_sec': 0.540541,
                           'first_byte_latency': {'avg': '%7.3f' % 0.55,
                                                  'max': '%7.3f' % 1.0,
+                                                 'pctile': '%7.3f' % 1.0,
                                                  'median': '%7.3f' % 0.55,
                                                  'min': '%6.3f' % 0.1,
                                                  'std_dev': '%7.3f' % 0.45},
                           'last_byte_latency': {'avg': '%7.3f' % 1.3,
                                                 'max': '%7.3f' % 1.8,
+                                                'pctile': '%7.3f' % 1.8,
                                                 'median': '%7.3f' % 1.3,
                                                 'min': '%6.3f' % 0.8,
                                                 'std_dev': '%7.3f' % 0.5},
@@ -327,11 +377,13 @@ class TestMaster(ScenarioFixture, TestCase):
                 ('small', {'avg_req_per_sec': 2.0,
                            'first_byte_latency': {'avg': '%7.3f' % 0.2,
                                                   'max': '%7.3f' % 0.2,
+                                                  'pctile': '%7.3f' % 0.2,
                                                   'median': '%7.3f' % 0.2,
                                                   'min': '%6.3f' % 0.2,
                                                   'std_dev': '%7.3f' % 0.0},
                            'last_byte_latency': {'avg': '%7.3f' % 0.5,
                                                  'max': '%7.3f' % 0.5,
+                                                 'pctile': '%7.3f' % 0.5,
                                                  'median': '%7.3f' % 0.5,
                                                  'min': '%6.3f' % 0.5,
                                                  'std_dev': '%7.3f' % 0.0},
@@ -343,11 +395,13 @@ class TestMaster(ScenarioFixture, TestCase):
                 ('medium', {'avg_req_per_sec': 2.5,
                             'first_byte_latency': {'avg': '%7.3f' % 0.3,
                                                    'max': '%7.3f' % 0.3,
+                                                   'pctile': '%7.3f' % 0.3,
                                                    'median': '%7.3f' % 0.3,
                                                    'min': '%6.3f' % 0.3,
                                                    'std_dev': '%7.3f' % 0.0},
                             'last_byte_latency': {'avg': '%7.3f' % 0.4,
                                                   'max': '%7.3f' % 0.4,
+                                                  'pctile': '%7.3f' % 0.4,
                                                   'median': '%7.3f' % 0.4,
                                                   'min': '%6.3f' % 0.4,
                                                   'std_dev': '%7.3f' % 0.0},
@@ -370,6 +424,7 @@ class TestMaster(ScenarioFixture, TestCase):
                 min='%6.3f' % min(u_first_byte_latency),
                 max='%7.3f' % max(u_first_byte_latency),
                 avg='%7.3f' % stats.lmean(u_first_byte_latency),
+                pctile='%7.3f' % 0.8,
                 std_dev='%7.3f' % stats.lsamplestdev(u_first_byte_latency),
                 median='%7.3f' % stats.lmedianscore(u_first_byte_latency),
             ),
@@ -378,6 +433,7 @@ class TestMaster(ScenarioFixture, TestCase):
                 min='%6.3f' % min(u_last_byte_latency),
                 max='%7.3f' % max(u_last_byte_latency),
                 avg='%7.3f' % stats.lmean(u_last_byte_latency),
+                pctile='%7.3f' % 2.8,
                 std_dev='%7.3f' % stats.lsamplestdev(u_last_byte_latency),
                 median='%7.3f' % stats.lmedianscore(u_last_byte_latency),
             ),
@@ -385,12 +441,14 @@ class TestMaster(ScenarioFixture, TestCase):
             size_stats=OrderedDict([
                 ('tiny', {'avg_req_per_sec': 1.430615,
                           'first_byte_latency': {'avg': '%7.3f' % 0.6,
+                                                 'pctile': '%7.3f' % 0.6,
                                                  'max': '%7.3f' % 0.6,
                                                  'median': '%7.3f' % 0.6,
                                                  'min': '%6.3f' % 0.6,
                                                  'std_dev': '%7.3f' % 0.0},
                           'worst_first_byte_latency': (0.6, 'txID013'),
                           'last_byte_latency': {'avg': '%7.3f' % 0.699,
+                                                'pctile': '%7.3f' % 0.699,
                                                 'max': '%7.3f' % 0.699,
                                                 'median': '%7.3f' % 0.699,
                                                 'min': '%6.3f' % 0.699,
@@ -401,12 +459,14 @@ class TestMaster(ScenarioFixture, TestCase):
                           'stop': 104.999}),
                 ('medium', {'avg_req_per_sec': 0.357143,
                             'first_byte_latency': {'avg': '%7.3f' % 0.8,
+                                                   'pctile': '%7.3f' % 0.8,
                                                    'max': '%7.3f' % 0.8,
                                                    'median': '%7.3f' % 0.8,
                                                    'min': '%6.3f' % 0.8,
                                                    'std_dev': '%7.3f' % 0.0},
                             'worst_first_byte_latency': (0.8, 'txID006'),
                             'last_byte_latency': {'avg': '%7.3f' % 2.8,
+                                                  'pctile': '%7.3f' % 2.8,
                                                   'max': '%7.3f' % 2.8,
                                                   'median': '%7.3f' % 2.8,
                                                   'min': '%6.3f' % 2.8,
@@ -417,12 +477,14 @@ class TestMaster(ScenarioFixture, TestCase):
                             'stop': 102.9}),
                 ('large', {'avg_req_per_sec': 3.333333,
                            'first_byte_latency': {'avg': '%7.3f' % 0.2,
+                                                  'pctile': '%7.3f' % 0.2,
                                                   'max': '%7.3f' % 0.2,
                                                   'median': '%7.3f' % 0.2,
                                                   'min': '%6.3f' % 0.2,
                                                   'std_dev': '%7.3f' % 0.0},
                            'worst_first_byte_latency': (0.2, 'txID005'),
                            'last_byte_latency': {'avg': '%7.3f' % 0.3,
+                                                 'pctile': '%7.3f' % 0.3,
                                                  'max': '%7.3f' % 0.3,
                                                  'median': '%7.3f' % 0.3,
                                                  'min': '%6.3f' % 0.3,
@@ -444,6 +506,7 @@ class TestMaster(ScenarioFixture, TestCase):
             first_byte_latency=dict(
                 min='%6.3f' % min(d_first_byte_latency),
                 max='%7.3f' % max(d_first_byte_latency),
+                pctile='%7.3f' % max(d_first_byte_latency),
                 avg='%7.3f' % stats.lmean(d_first_byte_latency),
                 std_dev='%7.3f' % stats.lsamplestdev(d_first_byte_latency),
                 median='%7.3f' % stats.lmedianscore(d_first_byte_latency),
@@ -451,6 +514,7 @@ class TestMaster(ScenarioFixture, TestCase):
             last_byte_latency=dict(
                 min='%6.3f' % min(d_last_byte_latency),
                 max='%7.3f' % max(d_last_byte_latency),
+                pctile='%7.3f' % max(d_last_byte_latency),
                 avg='%7.3f' % stats.lmean(d_last_byte_latency),
                 std_dev='%7.3f' % stats.lsamplestdev(d_last_byte_latency),
                 median='%7.3f' % stats.lmedianscore(d_last_byte_latency),
@@ -461,11 +525,13 @@ class TestMaster(ScenarioFixture, TestCase):
                 ('small', {'avg_req_per_sec': 1.25,
                            'first_byte_latency': {'avg': '%7.3f' % 0.5,
                                                   'max': '%7.3f' % 0.5,
+                                                  'pctile': '%7.3f' % 0.5,
                                                   'median': '%7.3f' % 0.5,
                                                   'min': '%6.3f' % 0.5,
                                                   'std_dev': '%7.3f' % 0.0},
                            'last_byte_latency': {'avg': '%7.3f' % 0.8,
                                                  'max': '%7.3f' % 0.8,
+                                                 'pctile': '%7.3f' % 0.8,
                                                  'median': '%7.3f' % 0.8,
                                                  'min': '%6.3f' % 0.8,
                                                  'std_dev': '%7.3f' % 0.0},
@@ -477,11 +543,13 @@ class TestMaster(ScenarioFixture, TestCase):
                 ('large', {'avg_req_per_sec': 2.5,
                            'first_byte_latency': {'avg': '%7.3f' % 0.1,
                                                   'max': '%7.3f' % 0.1,
+                                                  'pctile': '%7.3f' % 0.1,
                                                   'median': '%7.3f' % 0.1,
                                                   'min': '%6.3f' % 0.1,
                                                   'std_dev': '%7.3f' % 0.0},
                            'last_byte_latency': {'avg': '%7.3f' % 0.4,
                                                  'max': '%7.3f' % 0.4,
+                                                 'pctile': '%7.3f' % 0.4,
                                                  'median': '%7.3f' % 0.4,
                                                  'min': '%6.3f' % 0.4,
                                                  'std_dev': '%7.3f' % 0.0},
@@ -501,11 +569,13 @@ class TestMaster(ScenarioFixture, TestCase):
             ('tiny', {'avg_req_per_sec': 0.816493,
                       'first_byte_latency': {'avg': '%7.3f' % 0.45,
                                              'max': '%7.3f' % 1.0,
+                                             'pctile': '%7.3f' % 1.0,
                                              'median': '%7.3f' % 0.35,
                                              'min': '%6.3f' % 0.1,
                                              'std_dev': '%7.3f' % 0.377492},
                       'last_byte_latency': {'avg': '%7.3f' % 0.87475,
                                             'max': '%7.3f' % 1.8,
+                                            'pctile': '%7.3f' % 1.8,
                                             'median': '%7.3f' % 0.7494,
                                             'min': '%6.3f' % 0.2,
                                             'std_dev': '%7.3f' % 0.580485},
@@ -517,11 +587,13 @@ class TestMaster(ScenarioFixture, TestCase):
             ('small', {'avg_req_per_sec': 0.75,
                        'first_byte_latency': {'avg': '%7.3f' % 0.566667,
                                               'max': '%7.3f' % 1.0,
+                                              'pctile': '%7.3f' % 1.0,
                                               'median': '%7.3f' % 0.5,
                                               'min': '%6.3f' % 0.2,
                                               'std_dev': '%7.3f' % 0.329983},
                        'last_byte_latency': {'avg': '%7.3f' % 1.433333,
                                              'max': '%7.3f' % 3.0,
+                                             'pctile': '%7.3f' % 3.0,
                                              'median': '%7.3f' % 0.8,
                                              'min': '%6.3f' % 0.5,
                                              'std_dev': '%7.3f' % 1.11455},
@@ -533,11 +605,13 @@ class TestMaster(ScenarioFixture, TestCase):
             ('medium', {'avg_req_per_sec': 0.47619,
                         'first_byte_latency': {'avg': '%7.3f' % 0.55,
                                                'max': '%7.3f' % 0.8,
+                                               'pctile': '%7.3f' % 0.8,
                                                'median': '%7.3f' % 0.55,
                                                'min': '%6.3f' % 0.3,
                                                'std_dev': '%7.3f' % 0.25},
                         'last_byte_latency': {'avg': '%7.3f' % 1.6,
                                               'max': '%7.3f' % 2.8,
+                                              'pctile': '%7.3f' % 2.8,
                                               'median': '%7.3f' % 1.6,
                                               'min': '%6.3f' % 0.4,
                                               'std_dev': '%7.3f' % 1.2},
@@ -549,11 +623,13 @@ class TestMaster(ScenarioFixture, TestCase):
             ('large', {'avg_req_per_sec': 0.571429,
                        'first_byte_latency': {'avg': '%7.3f' % 0.15,
                                               'max': '%7.3f' % 0.2,
+                                              'pctile': '%7.3f' % 0.2,
                                               'median': '%7.3f' % 0.15,
                                               'min': '%6.3f' % 0.1,
                                               'std_dev': '%7.3f' % 0.05},
                        'last_byte_latency': {'avg': '%7.3f' % 0.35,
                                              'max': '%7.3f' % 0.4,
+                                             'pctile': '%7.3f' % 0.4,
                                              'median': '%7.3f' % 0.35,
                                              'min': '%6.3f' % 0.3,
                                              'std_dev': '%7.3f' % 0.05},
@@ -565,11 +641,13 @@ class TestMaster(ScenarioFixture, TestCase):
             ('huge', {'avg_req_per_sec': 0.454545,
                       'first_byte_latency': {'avg': '%7.3f' % 1.2,
                                              'max': '%7.3f' % 1.2,
+                                             'pctile': '%7.3f' % 1.2,
                                              'median': '%7.3f' % 1.2,
                                              'min': '%6.3f' % 1.2,
                                              'std_dev': '%7.3f' % 0.0},
                       'last_byte_latency': {'avg': '%7.3f' % 2.2,
                                             'max': '%7.3f' % 2.2,
+                                            'pctile': '%7.3f' % 2.2,
                                             'median': '%7.3f' % 2.2,
                                             'min': '%6.3f' % 2.2,
                                             'std_dev': '%7.3f' % 0.0},
@@ -615,7 +693,8 @@ class TestMaster(ScenarioFixture, TestCase):
     def test_generate_scenario_report(self):
         # Time series (reqs completed each second
         scen_stats = self.master.calculate_scenario_stats(self.scenario,
-                                                          self.stub_results)
+                                                          self.stub_results,
+                                                          nth_pctile=50)
         self.assertListEqual(u"""
 Master Test Scenario - ablkei
   C   R   U   D       Worker count:   3   Concurrency:   2
@@ -623,7 +702,7 @@ Master Test Scenario - ablkei
 
 TOTAL
        Count:    12  Average requests per second:   1.9
-                            min       max      avg      std_dev    median                  Swift TX ID for worst latency
+                            min       max      avg      std_dev  50%-ile                   Swift TX ID for worst latency
        First-byte latency:  0.100 -   1.200    0.508  (  0.386)    0.400  (all obj sizes)  txID004
        Last-byte  latency:  0.200 -   3.000    1.158  (  0.970)    0.749  (all obj sizes)  txID002
        First-byte latency:  0.100 -   1.000    0.450  (  0.377)    0.350  (    tiny objs)  txID010
@@ -639,7 +718,7 @@ TOTAL
 
 CREATE
        Count:     3  Average requests per second:   0.5
-                            min       max      avg      std_dev    median                  Swift TX ID for worst latency
+                            min       max      avg      std_dev  50%-ile                   Swift TX ID for worst latency
        First-byte latency:  0.100 -   1.200    0.767  (  0.478)    1.000  (all obj sizes)  txID004
        Last-byte  latency:  0.200 -   3.000    1.800  (  1.178)    2.200  (all obj sizes)  txID002
        First-byte latency:  0.100 -   0.100    0.100  (  0.000)    0.100  (    tiny objs)  txID008
@@ -651,7 +730,7 @@ CREATE
 
 READ
        Count:     4  Average requests per second:   1.0
-                            min       max      avg      std_dev    median                  Swift TX ID for worst latency
+                            min       max      avg      std_dev  50%-ile                   Swift TX ID for worst latency
        First-byte latency:  0.100 -   1.000    0.400  (  0.354)    0.250  (all obj sizes)  txID010
        Last-byte  latency:  0.400 -   1.800    0.875  (  0.554)    0.650  (all obj sizes)  txID010
        First-byte latency:  0.100 -   1.000    0.550  (  0.450)    0.550  (    tiny objs)  txID010
@@ -663,7 +742,7 @@ READ
 
 UPDATE
        Count:     3  Average requests per second:   0.5
-                            min       max      avg      std_dev    median                  Swift TX ID for worst latency
+                            min       max      avg      std_dev  50%-ile                   Swift TX ID for worst latency
        First-byte latency:  0.200 -   0.800    0.533  (  0.249)    0.600  (all obj sizes)  txID006
        Last-byte  latency:  0.300 -   2.800    1.266  (  1.097)    0.699  (all obj sizes)  txID006
        First-byte latency:  0.600 -   0.600    0.600  (  0.000)    0.600  (    tiny objs)  txID013
@@ -675,14 +754,12 @@ UPDATE
 
 DELETE
        Count:     2  Average requests per second:   2.0
-                            min       max      avg      std_dev    median                  Swift TX ID for worst latency
+                            min       max      avg      std_dev  50%-ile                   Swift TX ID for worst latency
        First-byte latency:  0.100 -   0.500    0.300  (  0.200)    0.300  (all obj sizes)  txID011
        Last-byte  latency:  0.400 -   0.800    0.600  (  0.200)    0.600  (all obj sizes)  txID011
        First-byte latency:  0.500 -   0.500    0.500  (  0.000)    0.500  (   small objs)  txID011
        Last-byte  latency:  0.800 -   0.800    0.800  (  0.000)    0.800  (   small objs)  txID011
        First-byte latency:  0.100 -   0.100    0.100  (  0.000)    0.100  (   large objs)  txID007
        Last-byte  latency:  0.400 -   0.400    0.400  (  0.000)    0.400  (   large objs)  txID007
-
-
 
 """.split('\n'), self.master.generate_scenario_report(self.scenario, scen_stats).split('\n'))

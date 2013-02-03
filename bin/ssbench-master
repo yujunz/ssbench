@@ -57,8 +57,6 @@ def run_scenario(master, args):
                               container_count=container_count,
                               user_count=user_count)
 
-    # Possibly attempt open prior to benchmark run so we get errors earlier
-    # if there's a problem?
     if args.stats_file == DEFAULT_STATS_PATH_DEFAULT:
         munged_name = re.sub('[%s\s]+' % os.path.sep, '_', scenario.name)
         timestamp = datetime.now().strftime('%F.%H%M%S')
@@ -66,6 +64,9 @@ def run_scenario(master, args):
         if not os.path.exists(os.path.dirname(args.stats_file)):
             os.makedirs(os.path.dirname(args.stats_file))
     stats_file_path = args.stats_file
+
+    # Attempt open prior to benchmark run so we get errors earlier
+    # if there's a problem.
     args.stats_file = open(stats_file_path, 'wb+')
 
     results = master.run_scenario(auth_url=args.auth_url, user=args.user,
@@ -90,7 +91,8 @@ def run_scenario(master, args):
 
 def report_scenario(master, args):
     scenario, results = pickle.load(args.stats_file)
-    stats = master.calculate_scenario_stats(scenario, results)
+    stats = master.calculate_scenario_stats(scenario, results,
+                                            nth_pctile=args.pctile)
     args.report_file.write(master.generate_scenario_report(scenario, stats))
     if args.rps_histogram:
         master.write_rps_histogram(stats, args.rps_histogram)
@@ -164,6 +166,9 @@ if __name__ == "__main__":
         '-r', '--no-default-report', action='store_true', default=False,
         help="Suppress the default immediate generation of a benchmark "
         "report to STDOUT after saving stats-file")
+    run_scenario_arg_parser.add_argument(
+        '--pctile', type=int, default=95,
+        help='Report on the N-th percentile, if generating a report.')
     run_scenario_arg_parser.set_defaults(func=run_scenario)
 
     report_scenario_arg_parser = subparsers.add_parser(
@@ -177,6 +182,9 @@ if __name__ == "__main__":
     report_scenario_arg_parser.add_argument(
         '-f', '--report-file', type=argparse.FileType('w'), default=sys.stdout,
         help='The file to which the report should be written (def: STDOUT)')
+    report_scenario_arg_parser.add_argument(
+        '--pctile', type=int, default=95,
+        help='Report on the N-th percentile.')
     report_scenario_arg_parser.add_argument(
         '-r', '--rps-histogram', type=argparse.FileType('w'),
         help='Also write a CSV file with requests completed per second '
