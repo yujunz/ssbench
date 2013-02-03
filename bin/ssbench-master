@@ -28,7 +28,7 @@ beanstalkc = eventlet.import_patched('beanstalkc')
 
 from collections import Counter
 from ssbench.master import Master
-from ssbench.scenario import Scenario
+from ssbench.scenario import Scenario, ScenarioNoop
 
 DEFAULT_OBJECTS_PER_CONTAINER = 1000
 DEFAULT_STATS_PATH = '/tmp/ssbench-results/%s.%s.stat'
@@ -48,11 +48,17 @@ def run_scenario(master, args):
             if args.container_count != 'value from scenario' else None
     user_count = int(args.user_count) \
             if args.user_count != 'value from scenario' else None
-    scenario = Scenario(args.scenario_file, container_count=container_count,
-                        user_count=user_count)
+    if args.noop:
+        scenario_class = ScenarioNoop
+        logging.info('NOTE: --noop was specified; not testing Swift.')
+    else:
+        scenario_class = Scenario
+    scenario = scenario_class(args.scenario_file,
+                              container_count=container_count,
+                              user_count=user_count)
 
     # Possibly attempt open prior to benchmark run so we get errors earlier
-    # if there's a problem.
+    # if there's a problem?
     if args.stats_file == DEFAULT_STATS_PATH_DEFAULT:
         munged_name = re.sub('[%s\s]+' % os.path.sep, '_', scenario.name)
         timestamp = datetime.now().strftime('%F.%H%M%S')
@@ -64,7 +70,8 @@ def run_scenario(master, args):
 
     results = master.run_scenario(auth_url=args.auth_url, user=args.user,
                                   key=args.key, storage_url=args.storage_url,
-                                  token=args.token, scenario=scenario)
+                                  token=args.token, scenario=scenario,
+                                  noop=args.noop, with_profiling=args.profile)
 
     pickle.dump([scenario, results], args.stats_file)
 
@@ -140,6 +147,12 @@ if __name__ == "__main__":
         '-q', '--quiet', action='store_true', default=False,
         help='Suppress most output (including progress characters during '
         'run).')
+    run_scenario_arg_parser.add_argument(
+        '--profile', action='store_true', default=False,
+        help='Profile the main benchmark run.')
+    run_scenario_arg_parser.add_argument(
+        '--noop', action='store_true', default=False,
+        help='Exercise benchmark infrastructure without talking to cluster.')
 
     run_scenario_arg_parser.add_argument(
         '-f', '--scenario-file', required=True, type=str)

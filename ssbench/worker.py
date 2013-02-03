@@ -16,10 +16,11 @@
 #
 # Portions of this file copied from swift/common/bench.py
 
+import os
 import re
-import yaml
 import random
 import time
+import msgpack
 import resource
 from functools import partial
 from contextlib import contextmanager
@@ -78,11 +79,13 @@ class ChunkedReader(object):
 
 
 class Worker:
-    def __init__(self, queue_host, queue_port, worker_id, max_retries):
+    def __init__(self, queue_host, queue_port, worker_id, max_retries,
+                 profile_count=0):
         self.queue_host = queue_host
         self.queue_port = queue_port
         self.worker_id = worker_id
         self.max_retries = max_retries
+        self.profile_count = profile_count
         soft_nofile, hard_nofile = resource.getrlimit(resource.RLIMIT_NOFILE)
         resource.setrlimit(resource.RLIMIT_NOFILE, (1024, hard_nofile))
         self.concurrency = 256
@@ -130,20 +133,34 @@ class Worker:
         logging.debug('Worker %s starting...', self.worker_id)
         pool = eventlet.GreenPool(self.concurrency)
         job = self.work_queue.reserve()
+        if self.profile_count:
+            import cProfile
+            prof = cProfile.Profile()
+            prof.enable()
+        gotten = 1
         while job:
             job.delete()  # avoid any job-timeout nonsense
-            job_data = yaml.load(job.body)
+            job_data = msgpack.loads(job.body)
             if self.conn_pool is None:
                 self.create_conn_pool(job_data['storage_url'])
             logging.debug('WORK: %13s %s/%-17s',
                           job_data['type'], job_data['container'],
                           job_data['name'])
             pool.spawn_n(self.handle_job, job_data)
+            if self.profile_count and gotten == self.profile_count:
+                prof.disable()
+                prof_output_path = '/tmp/worker_go.%d.prof' % os.getpid()
+                prof.dump_stats(prof_output_path)
+                logging.info('PROFILED worker go() to %s', prof_output_path)
             job = self.work_queue.reserve()
+            gotten += 1
 
     def handle_job(self, job_data):
         # Dispatch type to a handler, if possible
-        handler = getattr(self, 'handle_%s' % job_data['type'], None)
+        if job_data.get('noop', False):
+            handler = self.handle_noop
+        else:
+            handler = getattr(self, 'handle_%s' % job_data['type'], None)
         if handler:
             try:
                 handler(job_data)
@@ -207,8 +224,8 @@ class Worker:
         """
         with self.result_queue_pool.item() as queue:
             return queue.put(
-                yaml.dump(add_dicts(*args, completed_at=time.time(),
-                                    worker_id=self.worker_id, **kwargs)))
+                msgpack.dumps(add_dicts(*args, completed_at=time.time(),
+                                        worker_id=self.worker_id, **kwargs)))
 
     def _put_results_from_response(self, object_info, resp_headers):
         self.put_results(
@@ -218,6 +235,13 @@ class Worker:
             last_byte_latency=resp_headers.get(
                 'x-swiftstack-last-byte-latency', None),
             trans_id=resp_headers.get('x-trans-id', None))
+
+    def handle_noop(self, object_info):
+        self.put_results(
+            object_info,
+            first_byte_latency=0.0,
+            last_byte_latency=0.0,
+            trans_id=None)
 
     def handle_upload_object(self, object_info, letter='A'):
         headers = self.ignoring_http_responses(

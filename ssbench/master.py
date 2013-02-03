@@ -13,9 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import sys
-import yaml  # *gag*; replace with msgpack!
 import logging
+import msgpack
 import statlib.stats
 from datetime import datetime
 from mako.template import Template
@@ -62,7 +63,7 @@ class Master:
 
     def process_result_to(self, job, processor, label=''):
         job.delete()
-        result = yaml.load(job.body)
+        result = msgpack.loads(job.body)
         logging.debug('RESULT: %13s %s/%-17s %s/%s %s',
                       result['type'], result['container'], result['name'],
                       '%7.4f' % result.get('first_byte_latency')
@@ -88,7 +89,7 @@ class Master:
         processor(result)
 
     def do_a_run(self, concurrency, job_generator, result_processor, priority,
-                 storage_url, token, mapper_fn=None, label=''):
+                 storage_url, token, mapper_fn=None, label='', noop=False):
         if label and not self.quiet:
             print >>sys.stderr, label + """
   .  <  1s first-byte-latency
@@ -103,9 +104,14 @@ class Master:
             if mapper_fn is not None:
                 work_job = mapper_fn(job)
                 if not work_job:
-                    logging.warning('Unable to fill in job %r', job)
-                    continue
-                job = work_job
+                    if noop:
+                        job['container'] = 'who_cares'
+                        job['name'] = 'who_cares'
+                    else:
+                        logging.warning('Unable to fill in job %r', job)
+                        continue
+                else:
+                    job = work_job
             job['storage_url'] = storage_url
             job['token'] = token
 
@@ -114,16 +120,8 @@ class Master:
                 self.process_result_to(result_job, result_processor,
                                        label=label)
                 active -= 1
-            self.queue.put(yaml.dump(job), priority=priority)
+            self.queue.put(msgpack.dumps(job), priority=priority)
             active += 1
-
-            # Sink any ready results non-blockingly
-            result_job = self.queue.reserve(timeout=0)
-            while result_job:
-                self.process_result_to(result_job, result_processor,
-                                       label=label)
-                active -= 1
-                result_job = self.queue.reserve(timeout=0)
 
         # Drain the results
         while active > 0:
@@ -134,7 +132,8 @@ class Master:
             sys.stderr.write('\n')
             sys.stderr.flush()
 
-    def run_scenario(self, auth_url, user, key, storage_url, token, scenario):
+    def run_scenario(self, auth_url, user, key, storage_url, token, scenario,
+                     noop=False, with_profiling=False):
         """
         Runs a CRUD scenario, given cluster parameters and a Scenario object.
 
@@ -158,38 +157,54 @@ class Master:
         logging.info(u'Starting scenario run for "%s"', scenario.name)
 
         # Ensure containers exist
-        logging.info('Ensuring %d containers (%s_*) exist; concurrency=%d...',
-                     len(scenario.containers), scenario.container_base,
-                     scenario.container_concurrency)
-        pool = eventlet.GreenPool(scenario.container_concurrency)
-        for container in scenario.containers:
-            pool.spawn_n(_container_creator, storage_url, token, container)
-        pool.waitall()
+        if not noop:
+            logging.info('Ensuring %d containers (%s_*) exist; '
+                         'concurrency=%d...',
+                         len(scenario.containers), scenario.container_base,
+                         scenario.container_concurrency)
+            pool = eventlet.GreenPool(scenario.container_concurrency)
+            for container in scenario.containers:
+                pool.spawn_n(_container_creator, storage_url, token, container)
+            pool.waitall()
 
         self.queue.use(ssbench.WORK_TUBE)
 
         # Enqueue initialization jobs
-        logging.info('Initializing cluster with stock data (up to %d '
-                     'concurrent workers)', scenario.user_count)
+        if not noop:
+            logging.info('Initializing cluster with stock data (up to %d '
+                        'concurrent workers)', scenario.user_count)
 
-        self.do_a_run(scenario.user_count, scenario.initial_jobs(),
-                      run_state.handle_initialization_result,
-                      ssbench.PRIORITY_SETUP, storage_url, token)
+            self.do_a_run(scenario.user_count, scenario.initial_jobs(),
+                        run_state.handle_initialization_result,
+                        ssbench.PRIORITY_SETUP, storage_url, token)
 
         logging.info('Starting benchmark run (up to %d concurrent '
                      'workers)', scenario.user_count)
+        if noop:
+            logging.info('  (not actually talking to Swift cluster!)')
+
+        if with_profiling:
+            import cProfile
+            prof = cProfile.Profile()
+            prof.enable()
         self.do_a_run(scenario.user_count, scenario.bench_jobs(),
                       run_state.handle_run_result,
                       ssbench.PRIORITY_WORK, storage_url, token,
                       mapper_fn=run_state.fill_in_job,
-                      label='Benchmark Run:')
+                      label='Benchmark Run:', noop=noop)
+        if with_profiling:
+            prof.disable()
+            prof_output_path = '/tmp/do_a_run.%d.prof' % os.getpid()
+            prof.dump_stats(prof_output_path)
+            logging.info('PROFILED main do_a_run to %s', prof_output_path)
 
-        logging.info('Deleting population objects from cluster')
-        self.do_a_run(scenario.user_count,
-                      run_state.cleanup_object_infos(),
-                      lambda *_: None,
-                      ssbench.PRIORITY_CLEANUP, storage_url, token,
-                      mapper_fn=_gen_cleanup_job)
+        if not noop:
+            logging.info('Deleting population objects from cluster')
+            self.do_a_run(scenario.user_count,
+                        run_state.cleanup_object_infos(),
+                        lambda *_: None,
+                        ssbench.PRIORITY_CLEANUP, storage_url, token,
+                        mapper_fn=_gen_cleanup_job)
 
         return run_state.run_results
 

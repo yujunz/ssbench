@@ -32,6 +32,7 @@ if __name__ == "__main__":
 
     beanq = beanstalkc.Connection(host=args.qhost, port=args.qport)
     beanq.watch(ssbench.STATS_TUBE)
+    beanq.watch(ssbench.WORK_TUBE)
 
     job = beanq.reserve(timeout=1)
     while job:

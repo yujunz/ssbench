@@ -176,3 +176,17 @@ class Scenario(object):
                     this_crud_index = crud_index
                     break
             yield self.bench_job(this_size_str, this_crud_index, index)
+
+
+class ScenarioNoop(Scenario):
+    """
+    A subclass of Scenario which just yields up NOP jobs.
+    """
+
+    def job(self, size_str, **kwargs):
+        job = {
+            'size_str': size_str,
+            'noop': True,
+        }
+        job.update(kwargs)
+        return job
