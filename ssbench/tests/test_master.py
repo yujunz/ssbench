@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import csv
-import yaml
 from unittest import TestCase
 from flexmock import flexmock
 from pprint import pprint, pformat

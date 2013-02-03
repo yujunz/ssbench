@@ -10,7 +10,9 @@ STDOUT immediately following a benchmark run in addition to saving the results
 to a file.
 
 Coordination between the ``ssbench-master`` and one or more ``ssbench-worker``
-processes is managed through a Beanstalkd_ queue.
+processes is managed through a Beanstalkd_ queue.  This additional dependency
+allows ``ssbench-master`` to distribute the benchmark run across many, many
+client servers while still coordinating the entire run.
 
 .. _Beanstalkd: http://kr.github.com/beanstalkd/
 
@@ -30,7 +32,9 @@ benchmark run.  Specifically, it defines:
   initial files also defines the probability distribution of object sizes
   during the benchmark run itself.
 - A count of operations to perform during the benchmark run.  An operation is
-  either a CREATE, READ, UPDATE, or DELETE of an object.
+  either a CREATE, READ, UPDATE, or DELETE of an object.  This value may be
+  overridden for any given run with the ``-o COUNT`` flag to ``ssbench-master
+  run-scenario``.
 - A "CRUD profile" which determines the distribution of each kind of operation.
   For instance, ``[3, 4, 2, 2]`` would mean 27% CREATE, 36% READ, 18% UPDATE,
   and 18% DELETE.
@@ -38,7 +42,16 @@ benchmark run.  Specifically, it defines:
   benchmark run.  The user is responsible for ensuring there are enough workers
   running to support the scenario's defined ``user_count``.  (Each
   ``ssbench-worker`` process uses eventlet_ to achive very efficeint
-  concurrency for the benchmark client requests.)
+  concurrency for the benchmark client requests.)  This value may be overridden
+  for any given run with the ``-u COUNT`` flag to ``ssbench-master
+  run-scenario``.
+- A ``container_count`` which determines how many Swift containers are used for
+  the benchmark run.  This key is optional in the scenario file and defaults to
+  100.  This value may be overridden for any given run with the ``-c
+  COUNT`` flag to ``ssbench-master run-scenario``.
+- A ``container_concurrency`` value which determines the level of client
+  concurrency used by ``ssbench-master`` to create the benchmark containers.
+  This value is optional and defaults to 10.
 
 .. _eventlet: http://eventlet.net/
 
@@ -67,6 +80,9 @@ Here is an example JSON scenario file::
     "user_count": 7
   }
 
+**Beware**, hand-editing JSON is pretty error-prone, and watch out for trailing
+commas, in particular.
+
 Installation
 ------------
 
@@ -94,8 +110,8 @@ The ``ssbench-worker`` script::
     -h, --help         show this help message and exit
     --qhost QHOST      beanstalkd host (default: 127.0.0.1)
     --qport QPORT      beanstalkd port (default: 11300)
-    -v, --verbose      Enable more verbose output. (default: False)
     --retries RETRIES  Maximum number of times to retry a job. (default: 10)
+    -v, --verbose      Enable more verbose output. (default: False)
 
 Basic usage of ``ssbench-master`` (requires one of ``run-scenario`` to actually
 run a benchmark scenario, or ``report-scenario`` to report on an existing
@@ -123,13 +139,15 @@ The ``run-scenario`` sub-command of ``ssbench-master`` which actually
 runs a benchmark scenario::
 
   $ ssbench-master run-scenario -h
-  usage: ssbench-master run-scenario [-h] [-A AUTH_URL] [-U USER] [-K KEY]
-                                     [-S STORAGE_URL] [-T TOKEN]
-                                     [-c CONTAINER_COUNT] [-u USER_COUNT] [-q]
-                                     -f SCENARIO_FILE [-s STATS_FILE] [-r]
+  usage: ssbench-master run-scenario [-h] -f SCENARIO_FILE [-A AUTH_URL]
+                                     [-U USER] [-K KEY] [-S STORAGE_URL]
+                                     [-T TOKEN] [-c COUNT] [-u COUNT] [-o COUNT]
+                                     [-q] [--profile] [--noop] [-s STATS_FILE]
+                                     [-r] [--pctile PERCENTILE]
 
   optional arguments:
     -h, --help            show this help message and exit
+    -f SCENARIO_FILE, --scenario-file SCENARIO_FILE
     -A AUTH_URL, --auth-url AUTH_URL
                           Auth URL for the Swift cluster under test. (default:
                           http://192.168.22.100/auth/v1.0)
@@ -143,29 +161,37 @@ runs a benchmark scenario::
     -T TOKEN, --token TOKEN
                           A specific X-Storage-Token to use; mutually exclusive
                           with -A, -U, and -K; requires -S (default: None)
-    -c CONTAINER_COUNT, --container-count CONTAINER_COUNT
+    -c COUNT, --container-count COUNT
                           Override the container count specified in the scenario
                           file. (default: value from scenario)
-    -u USER_COUNT, --user-count USER_COUNT
+    -u COUNT, --user-count COUNT
                           Override the user count (concurrency) specified in the
                           scenario file. (default: value from scenario)
+    -o COUNT, --op-count COUNT
+                          Override the operation count specified in the scenario
+                          file. (default: value from scenario)
     -q, --quiet           Suppress most output (including progress characters
                           during run). (default: False)
-    -f SCENARIO_FILE, --scenario-file SCENARIO_FILE
+    --profile             Profile the main benchmark run. (default: False)
+    --noop                Exercise benchmark infrastructure without talking to
+                          cluster. (default: False)
     -s STATS_FILE, --stats-file STATS_FILE
                           File into which benchmarking statistics will be saved
-                          (default: /tmp/ssbench-results/<scenario_name>.stat)
+                          (default: /tmp/ssbench-
+                          results/<scenario_name>.<timestamp>.stat)
     -r, --no-default-report
                           Suppress the default immediate generation of a
                           benchmark report to STDOUT after saving stats-file
                           (default: False)
+    --pctile PERCENTILE   Report on the N-th percentile, if generating a report.
+                          (default: 95)
 
 The ``report-scenario`` sub-command of ``ssbench-master`` which can report on a
 previously-run benchmark scenario::
 
   $ ssbench-master report-scenario -h
   usage: ssbench-master report-scenario [-h] -s STATS_FILE [-f REPORT_FILE]
-                                        [-r RPS_HISTOGRAM]
+                                        [--pctile PERCENTILE] [-r RPS_HISTOGRAM]
 
   optional arguments:
     -h, --help            show this help message and exit
@@ -173,9 +199,10 @@ previously-run benchmark scenario::
                           An existing stats file from a previous --run-scenario
                           invocation (default: None)
     -f REPORT_FILE, --report-file REPORT_FILE
-                          The file to which the report should be written (def:
-                          STDOUT) (default: <open file '<stdout>', mode 'w' at
+                          The file to which the report should be written
+                          (default: <open file '<stdout>', mode 'w' at
                           0x1002511e0>)
+    --pctile PERCENTILE   Report on the N-th percentile. (default: 95)
     -r RPS_HISTOGRAM, --rps-histogram RPS_HISTOGRAM
                           Also write a CSV file with requests completed per
                           second histogram data (default: None)
@@ -185,10 +212,10 @@ Example Run
 -----------
 
 First make sure ``beanstalkd`` is running.  Note that you may need to ensure
-its maximum file descriptor limit is raised, which may require root privileges
-and a more complicated invocation than the simple example below::
+its maximum file descriptor limit is raised, which may require root
+privileges::
 
-  $ beanstalkd -l 127.0.0.1 &
+  $ sudo bash -c 'ulimit -n 8096; beanstalkd -l 127.0.0.1 &'
 
 Then, start one or more ``ssbench-worker`` processes (each process is currently
 hard-coded to a maximum eventlet-based concurrency of 256)::
@@ -199,9 +226,9 @@ hard-coded to a maximum eventlet-based concurrency of 256)::
 Finally, run one ``ssbench-master`` process which will manage and coordinate
 the benchmark run::
 
-  $ ssbench-master run-scenario -f scenarios/very_small.scenario -c 200 -u 4 -S http://192.168.22.100/v1/AUTH_dev -T AUTH_tkfc57b0bb67f84afbb054fb8db2d034d7 
+  $ ssbench-master run-scenario -f scenarios/very_small.scenario -u 4 -c 100 --pctile 90
   INFO:root:Starting scenario run for "Small test scenario"
-  INFO:root:Ensuring 200 containers (ssbench_*) exist; concurrency=10...
+  INFO:root:Ensuring 100 containers (ssbench_*) exist; concurrency=10...
   INFO:root:Initializing cluster with stock data (up to 4 concurrent workers)
   INFO:root:Starting benchmark run (up to 4 concurrent workers)
   Benchmark Run:
@@ -216,56 +243,77 @@ the benchmark run::
   INFO:root:Calculating statistics for 500 result items...
 
   Small test scenario
-    C   R   U   D     Worker count:   2   Concurrency:   4
-  % 27  36  18  18
+    C   R   U   D       Worker count:   1   Concurrency:   4
+  % 27  36  18  18      Ran 2013-02-03 23:14:38 UTC to 2013-02-03 23:14:45 UTC (6s)
 
   TOTAL
-         Count:   500  Average requests per second:  45.3
-                             min      max     avg     std_dev   median
-         First-byte latency:  0.01 -   0.33    0.06  (  0.05)    0.04  (  all obj sizes)
-         Last-byte  latency:  0.01 -   0.33    0.06  (  0.05)    0.04  (  all obj sizes)
-         First-byte latency:  0.01 -   0.33    0.06  (  0.05)    0.04  (tiny objs)
-         Last-byte  latency:  0.01 -   0.33    0.06  (  0.05)    0.04  (tiny objs)
-         First-byte latency:  0.01 -   0.23    0.07  (  0.05)    0.05  (small objs)
-         Last-byte  latency:  0.01 -   0.23    0.07  (  0.06)    0.05  (small objs)
+         Count:   500  Average requests per second:  84.3
+                              min       max      avg      std_dev  90%-ile                   Swift TX ID for worst latency
+         First-byte latency:  0.009 -   0.065    0.026  (  0.011)    0.043  (all obj sizes)  txa174575811d04e3bbfffa3daba1e9b86
+         Last-byte  latency:  0.009 -   0.117    0.046  (  0.026)    0.084  (all obj sizes)  tx6892be9922014ec2917309f5efa0dbee
+         First-byte latency:  0.009 -   0.065    0.025  (  0.011)    0.042  (    tiny objs)  txa174575811d04e3bbfffa3daba1e9b86
+         Last-byte  latency:  0.009 -   0.117    0.045  (  0.025)    0.081  (    tiny objs)  txc49bedd478594e24a93c33f087ae243a
+         First-byte latency:  0.011 -   0.052    0.029  (  0.011)    0.043  (   small objs)  tx1119d8ca1f5b47fe8f1bf7e0d833ef86
+         Last-byte  latency:  0.016 -   0.117    0.057  (  0.029)    0.099  (   small objs)  tx6892be9922014ec2917309f5efa0dbee
 
   CREATE
-         Count:   144  Average requests per second:  13.1
-                             min      max     avg     std_dev   median
-         First-byte latency:  0.02 -   0.33    0.09  (  0.05)    0.07  (  all obj sizes)
-         Last-byte  latency:  0.02 -   0.33    0.09  (  0.05)    0.07  (  all obj sizes)
-         First-byte latency:  0.02 -   0.33    0.09  (  0.05)    0.07  (tiny objs)
-         Last-byte  latency:  0.02 -   0.33    0.09  (  0.05)    0.07  (tiny objs)
-         First-byte latency:  0.06 -   0.23    0.11  (  0.05)    0.10  (small objs)
-         Last-byte  latency:  0.06 -   0.23    0.11  (  0.05)    0.10  (small objs)
+         Count:   133  Average requests per second:  22.7
+                              min       max      avg      std_dev  90%-ile                   Swift TX ID for worst latency
+         First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (all obj sizes)
+         Last-byte  latency:  0.024 -   0.117    0.070  (  0.018)    0.093  (all obj sizes)  tx6892be9922014ec2917309f5efa0dbee
+         First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (    tiny objs)
+         Last-byte  latency:  0.024 -   0.117    0.069  (  0.018)    0.091  (    tiny objs)  txc49bedd478594e24a93c33f087ae243a
+         First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (   small objs)
+         Last-byte  latency:  0.059 -   0.117    0.087  (  0.019)    0.117  (   small objs)  tx6892be9922014ec2917309f5efa0dbee
 
   READ
-         Count:   178  Average requests per second:  16.5
-                             min      max     avg     std_dev   median
-         First-byte latency:  0.01 -   0.07    0.02  (  0.01)    0.02  (  all obj sizes)
-         Last-byte  latency:  0.01 -   0.07    0.02  (  0.01)    0.02  (  all obj sizes)
-         First-byte latency:  0.01 -   0.06    0.02  (  0.01)    0.02  (tiny objs)
-         Last-byte  latency:  0.01 -   0.06    0.02  (  0.01)    0.02  (tiny objs)
-         First-byte latency:  0.01 -   0.07    0.03  (  0.02)    0.03  (small objs)
-         Last-byte  latency:  0.01 -   0.07    0.03  (  0.02)    0.03  (small objs)
+         Count:   187  Average requests per second:  31.7
+                              min       max      avg      std_dev  90%-ile                   Swift TX ID for worst latency
+         First-byte latency:  0.009 -   0.051    0.021  (  0.008)    0.032  (all obj sizes)  txb73b670e9e12433a87c263f6843afec7
+         Last-byte  latency:  0.009 -   0.064    0.024  (  0.009)    0.035  (all obj sizes)  tx09466e0009534f2fae0d7087904f7a69
+         First-byte latency:  0.009 -   0.051    0.021  (  0.008)    0.031  (    tiny objs)  txb73b670e9e12433a87c263f6843afec7
+         Last-byte  latency:  0.009 -   0.053    0.023  (  0.008)    0.032  (    tiny objs)  txb73b670e9e12433a87c263f6843afec7
+         First-byte latency:  0.011 -   0.043    0.025  (  0.009)    0.035  (   small objs)  tx474e44b8f8704c929d1e39fa59893401
+         Last-byte  latency:  0.016 -   0.064    0.036  (  0.014)    0.053  (   small objs)  tx09466e0009534f2fae0d7087904f7a69
 
   UPDATE
-         Count:    85  Average requests per second:   7.8
-                             min      max     avg     std_dev   median
-         First-byte latency:  0.02 -   0.20    0.08  (  0.05)    0.07  (  all obj sizes)
-         Last-byte  latency:  0.02 -   0.20    0.08  (  0.05)    0.07  (  all obj sizes)
-         First-byte latency:  0.02 -   0.20    0.08  (  0.05)    0.07  (tiny objs)
-         Last-byte  latency:  0.02 -   0.20    0.08  (  0.05)    0.07  (tiny objs)
-         First-byte latency:  0.06 -   0.16    0.11  (  0.04)    0.12  (small objs)
-         Last-byte  latency:  0.06 -   0.18    0.12  (  0.04)    0.12  (small objs)
+         Count:    90  Average requests per second:  15.2
+                              min       max      avg      std_dev  90%-ile                   Swift TX ID for worst latency
+         First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (all obj sizes)
+         Last-byte  latency:  0.023 -   0.117    0.069  (  0.019)    0.089  (all obj sizes)  txb80150d4055e4406a7c373cf0969d7fd
+         First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (    tiny objs)
+         Last-byte  latency:  0.023 -   0.117    0.067  (  0.019)    0.089  (    tiny objs)  txb80150d4055e4406a7c373cf0969d7fd
+         First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (   small objs)
+         Last-byte  latency:  0.071 -   0.114    0.086  (  0.014)    0.114  (   small objs)  txb5dfc049939047c3ae973f7e94084e5b
 
   DELETE
-         Count:    93  Average requests per second:   8.5
-                             min      max     avg     std_dev   median
-         First-byte latency:  0.01 -   0.18    0.05  (  0.04)    0.03  (  all obj sizes)
-         Last-byte  latency:  0.01 -   0.18    0.05  (  0.04)    0.03  (  all obj sizes)
-         First-byte latency:  0.01 -   0.18    0.05  (  0.04)    0.03  (tiny objs)
-         Last-byte  latency:  0.01 -   0.18    0.05  (  0.04)    0.03  (tiny objs)
-         First-byte latency:  0.02 -   0.05    0.03  (  0.01)    0.02  (small objs)
-         Last-byte  latency:  0.02 -   0.05    0.03  (  0.01)    0.02  (small objs)
+         Count:    90  Average requests per second:  15.2
+                              min       max      avg      std_dev  90%-ile                   Swift TX ID for worst latency
+         First-byte latency:  0.016 -   0.065    0.036  (  0.010)    0.049  (all obj sizes)  txa174575811d04e3bbfffa3daba1e9b86
+         Last-byte  latency:  0.017 -   0.065    0.036  (  0.010)    0.049  (all obj sizes)  txa174575811d04e3bbfffa3daba1e9b86
+         First-byte latency:  0.018 -   0.065    0.035  (  0.010)    0.049  (    tiny objs)  txa174575811d04e3bbfffa3daba1e9b86
+         Last-byte  latency:  0.018 -   0.065    0.035  (  0.010)    0.049  (    tiny objs)  txa174575811d04e3bbfffa3daba1e9b86
+         First-byte latency:  0.016 -   0.052    0.037  (  0.011)    0.052  (   small objs)  tx1119d8ca1f5b47fe8f1bf7e0d833ef86
+         Last-byte  latency:  0.017 -   0.052    0.037  (  0.011)    0.052  (   small objs)  tx1119d8ca1f5b47fe8f1bf7e0d833ef86
 
+  INFO:root:Scenario run results saved to /tmp/ssbench-results/Small_test_scenario.2013-02-03.151437.stat
+  INFO:root:You may generate a report with:
+    ssbench-master report-scenario -s /tmp/ssbench-results/Small_test_scenario.2013-02-03.151437.stat
+
+
+The No-op Mode
+--------------
+
+To test the maximum throughput of the ``ssbench-master`` ==> ``beantalkd``
+==> ``ssbench-worker`` infrastructure, you can add ``--noop`` to a
+``ssbench-master run-scenario`` command and the scenario will be "run" but
+the ``ssbench-worker`` processes will not actually talk to the Swift cluster.
+
+In this manner, you may determine your maximum requests per second if talking
+to the Swift cluster were free.
+
+The reported "Average requests per second:" value in the "TOTAL" section of
+the report should be higher than you expect to get out of the Swift cluster
+itself.  My 2012 15" Retina Macbook Pro can get ~2,700 requests
+per second with ``--noop`` using a local beanstalkd, one ``ssbench-worker``,
+and a user count (concurrency) of 4.

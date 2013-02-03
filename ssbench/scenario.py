@@ -28,7 +28,7 @@ class Scenario(object):
     """Encapsulation of a benchmark "CRUD" scenario."""
 
     def __init__(self, scenario_filename, container_count=None,
-                 user_count=None):
+                 user_count=None, operation_count=None):
         """Initializes the object from a scenario file on disk.
 
         :scenario_filename: path to a scenario file
@@ -50,7 +50,11 @@ class Scenario(object):
         if self.user_count < 1:
             raise ValueError('user_count must be > 1')
 
-        self.operation_count = self._scenario_data['operation_count']
+        if operation_count is not None:
+            self.operation_count = operation_count
+        else:
+            self.operation_count = self._scenario_data['operation_count']
+
         self.name = self._scenario_data['name']
         self.container_base = self._scenario_data.get('container_base',
                                                       'ssbench')

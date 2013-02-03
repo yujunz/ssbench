@@ -48,6 +48,8 @@ def run_scenario(master, args):
             if args.container_count != 'value from scenario' else None
     user_count = int(args.user_count) \
             if args.user_count != 'value from scenario' else None
+    operation_count = int(args.op_count) \
+            if args.op_count != 'value from scenario' else None
     if args.noop:
         scenario_class = ScenarioNoop
         logging.info('NOTE: --noop was specified; not testing Swift.')
@@ -55,7 +57,8 @@ def run_scenario(master, args):
         scenario_class = Scenario
     scenario = scenario_class(args.scenario_file,
                               container_count=container_count,
-                              user_count=user_count)
+                              user_count=user_count,
+                              operation_count=operation_count)
 
     if args.stats_file == DEFAULT_STATS_PATH_DEFAULT:
         munged_name = re.sub('[%s\s]+' % os.path.sep, '_', scenario.name)
@@ -122,6 +125,8 @@ if __name__ == "__main__":
         """.strip(),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     run_scenario_arg_parser.add_argument(
+        '-f', '--scenario-file', required=True, type=str)
+    run_scenario_arg_parser.add_argument(
         '-A', '--auth-url', default=os.environ.get('ST_AUTH', None),
         help='Auth URL for the Swift cluster under test.')
     run_scenario_arg_parser.add_argument(
@@ -140,10 +145,17 @@ if __name__ == "__main__":
 
     run_scenario_arg_parser.add_argument(
         '-c', '--container-count', default='value from scenario',
+        metavar='COUNT',
         help='Override the container count specified in the scenario file.')
     run_scenario_arg_parser.add_argument(
         '-u', '--user-count', default='value from scenario',
+        metavar='COUNT',
         help='Override the user count (concurrency) specified in the '
+        'scenario file.')
+    run_scenario_arg_parser.add_argument(
+        '-o', '--op-count', default='value from scenario',
+        metavar='COUNT',
+        help='Override the operation count specified in the '
         'scenario file.')
     run_scenario_arg_parser.add_argument(
         '-q', '--quiet', action='store_true', default=False,
@@ -157,8 +169,6 @@ if __name__ == "__main__":
         help='Exercise benchmark infrastructure without talking to cluster.')
 
     run_scenario_arg_parser.add_argument(
-        '-f', '--scenario-file', required=True, type=str)
-    run_scenario_arg_parser.add_argument(
         '-s', '--stats-file', type=str,
         help='File into which benchmarking statistics will be saved',
         default=DEFAULT_STATS_PATH_DEFAULT)
@@ -167,7 +177,7 @@ if __name__ == "__main__":
         help="Suppress the default immediate generation of a benchmark "
         "report to STDOUT after saving stats-file")
     run_scenario_arg_parser.add_argument(
-        '--pctile', type=int, default=95,
+        '--pctile', type=int, metavar='PERCENTILE', default=95,
         help='Report on the N-th percentile, if generating a report.')
     run_scenario_arg_parser.set_defaults(func=run_scenario)
 
@@ -181,9 +191,9 @@ if __name__ == "__main__":
         '--run-scenario invocation')
     report_scenario_arg_parser.add_argument(
         '-f', '--report-file', type=argparse.FileType('w'), default=sys.stdout,
-        help='The file to which the report should be written (def: STDOUT)')
+        help='The file to which the report should be written')
     report_scenario_arg_parser.add_argument(
-        '--pctile', type=int, default=95,
+        '--pctile', type=int, metavar='PERCENTILE', default=95,
         help='Report on the N-th percentile.')
     report_scenario_arg_parser.add_argument(
         '-r', '--rps-histogram', type=argparse.FileType('w'),
