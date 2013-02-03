@@ -29,7 +29,7 @@ def readme():
 
 setup(
     name='ssbench',
-    version='0.0.9',
+    version='0.0.10',
     description='SwiftStack Swift Benchmarking Suite',
     long_description=readme(),
     license='Apache License (2.0)',
