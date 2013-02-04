@@ -3,11 +3,14 @@ ssbench
 
 A benchmarking suite for the OpenStack Swift object storage system.
 
-The ``ssbench`` suite can run benchmark "scenarios" against an OpenStack Swift
-cluster, saving statistics about the run to a file.  It can then generate a
-report from the saved statstics.  By default, a report will be generated to
-STDOUT immediately following a benchmark run in addition to saving the results
-to a file.
+The ``ssbench-master run-scenario`` command will run benchmark "scenarios"
+against an
+OpenStack Swift cluster, utilizing one or more distributed ``ssbench-worker``
+processes, saving statistics about the run to a file.  The ``ssbench-master
+report-scenario`` command can then generate a
+report from the saved statstics.  By default, ``ssbench-master run-scenario``
+will generate a report to STDOUT immediately following a benchmark run in
+addition to saving the results to a file.
 
 Coordination between the ``ssbench-master`` and one or more ``ssbench-worker``
 processes is managed through a Beanstalkd_ queue.  This additional dependency
@@ -19,23 +22,29 @@ client servers while still coordinating the entire run.
 Scenarios
 ---------
 
-A "scenario" (sometimes called a "CRUD scenario") is a JSON file defining a
-benchmark run.  Specifically, it defines:
+A "scenario" (sometimes called a "CRUD scenario") is a utf8-encoded JSON file
+defining a benchmark run.  Specifically, it defines:
 
-- A name for the scenario (an arbitrary string)
-- A set of "object size" classes.  Each class has a name, a minimum object size
-  and a maximum object size.  Objects used within an object size class will
-  have a size (in bytes) chosen at random uniformly between the minimum and
-  maximum sizes.
-- A count of initial files per size class.  Each size class can have zero or
+- A ``name`` for the scenario (an arbitrary string)
+- A ``sizes`` list of "object size" classes.  Each object size class has a
+  name, a minimum object size
+  and a maximum object size (in bytes).  Objects created or updated within an
+  object size
+  class will have a size (in bytes) chosen at random uniformly between the
+  minimum and maximum sizes.
+- An ``initial_files`` list of initial file-counts per size class.  Each size
+  class can have zero or
   more objects uploaded *prior* to the benchmark run itself.  The proportion of
   initial files also defines the probability distribution of object sizes
-  during the benchmark run itself.
-- A count of operations to perform during the benchmark run.  An operation is
+  during the benchmark run itself.  So if a particular object size class has
+  a value of 0 in ``initial_files``, then no objects in that size class will
+  be used by a benchmark run.
+- An ``operation_count`` of operations to perform during the benchmark run.
+  An operation is
   either a CREATE, READ, UPDATE, or DELETE of an object.  This value may be
   overridden for any given run with the ``-o COUNT`` flag to ``ssbench-master
   run-scenario``.
-- A "CRUD profile" which determines the distribution of each kind of operation.
+- A ``crud_profile`` which determines the distribution of each kind of operation.
   For instance, ``[3, 4, 2, 2]`` would mean 27% CREATE, 36% READ, 18% UPDATE,
   and 18% DELETE.
 - A ``user_count`` which determines the maxiumum client concurrency during the
@@ -80,14 +89,15 @@ Here is an example JSON scenario file::
     "user_count": 7
   }
 
-**Beware**, hand-editing JSON is pretty error-prone, and watch out for trailing
+**Beware:** hand-editing JSON is error-prone.  Watch out for trailing
 commas, in particular.
 
 Installation
 ------------
 
-Install this module (``ssbench``) via pip.  You will also need Beanstalkd_ and
-an `OpenStack Swift`_ cluster to benchmark.
+You may install this module (``ssbench``) and its dependencies via pip.
+You will also need Beanstalkd_ installed and running and an
+`OpenStack Swift`_ cluster to benchmark.
 
 .. _`OpenStack Swift`: http://docs.openstack.org/developer/swift/
 
