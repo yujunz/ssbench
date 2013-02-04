@@ -97,25 +97,31 @@ Usage
 The ``ssbench-worker`` script::
 
   $ ssbench-worker --help
-  usage: ssbench-worker [-h] [--qhost QHOST] [--qport QPORT] [-v]
-                        [--retries RETRIES]
+  usage: ssbench-worker [-h] [--qhost QHOST] [--qport QPORT] [-c CONCURRENCY]
+                        [--retries RETRIES] [-p COUNT] [-v]
                         worker_id
 
   Benchmark your Swift installation
 
   positional arguments:
-    worker_id          An integer ID number; must be unique among all workers
+    worker_id             An integer ID number; must be unique among all workers
 
   optional arguments:
-    -h, --help         show this help message and exit
-    --qhost QHOST      beanstalkd host (default: 127.0.0.1)
-    --qport QPORT      beanstalkd port (default: 11300)
-    --retries RETRIES  Maximum number of times to retry a job. (default: 10)
-    -v, --verbose      Enable more verbose output. (default: False)
+    -h, --help            show this help message and exit
+    --qhost QHOST         beanstalkd host (default: 127.0.0.1)
+    --qport QPORT         beanstalkd port (default: 11300)
+    -c CONCURRENCY, --concurrency CONCURRENCY
+                          Maximum concurrency this worker will provide.
+                          (default: 256)
+    --retries RETRIES     Maximum number of times to retry a job. (default: 10)
+    -p COUNT, --profile-count COUNT
+                          Profile COUNT work jobs, starting with the first.
+                          (default: 0)
+    -v, --verbose         Enable more verbose output. (default: False)
 
-Basic usage of ``ssbench-master`` (requires one of ``run-scenario`` to actually
-run a benchmark scenario, or ``report-scenario`` to report on an existing
-scenario result data file::
+Basic usage of ``ssbench-master`` (requires one sub-command of
+``run-scenario`` to actually run a benchmark scenario, or
+``report-scenario`` to report on an existing scenario result data file::
 
   usage: ssbench-master [-h] [--qhost QHOST] [--qport QPORT] [-v]
                         {run-scenario,report-scenario} ...
