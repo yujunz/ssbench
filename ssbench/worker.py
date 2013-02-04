@@ -80,7 +80,7 @@ class ChunkedReader(object):
 
 class Worker:
     def __init__(self, queue_host, queue_port, worker_id, max_retries,
-                 profile_count=0):
+                 profile_count=0, concurrency=256):
         self.queue_host = queue_host
         self.queue_port = queue_port
         self.worker_id = worker_id
@@ -88,7 +88,7 @@ class Worker:
         self.profile_count = profile_count
         soft_nofile, hard_nofile = resource.getrlimit(resource.RLIMIT_NOFILE)
         resource.setrlimit(resource.RLIMIT_NOFILE, (1024, hard_nofile))
-        self.concurrency = 256
+        self.concurrency = concurrency
 
         # Only one greenthread will be pulling out work...
         self.work_queue = beanstalkc.Connection(host=queue_host,

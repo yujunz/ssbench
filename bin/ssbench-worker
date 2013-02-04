@@ -30,12 +30,15 @@ if __name__ == "__main__":
                             help='beanstalkd host')
     arg_parser.add_argument('--qport', default=11300, type=int,
                             help='beanstalkd port')
+    arg_parser.add_argument('-c', '--concurrency', type=int, default=256,
+                            help='Maximum concurrency this worker will '
+                            'provide.')
+    arg_parser.add_argument('--retries', default=10, type=int,
+                            help='Maximum number of times to retry a job.')
     arg_parser.add_argument('-p', '--profile-count', type=int, metavar='COUNT',
                             default=0,
                             help='Profile %(metavar)s work jobs, starting '
                             'with the first.')
-    arg_parser.add_argument('--retries', default=10, type=int,
-                            help='Maximum number of times to retry a job.')
     arg_parser.add_argument('-v', '--verbose', action='store_true',
                             default=False, help='Enable more verbose output.')
 
@@ -45,5 +48,6 @@ if __name__ == "__main__":
     logging.captureWarnings(True)
 
     worker = Worker(args.qhost, args.qport, args.worker_id, args.retries,
-                    profile_count=args.profile_count)
+                    profile_count=args.profile_count,
+                    concurrency=args.concurrency)
     worker.go()
