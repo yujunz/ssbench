@@ -263,7 +263,7 @@ class Worker:
     def handle_get_object(self, object_info):
         headers, body_iter = self.ignoring_http_responses(
             (404, 503), client.get_object, object_info,
-            resp_chunk_size=2**16, toss_body=True)
+            resp_chunk_size=2 ** 16, toss_body=True)
         # Having passed in toss_body=True, we don't need to "read" body_iter
         # (which will actually just be an empty-string), and we'll have an
         # accurate last_byte_latency in the headers.

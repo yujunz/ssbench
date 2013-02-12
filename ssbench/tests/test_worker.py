@@ -107,7 +107,6 @@ class TestWorker(object):
                 trans_id='9bjkk', completed_at=self.stub_time)),
         ).once
         self.mock_worker.handle_delete_object(object_info)
-        
 
     def test_handle_update_object(self):
         object_info = {
@@ -201,23 +200,28 @@ class TestWorker(object):
     def test_dispatching_upload_object(self):
         # CREATE_OBJECT = 'upload_object' # includes obj name
         info = {'type': ssbench.CREATE_OBJECT, 'a': 1}
-        self.mock_worker.should_receive('handle_upload_object').with_args(info).once
+        self.mock_worker.should_receive(
+            'handle_upload_object').with_args(info).once
         self.mock_worker.handle_job(info)
 
     def test_dispatching_get_object(self):
         # READ_OBJECT = 'get_object'       # does NOT include obj name to get
         info = {'type': ssbench.READ_OBJECT, 'b': 2}
-        self.mock_worker.should_receive('handle_get_object').with_args(info).once
+        self.mock_worker.should_receive(
+            'handle_get_object').with_args(info).once
         self.mock_worker.handle_job(info)
 
     def test_dispatching_update_object(self):
         # UPDATE_OBJECT = 'update_object' # does NOT include obj name to update
         info = {'type': ssbench.UPDATE_OBJECT, 'c': 3}
-        self.mock_worker.should_receive('handle_update_object').with_args(info).once
+        self.mock_worker.should_receive(
+            'handle_update_object').with_args(info).once
         self.mock_worker.handle_job(info)
 
     def test_dispatching_delete_object(self):
-        # DELETE_OBJECT = 'delete_object' # may or may not include obj name to delete
+        # DELETE_OBJECT = 'delete_object' # may or may not include obj name to
+        # delete
         info = {'type': ssbench.DELETE_OBJECT, 'd': 4}
-        self.mock_worker.should_receive('handle_delete_object').with_args(info).once
+        self.mock_worker.should_receive(
+            'handle_delete_object').with_args(info).once
         self.mock_worker.handle_job(info)

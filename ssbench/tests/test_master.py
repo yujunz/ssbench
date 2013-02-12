@@ -27,6 +27,7 @@ from ssbench.master import Master
 
 from ssbench.tests.test_scenario import ScenarioFixture
 
+
 class TestMaster(ScenarioFixture, TestCase):
     maxDiff = None
 
@@ -52,30 +53,45 @@ class TestMaster(ScenarioFixture, TestCase):
         super(TestMaster, self).setUp()
 
         self.stub_queue = flexmock()
-        self.stub_queue.should_receive('watch').with_args(ssbench.STATS_TUBE).once
-        self.stub_queue.should_receive('ignore').with_args(ssbench.DEFAULT_TUBE).once
+        self.stub_queue.should_receive(
+            'watch').with_args(ssbench.STATS_TUBE).once
+        self.stub_queue.should_receive(
+            'ignore').with_args(ssbench.DEFAULT_TUBE).once
         self.master = Master(self.stub_queue)
 
         self.result_index = 1  # for self.gen_result()
 
         self.stub_results = [
-            self.gen_result(1, ssbench.CREATE_OBJECT, 'small', 100.0, 101.0, 103.0),
-            self.gen_result(1, ssbench.READ_OBJECT, 'tiny', 103.0, 103.1, 103.8),
-            self.gen_result(1, ssbench.CREATE_OBJECT, 'huge', 103.8, 105.0, 106.0),
-            self.gen_result(1, ssbench.UPDATE_OBJECT, 'large', 106.1, 106.3, 106.4),
+            self.gen_result(
+                1, ssbench.CREATE_OBJECT, 'small', 100.0, 101.0, 103.0),
+            self.gen_result(
+                1, ssbench.READ_OBJECT, 'tiny', 103.0, 103.1, 103.8),
+            self.gen_result(
+                1, ssbench.CREATE_OBJECT, 'huge', 103.8, 105.0, 106.0),
+            self.gen_result(
+                1, ssbench.UPDATE_OBJECT, 'large', 106.1, 106.3, 106.4),
             #
             # exceptions should be ignored
-            dict(worker_id=2, type=ssbench.UPDATE_OBJECT, completed_at=39293.2, exception='wacky!'),
-            self.gen_result(2, ssbench.UPDATE_OBJECT, 'medium', 100.1, 100.9, 102.9),
-            self.gen_result(2, ssbench.DELETE_OBJECT, 'large', 102.9, 103.0, 103.3),
-            self.gen_result(2, ssbench.CREATE_OBJECT, 'tiny', 103.3, 103.4, 103.5),
-            self.gen_result(2, ssbench.READ_OBJECT, 'small', 103.5, 103.7, 104.0),
+            dict(worker_id=2, type=ssbench.UPDATE_OBJECT,
+                 completed_at=39293.2, exception='wacky!'),
+            self.gen_result(
+                2, ssbench.UPDATE_OBJECT, 'medium', 100.1, 100.9, 102.9),
+            self.gen_result(
+                2, ssbench.DELETE_OBJECT, 'large', 102.9, 103.0, 103.3),
+            self.gen_result(
+                2, ssbench.CREATE_OBJECT, 'tiny', 103.3, 103.4, 103.5),
+            self.gen_result(
+                2, ssbench.READ_OBJECT, 'small', 103.5, 103.7, 104.0),
             #
-            self.gen_result(3, ssbench.READ_OBJECT, 'tiny', 100.1, 101.1, 101.9),
+            self.gen_result(
+                3, ssbench.READ_OBJECT, 'tiny', 100.1, 101.1, 101.9),
             # worker 3 took a while (observer lower concurrency in second 102
-            self.gen_result(3, ssbench.DELETE_OBJECT, 'small', 103.1, 103.6, 103.9),
-            self.gen_result(3, ssbench.READ_OBJECT, 'medium', 103.9, 104.2, 104.3),
-            self.gen_result(3, ssbench.UPDATE_OBJECT, 'tiny', 104.3, 104.9, 104.999),
+            self.gen_result(
+                3, ssbench.DELETE_OBJECT, 'small', 103.1, 103.6, 103.9),
+            self.gen_result(
+                3, ssbench.READ_OBJECT, 'medium', 103.9, 104.2, 104.3),
+            self.gen_result(
+                3, ssbench.UPDATE_OBJECT, 'tiny', 104.3, 104.9, 104.999),
         ]
 
     def tearDown(self):
@@ -99,8 +115,10 @@ class TestMaster(ScenarioFixture, TestCase):
         }
 
     def test_calculate_scenario_stats_aggregate(self):
-        first_byte_latency_all = [1, 0.1, 1.2, 0.2, 0.8, 0.1, 0.1, 0.2, 1, 0.5, 0.3, 0.6]
-        last_byte_latency_all =  [3, 0.8, 2.2, 0.3, 2.8, 0.4, 0.2, 0.5, 1.8, 0.8, 0.4, 0.699]
+        first_byte_latency_all = [1, 0.1, 1.2, 0.2, 0.8, 0.1, 0.1,
+                                  0.2, 1, 0.5, 0.3, 0.6]
+        last_byte_latency_all = [3, 0.8, 2.2, 0.3, 2.8, 0.4, 0.2,
+                                 0.5, 1.8, 0.8, 0.4, 0.699]
         scen_stats = self.master.calculate_scenario_stats(self.scenario,
                                                           self.stub_results)
         self.assertDictEqual(dict(
@@ -121,15 +139,17 @@ class TestMaster(ScenarioFixture, TestCase):
                 pctile='%7.3f' % 3.0,
                 std_dev='%7.3f' % stats.lsamplestdev(last_byte_latency_all),
                 median='  0.749',  # XXX why??
-                #median='%7.3f' % stats.lmedianscore(last_byte_latency_all),
+                # median='%7.3f' % stats.lmedianscore(last_byte_latency_all),
             ),
             worst_first_byte_latency=(1.2, 'txID004'),
             worst_last_byte_latency=(3.0, 'txID002'),
         ), scen_stats['agg_stats'])
 
     def test_calculate_scenario_stats_aggregate_low_pctile(self):
-        first_byte_latency_all = [1, 0.1, 1.2, 0.2, 0.8, 0.1, 0.1, 0.2, 1, 0.5, 0.3, 0.6]
-        last_byte_latency_all =  [3, 0.8, 2.2, 0.3, 2.8, 0.4, 0.2, 0.5, 1.8, 0.8, 0.4, 0.699]
+        first_byte_latency_all = [1, 0.1, 1.2, 0.2, 0.8, 0.1, 0.1,
+                                  0.2, 1, 0.5, 0.3, 0.6]
+        last_byte_latency_all = [3, 0.8, 2.2, 0.3, 2.8, 0.4, 0.2,
+                                 0.5, 1.8, 0.8, 0.4, 0.699]
         scen_stats = self.master.calculate_scenario_stats(self.scenario,
                                                           self.stub_results,
                                                           nth_pctile=20)
@@ -151,7 +171,7 @@ class TestMaster(ScenarioFixture, TestCase):
                 pctile='%7.3f' % sorted(last_byte_latency_all)[2],
                 std_dev='%7.3f' % stats.lsamplestdev(last_byte_latency_all),
                 median='  0.749',  # XXX why??
-                #median='%7.3f' % stats.lmedianscore(last_byte_latency_all),
+                # median='%7.3f' % stats.lmedianscore(last_byte_latency_all),
             ),
             worst_first_byte_latency=(1.2, 'txID004'),
             worst_last_byte_latency=(3.0, 'txID002'),
@@ -183,7 +203,8 @@ class TestMaster(ScenarioFixture, TestCase):
             ),
             worst_first_byte_latency=(float(max(w1_first_byte_latency)),
                                       'txID004'),
-            worst_last_byte_latency=(float(max(w1_last_byte_latency)), 'txID002'),
+            worst_last_byte_latency=(
+                float(max(w1_last_byte_latency)), 'txID002'),
         ), scen_stats['worker_stats'][1])
 
     def test_calculate_scenario_stats_worker2(self):
@@ -212,7 +233,8 @@ class TestMaster(ScenarioFixture, TestCase):
             ),
             worst_first_byte_latency=(float(max(w2_first_byte_latency)),
                                       'txID006'),
-            worst_last_byte_latency=(float(max(w2_last_byte_latency)), 'txID006'),
+            worst_last_byte_latency=(
+                float(max(w2_last_byte_latency)), 'txID006'),
         ), scen_stats['worker_stats'][2])
 
     def test_calculate_scenario_stats_worker3(self):
@@ -239,8 +261,10 @@ class TestMaster(ScenarioFixture, TestCase):
                 std_dev='%7.3f' % stats.lsamplestdev(w3_last_byte_latency),
                 median='%7.3f' % stats.lmedianscore(w3_last_byte_latency),
             ),
-            worst_first_byte_latency=(float(max(w3_first_byte_latency)), 'txID010'),
-            worst_last_byte_latency=(float(max(w3_last_byte_latency)), 'txID010'),
+            worst_first_byte_latency=(
+                float(max(w3_first_byte_latency)), 'txID010'),
+            worst_last_byte_latency=(
+                float(max(w3_last_byte_latency)), 'txID010'),
         ), scen_stats['worker_stats'][3])
 
     def test_calculate_scenario_stats_create(self):
@@ -687,7 +711,6 @@ class TestMaster(ScenarioFixture, TestCase):
             ['5', '0'],
             ['6', '2'],
         ], list(reader))
-
 
     def test_generate_scenario_report(self):
         # Time series (reqs completed each second

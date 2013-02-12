@@ -82,7 +82,7 @@ class Master:
                     sys.stderr.write('O')
                 else:
                     sys.stderr.write('*')
-            elif result.has_key('exception'):
+            elif 'exception' in result:
                 sys.stderr.write('X')
             else:
                 sys.stderr.write('_')
@@ -173,11 +173,11 @@ class Master:
         # Enqueue initialization jobs
         if not noop:
             logging.info('Initializing cluster with stock data (up to %d '
-                        'concurrent workers)', scenario.user_count)
+                         'concurrent workers)', scenario.user_count)
 
             self.do_a_run(scenario.user_count, scenario.initial_jobs(),
-                        run_state.handle_initialization_result,
-                        ssbench.PRIORITY_SETUP, storage_url, token)
+                          run_state.handle_initialization_result,
+                          ssbench.PRIORITY_SETUP, storage_url, token)
 
         logging.info('Starting benchmark run (up to %d concurrent '
                      'workers)', scenario.user_count)
@@ -202,10 +202,10 @@ class Master:
         if not noop:
             logging.info('Deleting population objects from cluster')
             self.do_a_run(scenario.user_count,
-                        run_state.cleanup_object_infos(),
-                        lambda *_: None,
-                        ssbench.PRIORITY_CLEANUP, storage_url, token,
-                        mapper_fn=_gen_cleanup_job)
+                          run_state.cleanup_object_infos(),
+                          lambda *_: None,
+                          ssbench.PRIORITY_CLEANUP, storage_url, token,
+                          mapper_fn=_gen_cleanup_job)
 
         return run_state.run_results
 
@@ -274,7 +274,7 @@ ${label}
             'stop_time': datetime.utcfromtimestamp(
                 stats['time_series']['stop']).strftime(REPORT_TIME_FORMAT),
             'duration': stats['time_series']['stop']
-                - stats['time_series']['start_time'],
+            - stats['time_series']['start_time'],
         }
         return template.render(scenario=scenario, stats=stats, **tmpl_vars)
 
@@ -356,7 +356,7 @@ ${label}
         #   'last_byte_latency': 0.913769006729126,
         #   'completed_at': 1324372892.360802,
         #}
-        #OR
+        # OR
         # {
         #   'worker_id': 1,
         #   'type': 'get_object',
@@ -365,7 +365,7 @@ ${label}
         # }
         logging.info('Calculating statistics for %d result items...',
                      len(results))
-        agg_stats = dict(start=2**32, stop=0, req_count=0)
+        agg_stats = dict(start=2 ** 32, stop=0, req_count=0)
         op_stats = {}
         for crud_type in [ssbench.CREATE_OBJECT, ssbench.READ_OBJECT,
                           ssbench.UPDATE_OBJECT, ssbench.DELETE_OBJECT]:
@@ -376,7 +376,7 @@ ${label}
         req_completion_seconds = {}
         start_time = 0
         completion_time_max = 0
-        completion_time_min = 2**32
+        completion_time_min = 2 ** 32
         stats = dict(
             nth_pctile=nth_pctile,
             agg_stats=agg_stats,
@@ -530,4 +530,4 @@ ${label}
                 if worst_key not in stats_dict \
                         or result[latency_type] > stats_dict[worst_key][0]:
                     stats_dict[worst_key] = (round(result[latency_type], 6),
-                                            result['trans_id'])
+                                             result['trans_id'])

@@ -3,6 +3,8 @@ ssbench (0.0.12)
     * Fixed #15: added CHANGELOG and AUTHORS; added "Contributing to ssbench"
       section to README.
 
+    * Cleaned up PEP8 compliance and added .pep8 to ignore E501: line too long
+
 ssbench (0.0.11)
 
     * Added ssbench-master scenario op count override.

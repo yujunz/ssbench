@@ -22,6 +22,7 @@ from nose.tools import *
 import ssbench
 from ssbench.scenario import Scenario
 
+
 class ScenarioFixture(object):
     def setUp(self):
         superclass = super(ScenarioFixture, self)
@@ -44,12 +45,12 @@ class ScenarioFixture(object):
                 # shortcut in the definition of scenarios.
                 operation_count=5000,
                 #             C  R  U  D
-                crud_profile=[6, 0, 0, 1], # maybe make this a dict?
+                crud_profile=[6, 0, 0, 1],  # maybe make this a dict?
                 user_count=1,
             )
         self.write_scenario_file()
         self.scenario = Scenario(self.stub_scenario_file)
- 
+
     def tearDown(self):
         try:
             os.unlink(self.stub_scenario_file)
@@ -61,15 +62,15 @@ class ScenarioFixture(object):
 
     def write_scenario_file(self):
         """Generates a scenario file on disk (in /tmp).
-        
+
         The tearDown() method will delete the created file.  Note that
         only one scenario file created by this method can exist at any
         time (a static path is reused).  Change this behavior if needed.
-        
+
         :**contents: Contents of the JSON object which is the scenario data.
         :returns: (nothing)
         """
-    
+
         fp = open(self.stub_scenario_file, 'w')
         json.dump(self.scenario_dict, fp)
 
@@ -86,7 +87,7 @@ class TestScenario(ScenarioFixture):
         assert_dict_equal(self.scenario_dict, self.scenario._scenario_data)
 
     def test_crud_pcts(self):
-        assert_list_equal([6.0/7*100,0.0,0.0,1.0/7*100],
+        assert_list_equal([6.0 / 7 * 100, 0.0, 0.0, 1.0 / 7 * 100],
                           self.scenario.crud_pcts)
 
     def test_bench_jobs(self):
@@ -98,19 +99,19 @@ class TestScenario(ScenarioFixture):
         # Expect count of sizes to be +/- 10% of expected proportions (which are
         # derived from the initial counts; 30%, 30%, 30%, 10% in this case)
         size_counter = Counter([_['size_str'] for _ in jobs])
-        assert_almost_equal(1500, size_counter['tiny'], delta=0.10*1500)
-        assert_almost_equal(1500, size_counter['small'], delta=0.10*1500)
-        assert_almost_equal(1500, size_counter['medium'], delta=0.10*1500)
-        assert_almost_equal(500, size_counter['large'], delta=0.10*500)
+        assert_almost_equal(1500, size_counter['tiny'], delta=0.10 * 1500)
+        assert_almost_equal(1500, size_counter['small'], delta=0.10 * 1500)
+        assert_almost_equal(1500, size_counter['medium'], delta=0.10 * 1500)
+        assert_almost_equal(500, size_counter['large'], delta=0.10 * 500)
         assert_not_in('huge', size_counter)
 
         # From the CRUD profile, we should have 85.7% Create (6/7), and 14.3%
         # Delete (1/7).
         type_counter = Counter([_['type'] for _ in jobs])
         assert_almost_equal(6 * 5000 / 7, type_counter[ssbench.CREATE_OBJECT],
-                            delta=0.10*6*5000/7)
+                            delta=0.10 * 6 * 5000 / 7)
         assert_almost_equal(5000 / 7, type_counter[ssbench.DELETE_OBJECT],
-                            delta=0.10*5000/7)
+                            delta=0.10 * 5000 / 7)
 
     def test_bench_job_0(self):
         bench_job = self.scenario.bench_job('small', 0, 31)
@@ -186,7 +187,7 @@ class TestScenario(ScenarioFixture):
         assert_dict_equal({
             'type': ssbench.CREATE_OBJECT,
             'size_str': 'tiny',
-            'name': 'tiny_000002', # <Usage><Type>######
+            'name': 'tiny_000002',  # <Usage><Type>######
         }, jobs[4])
 
         size_counter = Counter([_['size_str'] for _ in jobs])
@@ -194,4 +195,3 @@ class TestScenario(ScenarioFixture):
         assert_equal(300, size_counter['small'])
         assert_equal(300, size_counter['medium'])
         assert_equal(100, size_counter['large'])
-
