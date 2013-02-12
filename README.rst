@@ -340,3 +340,30 @@ the report should be higher than you expect to get out of the Swift cluster
 itself.  My 2012 15" Retina Macbook Pro can get ~2,700 requests
 per second with ``--noop`` using a local beanstalkd, one ``ssbench-worker``,
 and a user count (concurrency) of 4.
+
+
+Contributing to ssbench
+-----------------------
+
+First, please use the Github Issues for the project when submitting bug reports
+or feature requests.
+
+Code submissions should be submitted as pull requests and all code should be
+PEP8 (v. 1.4.2) compliant.  Current unit test line coverage is not 100%, but
+code contributions should not *lower* the code coverage (so please include
+new tests or update existing ones as part of your change).
+
+If contributing code which implements a feature or fixes
+a bug, please ensure a Github Issue exists prior to submitting the pull request
+and reference the Issue number in your commit message.
+
+When submitting your first pull request, please also update AUTHORS to include
+yourself, maintaining alphabetical ordering by last name.
+
+If any of the file(s) you change do not yet have a copyright line with your
+name, please add one at the bottom of the others, above the license text (but
+never remove any existing copyright lines).  Your copyright line should look
+something like::
+
+  # Copyright (c) 2013 FirstName LastName
+

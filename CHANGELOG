@@ -1,0 +1,89 @@
+ssbench (0.0.12)
+
+    * Fixed #15: added CHANGELOG and AUTHORS; added "Contributing to ssbench"
+      section to README.
+
+ssbench (0.0.11)
+
+    * Added ssbench-master scenario op count override.
+
+    * Fixed up docs (README.rst).
+
+    * Fixed #13: can set ssbench-worker concurrency (again)
+
+    * Removed stale dependency on PyYAML.
+
+ssbench (0.0.10)
+
+    * Fixed #11: added --noop mode.
+
+    * Fixed #5: replaced YAML with msgpack.
+
+    * Fixed #12: addded ability to profile master and worker.
+
+    * Got rid of some result-sinking code which was slowing the master down
+      quite a bit.
+
+    * Fixed #4: replace median with configurable percentile.
+
+ssbench (0.0.9)
+
+    * Fixed #1: handle zero responses per CRUD type.
+
+    * Fixed #2: add start/stop times & duration to report.
+
+    * Fixed #3: add timestamp to default output stats filename.
+
+ssbench (0.0.8)
+
+    * Fixed bug in reporting where per-size stats per operation type were using
+      the "all sizes" data.
+ 
+    * Fixed bug in GET where last_byte_latency was being calculated before
+      actually reading the data out of the socket.
+
+    * Some operations cannot get a meaningful first-byte-latency, so they
+      don't; this is now correctly reported as "N/A".
+
+    * Each result's Swift X-Trans-Id header is now included in the result.
+
+    * Added "Swift TX ID for worst latench" column to report.
+
+    * Increased precision in report data (now visible down to milliseconds).
+
+ssbench (0.0.7)
+
+    * Added .requirements.txt to MANIFEST.in.
+
+    * Added an optional -S and -T args to specify the storage URL and a token.
+
+    * ssbench-master will use ST_* env vars as default values for -A, -U, -K.
+
+    * Added -v/--verbose to ssbench-master/worker.
+
+    * ssbench-master can override the scenario-specified container count (-c #)
+      and user count (-u #) on the command-line.
+
+    * Removed ssbench-worker concurrency option and just hard-coded it to 256.
+
+    * Added back in real-time, per-result single-character progress to STDERR.
+
+    * Updated and improved README.rst
+
+ssbench (0.0.4)
+
+    * Fixed exclusion of tests when packaging.
+
+ssbench (0.0.3)
+
+    * Fixed bug in ssbench-master when default results dir already exists.
+
+    * Updated README.rst
+
+ssbench (0.0.2)
+
+    * Converted README to reST format.
+
+ssbench (0.0.1)
+
+    * Initial public release after rewrite of ssbench guts
