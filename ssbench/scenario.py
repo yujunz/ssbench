@@ -70,31 +70,36 @@ class Scenario(object):
 
         # Set up sizes
         self.sizes_by_name = OrderedDict()
+        self.crud_thresholds_by_size = OrderedDict()
         for size_data in self._scenario_data['sizes']:
             self.sizes_by_name[size_data['name']] = size_data
+            # Calculate probability thresholds for each CRUD element for this
+            # object size category (defaulting to global crud profile).
+            self.crud_thresholds_by_size[size_data['name']] = [1, 1, 1, 1]
+            self._thresholds_for(
+                self.crud_thresholds_by_size[size_data['name']],
+                range(4), size_data.get('crud_profile',
+                                        self._scenario_data['crud_profile']))
 
         # Calculate probability thresholds for each size (from the
         # initial_files)
-        initial_sum = sum(self._scenario_data['initial_files'].itervalues())
-        last, self.bench_size_thresholds = 0, OrderedDict()
-        for size_str in self.sizes_by_name.iterkeys():
-            last = last + float(
-                self._scenario_data['initial_files'][size_str]) / initial_sum
-            self.bench_size_thresholds[size_str] = last
-
-        # Calculate probability thresholds for each CRUD element
-        initial_sum = sum(self._scenario_data['crud_profile'])
-        last, self.bench_crud_thresholds = 0, [1, 1, 1, 1]
-        for i in xrange(4):
-            last = last + float(
-                self._scenario_data['crud_profile'][i]) / initial_sum
-            self.bench_crud_thresholds[i] = last
+        self.bench_size_thresholds = OrderedDict()
+        self._thresholds_for(self.bench_size_thresholds,
+                             self.sizes_by_name.keys(),
+                             self._scenario_data['initial_files'])
 
     @property
     def crud_pcts(self):
         total = sum(self._scenario_data['crud_profile'])
         return [float(c) / total * 100
                 for c in self._scenario_data['crud_profile']]
+
+    def _thresholds_for(self, target, indices, data):
+        initial_sum = sum(map(lambda i: data[i], indices))
+        last = 0
+        for idx in indices:
+            last = last + float(data[idx]) / initial_sum
+            target[idx] = last
 
     def job(self, size_str, **kwargs):
         job = {'size_str': size_str}
@@ -174,8 +179,9 @@ class Scenario(object):
                     this_size_str = size_str
                     break
             # Determine which C/R/U/D type this job will be
+            size_crud = self.crud_thresholds_by_size[this_size_str]
             r = random.random()  # uniform on [0, 1)
-            for crud_index, prob in enumerate(self.bench_crud_thresholds):
+            for crud_index, prob in enumerate(size_crud):
                 if r < prob:
                     this_crud_index = crud_index
                     break
