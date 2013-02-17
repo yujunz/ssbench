@@ -27,18 +27,22 @@ defining a benchmark run.  Specifically, it defines:
 
 - A ``name`` for the scenario (an arbitrary string)
 - A ``sizes`` list of "object size" classes.  Each object size class has a
-  name, a minimum object size
-  and a maximum object size (in bytes).  Objects created or updated within an
-  object size
+  ``name``, a ``size_min`` minimum object size, a ``size_max`` maximum object
+  size (in bytes), and an
+  optional ``crud_profile`` for just this size.  If ``crud_profile`` is not
+  given for a size, the top-level ``crud_profile`` will be used.  The
+  ``crud_profile`` here is just like the top-level one, an array of 4 numbers
+  whose relative sizes determine the percent chance of a Create, Read, Update,
+  or Delete operation.  Objects created or updated within an object size
   class will have a size (in bytes) chosen at random uniformly between the
   minimum and maximum sizes.
-- An ``initial_files`` list of initial file-counts per size class.  Each size
-  class can have zero or
+- An ``initial_files`` dictionary of initial file-counts per size class.  Each
+  size class can have zero or
   more objects uploaded *prior* to the benchmark run itself.  The proportion of
   initial files also defines the probability distribution of object sizes
-  during the benchmark run itself.  So if a particular object size class has
-  a value of 0 in ``initial_files``, then no objects in that size class will
-  be used by a benchmark run.
+  during the benchmark run itself.  So if a particular object size class is not
+  included in ``initial_files`` or has a value of 0 in ``initial_files``, then
+  no objects in that size class will be used during the benchmark run.
 - An ``operation_count`` of operations to perform during the benchmark run.
   An operation is
   either a CREATE, READ, UPDATE, or DELETE of an object.  This value may be
@@ -61,6 +65,18 @@ defining a benchmark run.  Specifically, it defines:
 - A ``container_concurrency`` value which determines the level of client
   concurrency used by ``ssbench-master`` to create the benchmark containers.
   This value is optional and defaults to 10.
+
+For each operation of the benchmark run, a size category is first chosen based
+on the relative counts for each size category in the ``initial_files``
+dictionary.  This probability for each size category appears under the "% Ops"
+column in the report.  Then an operation type is chosen based on that size
+category's CRUD profile (which can be individually specified or may be
+inherited from the "top level" CRUD profile).
+
+If each size category has its own CRUD profile, then the overall CRUD profile
+of the benchmark run will be a weighted average between the values in the "%
+Ops" column and the CRUD profile of each size category.  This weighted average
+CRUD profile is included in the report on the "CRUD weighted average" line.
 
 .. _eventlet: http://eventlet.net/
 
@@ -242,8 +258,8 @@ process defaults to a maximum eventlet-based concurrency of 256, but the
 
 Finally, run one ``ssbench-master`` process which will manage and coordinate
 the benchmark run::
-
-  $ ssbench-master run-scenario -f scenarios/very_small.scenario -u 4 -c 100 --pctile 90
+  
+  $ ssbench-master run-scenario -f scenarios/very_small.scenario -u 4 -c 100 -o 613 --pctile 90
   INFO:root:Starting scenario run for "Small test scenario"
   INFO:root:Ensuring 100 containers (ssbench_*) exist; concurrency=10...
   INFO:root:Initializing cluster with stock data (up to 4 concurrent workers)
@@ -255,73 +271,79 @@ the benchmark run::
     * >= 10s first-byte-latency
     X    work job raised an exception
     _    no first-byte-latency available
-  ..............................................................................
-  ..............................................................................
-  ..............................................................................
-  ..............................................................................
-  ..............................................................................
-  ..............................................................................
-  ................................
+  ...............................................................................
+  ...............................................................................
+  ...............................................................................
+  ...............................................................................
+  ...............................................................................
+  ...............................................................................
+  ...............................................................................
+  ............................................................
   INFO:root:Deleting population objects from cluster
-  INFO:root:Calculating statistics for 500 result items...
-
+  INFO:root:Calculating statistics for 613 result items...
+  
   Small test scenario
-    C   R   U   D       Worker count:   1   Concurrency:   4
-  % 27  36  18  18      Ran 2013-02-03 23:14:38 UTC to 2013-02-03 23:14:45 UTC (6s)
-
+  Worker count:   1   Concurrency:   4  Ran 2013-02-17 01:20:00 UTC to 2013-02-17 01:20:14 UTC (13s)
+  
+  % Ops    C   R   U   D       Size Range       Size Name
+   91%   % 27  36  18  18        4 kB -  66 kB  tiny
+    9%   % 27  36  18  18      100 kB - 200 kB  small
+  ---------------------------------------------------------------------
+           27  36  18  18      CRUD weighted average
+  
   TOTAL
-         Count:   500  Average requests per second:  84.3
-                              min       max      avg      std_dev  90%-ile                   Swift TX ID for worst latency
-         First-byte latency:  0.009 -   0.065    0.026  (  0.011)    0.043  (all obj sizes)  txa174575811d04e3bbfffa3daba1e9b86
-         Last-byte  latency:  0.009 -   0.117    0.046  (  0.026)    0.084  (all obj sizes)  tx6892be9922014ec2917309f5efa0dbee
-         First-byte latency:  0.009 -   0.065    0.025  (  0.011)    0.042  (    tiny objs)  txa174575811d04e3bbfffa3daba1e9b86
-         Last-byte  latency:  0.009 -   0.117    0.045  (  0.025)    0.081  (    tiny objs)  txc49bedd478594e24a93c33f087ae243a
-         First-byte latency:  0.011 -   0.052    0.029  (  0.011)    0.043  (   small objs)  tx1119d8ca1f5b47fe8f1bf7e0d833ef86
-         Last-byte  latency:  0.016 -   0.117    0.057  (  0.029)    0.099  (   small objs)  tx6892be9922014ec2917309f5efa0dbee
-
+         Count:   613  Average requests per second:  47.3
+                              min       max      avg      std_dev  90%-ile                   Worst latency TX ID
+         First-byte latency:  0.006 -   0.275    0.040  (  0.048)    0.105  (all obj sizes)  tx21f0a21d5b8743c481e8548210b3617d
+         Last-byte  latency:  0.006 -   0.334    0.083  (  0.070)    0.190  (all obj sizes)  txf01ccd23344c4b94b26b24f7afbbb93d
+         First-byte latency:  0.006 -   0.275    0.041  (  0.049)    0.107  (    tiny objs)  tx21f0a21d5b8743c481e8548210b3617d
+         Last-byte  latency:  0.006 -   0.334    0.084  (  0.071)    0.196  (    tiny objs)  txf01ccd23344c4b94b26b24f7afbbb93d
+         First-byte latency:  0.006 -   0.169    0.031  (  0.034)    0.051  (   small objs)  tx48b6768ca9894588b0bdb5e24dec51a2
+         Last-byte  latency:  0.015 -   0.239    0.076  (  0.056)    0.169  (   small objs)  tx46463f2296d64fc9a16c541592c7b2ea
+  
   CREATE
-         Count:   133  Average requests per second:  22.7
-                              min       max      avg      std_dev  90%-ile                   Swift TX ID for worst latency
+         Count:   178  Average requests per second:  13.8
+                              min       max      avg      std_dev  90%-ile                   Worst latency TX ID
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (all obj sizes)
-         Last-byte  latency:  0.024 -   0.117    0.070  (  0.018)    0.093  (all obj sizes)  tx6892be9922014ec2917309f5efa0dbee
+         Last-byte  latency:  0.025 -   0.334    0.127  (  0.069)    0.227  (all obj sizes)  txf01ccd23344c4b94b26b24f7afbbb93d
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (    tiny objs)
-         Last-byte  latency:  0.024 -   0.117    0.069  (  0.018)    0.091  (    tiny objs)  txc49bedd478594e24a93c33f087ae243a
+         Last-byte  latency:  0.025 -   0.334    0.128  (  0.070)    0.231  (    tiny objs)  txf01ccd23344c4b94b26b24f7afbbb93d
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (   small objs)
-         Last-byte  latency:  0.059 -   0.117    0.087  (  0.019)    0.117  (   small objs)  tx6892be9922014ec2917309f5efa0dbee
-
+         Last-byte  latency:  0.049 -   0.190    0.108  (  0.044)    0.180  (   small objs)  tx899c24b465a94db79edc08a516675570
+  
   READ
-         Count:   187  Average requests per second:  31.7
-                              min       max      avg      std_dev  90%-ile                   Swift TX ID for worst latency
-         First-byte latency:  0.009 -   0.051    0.021  (  0.008)    0.032  (all obj sizes)  txb73b670e9e12433a87c263f6843afec7
-         Last-byte  latency:  0.009 -   0.064    0.024  (  0.009)    0.035  (all obj sizes)  tx09466e0009534f2fae0d7087904f7a69
-         First-byte latency:  0.009 -   0.051    0.021  (  0.008)    0.031  (    tiny objs)  txb73b670e9e12433a87c263f6843afec7
-         Last-byte  latency:  0.009 -   0.053    0.023  (  0.008)    0.032  (    tiny objs)  txb73b670e9e12433a87c263f6843afec7
-         First-byte latency:  0.011 -   0.043    0.025  (  0.009)    0.035  (   small objs)  tx474e44b8f8704c929d1e39fa59893401
-         Last-byte  latency:  0.016 -   0.064    0.036  (  0.014)    0.053  (   small objs)  tx09466e0009534f2fae0d7087904f7a69
-
+         Count:   207  Average requests per second:  16.1
+                              min       max      avg      std_dev  90%-ile                   Worst latency TX ID
+         First-byte latency:  0.006 -   0.059    0.018  (  0.010)    0.032  (all obj sizes)  tx1aaca8cc64c944088e87ee4a8046bd04
+         Last-byte  latency:  0.006 -   0.086    0.025  (  0.014)    0.044  (all obj sizes)  tx9ed06a526c054ef9970828faa62bb60b
+         First-byte latency:  0.006 -   0.059    0.018  (  0.010)    0.032  (    tiny objs)  tx1aaca8cc64c944088e87ee4a8046bd04
+         Last-byte  latency:  0.006 -   0.066    0.023  (  0.012)    0.041  (    tiny objs)  tx9541abbe77fe4633b367912c5446957d
+         First-byte latency:  0.006 -   0.035    0.016  (  0.008)    0.028  (   small objs)  tx2c0a585b9fda4a63be2ffaafe327fe8b
+         Last-byte  latency:  0.015 -   0.086    0.040  (  0.017)    0.061  (   small objs)  tx9ed06a526c054ef9970828faa62bb60b
+  
   UPDATE
-         Count:    90  Average requests per second:  15.2
-                              min       max      avg      std_dev  90%-ile                   Swift TX ID for worst latency
+         Count:   123  Average requests per second:   9.5
+                              min       max      avg      std_dev  90%-ile                   Worst latency TX ID
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (all obj sizes)
-         Last-byte  latency:  0.023 -   0.117    0.069  (  0.019)    0.089  (all obj sizes)  txb80150d4055e4406a7c373cf0969d7fd
+         Last-byte  latency:  0.039 -   0.259    0.119  (  0.062)    0.217  (all obj sizes)  txd0a4ed87775a4e7e980c0ca819da90ca
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (    tiny objs)
-         Last-byte  latency:  0.023 -   0.117    0.067  (  0.019)    0.089  (    tiny objs)  txb80150d4055e4406a7c373cf0969d7fd
+         Last-byte  latency:  0.039 -   0.259    0.117  (  0.062)    0.213  (    tiny objs)  txd0a4ed87775a4e7e980c0ca819da90ca
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (   small objs)
-         Last-byte  latency:  0.071 -   0.114    0.086  (  0.014)    0.114  (   small objs)  txb5dfc049939047c3ae973f7e94084e5b
-
+         Last-byte  latency:  0.072 -   0.239    0.134  (  0.063)    0.234  (   small objs)  tx46463f2296d64fc9a16c541592c7b2ea
+  
   DELETE
-         Count:    90  Average requests per second:  15.2
-                              min       max      avg      std_dev  90%-ile                   Swift TX ID for worst latency
-         First-byte latency:  0.016 -   0.065    0.036  (  0.010)    0.049  (all obj sizes)  txa174575811d04e3bbfffa3daba1e9b86
-         Last-byte  latency:  0.017 -   0.065    0.036  (  0.010)    0.049  (all obj sizes)  txa174575811d04e3bbfffa3daba1e9b86
-         First-byte latency:  0.018 -   0.065    0.035  (  0.010)    0.049  (    tiny objs)  txa174575811d04e3bbfffa3daba1e9b86
-         Last-byte  latency:  0.018 -   0.065    0.035  (  0.010)    0.049  (    tiny objs)  txa174575811d04e3bbfffa3daba1e9b86
-         First-byte latency:  0.016 -   0.052    0.037  (  0.011)    0.052  (   small objs)  tx1119d8ca1f5b47fe8f1bf7e0d833ef86
-         Last-byte  latency:  0.017 -   0.052    0.037  (  0.011)    0.052  (   small objs)  tx1119d8ca1f5b47fe8f1bf7e0d833ef86
-
-  INFO:root:Scenario run results saved to /tmp/ssbench-results/Small_test_scenario.2013-02-03.151437.stat
+         Count:   105  Average requests per second:   8.1
+                              min       max      avg      std_dev  90%-ile                   Worst latency TX ID
+         First-byte latency:  0.020 -   0.275    0.083  (  0.062)    0.176  (all obj sizes)  tx21f0a21d5b8743c481e8548210b3617d
+         Last-byte  latency:  0.020 -   0.276    0.083  (  0.062)    0.176  (all obj sizes)  tx21f0a21d5b8743c481e8548210b3617d
+         First-byte latency:  0.020 -   0.275    0.085  (  0.063)    0.181  (    tiny objs)  tx21f0a21d5b8743c481e8548210b3617d
+         Last-byte  latency:  0.020 -   0.276    0.085  (  0.063)    0.181  (    tiny objs)  tx21f0a21d5b8743c481e8548210b3617d
+         First-byte latency:  0.030 -   0.169    0.065  (  0.044)    0.149  (   small objs)  tx48b6768ca9894588b0bdb5e24dec51a2
+         Last-byte  latency:  0.030 -   0.169    0.065  (  0.044)    0.149  (   small objs)  tx48b6768ca9894588b0bdb5e24dec51a2
+  
+  INFO:root:Scenario run results saved to /tmp/ssbench-results/Small_test_scenario.2013-02-16.171956.stat
   INFO:root:You may generate a report with:
-    ssbench-master report-scenario -s /tmp/ssbench-results/Small_test_scenario.2013-02-03.151437.stat
+    ssbench-master report-scenario -s /tmp/ssbench-results/Small_test_scenario.2013-02-16.171956.stat
 
 
 The No-op Mode
