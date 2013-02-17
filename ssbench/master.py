@@ -223,14 +223,20 @@ class Master:
     def scenario_template(self):
         return """
 ${scenario.name}
-  C   R   U   D       Worker count: ${'%3d' % agg_stats['worker_count']}   Concurrency: ${'%3d' % scenario.user_count}
-%% ${'%02.0f  %02.0f  %02.0f  %02.0f' % (crud_pcts[0], crud_pcts[1], crud_pcts[2], crud_pcts[3])}      Ran ${start_time} to ${stop_time} (${'%.0f' % round(duration)}s)
+Worker count: ${'%3d' % agg_stats['worker_count']}   Concurrency: ${'%3d' % scenario.user_count}  Ran ${start_time} to ${stop_time} (${'%.0f' % round(duration)}s)
+
+%% Ops    C   R   U   D       Size Range       Size Name
+% for size_datum in size_data:
+${size_datum['pct_total_ops']}   % ${size_datum['crud_pcts']}      ${size_datum['size_range']}  ${size_datum['size_name']}
+% endfor
+---------------------------------------------------------------------
+        ${'%3.0f' % weighted_c} ${'%3.0f' % weighted_r} ${'%3.0f' % weighted_u} ${'%3.0f' % weighted_d}      CRUD weighted average
 
 % for label, stats, sstats in stat_list:
 % if stats['req_count']:
 ${label}
        Count: ${'%5d' % stats['req_count']}  Average requests per second: ${'%5.1f' % stats['avg_req_per_sec']}
-                            min       max      avg      std_dev  ${'%02d' % nth_pctile}%-ile  ${'%15s' % ''}  Swift TX ID for worst latency
+                            min       max      avg      std_dev  ${'%02d' % nth_pctile}%-ile  ${'%15s' % ''}  Worst latency TX ID
        First-byte latency: ${stats['first_byte_latency']['min']} - ${stats['first_byte_latency']['max']}  ${stats['first_byte_latency']['avg']}  (${stats['first_byte_latency']['std_dev']})  ${stats['first_byte_latency']['pctile']}  (all obj sizes)  ${stats['worst_first_byte_latency'][1] if 'worst_first_byte_latency' in stats else ''}
        Last-byte  latency: ${stats['last_byte_latency']['min']} - ${stats['last_byte_latency']['max']}  ${stats['last_byte_latency']['avg']}  (${stats['last_byte_latency']['std_dev']})  ${stats['last_byte_latency']['pctile']}  (all obj sizes)  ${stats['worst_last_byte_latency'][1] if 'worst_last_byte_latency' in stats else ''}
 % for size_str, per_size_stats in sstats.iteritems():
@@ -254,7 +260,7 @@ ${label}
 
         template = Template(self.scenario_template())
         tmpl_vars = {
-            'crud_pcts': scenario.crud_pcts,
+            'size_data': [],
             'stat_list': [
                 ('TOTAL', stats['agg_stats'], stats['size_stats']),
                 ('CREATE', stats['op_stats'][ssbench.CREATE_OBJECT],
@@ -275,8 +281,43 @@ ${label}
                 stats['time_series']['stop']).strftime(REPORT_TIME_FORMAT),
             'duration': stats['time_series']['stop']
             - stats['time_series']['start_time'],
+            'weighted_c': 0.0,
+            'weighted_r': 0.0,
+            'weighted_u': 0.0,
+            'weighted_d': 0.0,
         }
+        for size_data in scenario.sizes_by_name.values():
+            if size_data['size_min'] == size_data['size_max']:
+                size_range = '%-15s' % (
+                    self._format_bytes(size_data['size_min']),)
+            else:
+                size_range = '%s - %s' % (
+                    self._format_bytes(size_data['size_min']),
+                    self._format_bytes(size_data['size_max']))
+            initial_files = scenario._scenario_data['initial_files']
+            initial_total = sum(initial_files.values())
+            pct_total = (initial_files.get(size_data['name'], 0)
+                         / float(initial_total) * 100.0)
+            tmpl_vars['size_data'].append({
+                'crud_pcts': '  '.join(map(lambda p: '%2.0f' % p,
+                                           size_data['crud_pcts'])),
+                'size_range': size_range,
+                'size_name': size_data['name'],
+                'pct_total_ops': '%3.0f%%' % pct_total,
+            })
+            tmpl_vars['weighted_c'] += pct_total * size_data['crud_pcts'][0] / 100.0
+            tmpl_vars['weighted_r'] += pct_total * size_data['crud_pcts'][1] / 100.0
+            tmpl_vars['weighted_u'] += pct_total * size_data['crud_pcts'][2] / 100.0
+            tmpl_vars['weighted_d'] += pct_total * size_data['crud_pcts'][3] / 100.0
         return template.render(scenario=scenario, stats=stats, **tmpl_vars)
+
+    def _format_bytes(self, byte_count):
+        units = [' B', 'kB', 'MB', 'GB']
+        i = 0
+        while round(byte_count / 1000.0, 3) >= 1.0:
+            byte_count = byte_count / 1000.0
+            i += 1
+        return '%3.0f %s' % (round(byte_count), units[i])
 
     def calculate_scenario_stats(self, scenario, results, nth_pctile=95):
         """Given a list of worker job result dicts, compute various statistics.

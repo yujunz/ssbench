@@ -38,6 +38,7 @@ class ScenarioFixture(object):
                     dict(name='small', size_min=199, size_max=200,
                          crud_profile=[73, 12, 5, 10]),
                     dict(name='medium', size_min=299, size_max=300),
+                    dict(name='red herring', size_min=9999, size_max=9999),
                     dict(name='large', size_min=399, size_max=400,
                          crud_profile=[13, 17, 19, 51])],
                 initial_files=dict(

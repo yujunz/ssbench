@@ -38,12 +38,15 @@ class TestMaster(ScenarioFixture, TestCase):
             name='Master Test Scenario - ablkei',
             sizes=[
                 dict(name='tiny', size_min=99, size_max=100),
-                dict(name='small', size_min=199, size_max=200),
-                dict(name='medium', size_min=299, size_max=300),
-                dict(name='large', size_min=399, size_max=400),
-                dict(name='huge', size_min=499, size_max=500)],
+                dict(name='small', size_min=1990, size_max=1990,
+                     crud_profile=[71, 9, 12, 8]),
+                dict(name='medium', size_min=2990, size_max=3000),
+                dict(name='unused', size_min=9876543, size_max=9876543),
+                dict(name='large', size_min=399000, size_max=400000,
+                     crud_profile=[16, 61, 7, 16]),
+                dict(name='huge', size_min=49900000, size_max=71499999)],
             initial_files=dict(
-                tiny=300, small=300, medium=300, large=100, huge=70,
+                tiny=300, small=400, medium=500, large=200, huge=70,
             ),
             operation_count=5000,
             #             C  R  U  D
@@ -113,6 +116,51 @@ class TestMaster(ScenarioFixture, TestCase):
             'trans_id': 'txID%03d' % self.result_index,
             'completed_at': last_byte,
         }
+
+    def test_format_bytes(self):
+        input_expected = [
+            (0, '  0  B'),
+            (7, '  7  B'),
+            (17, ' 17  B'),
+            (117, '117  B'),
+            (999, '999  B'),
+            (1000, '  1 kB'),
+            (1001, '  1 kB'),
+            (1100, '  1 kB'),
+            (1500, '  2 kB'),
+            (1999, '  2 kB'),
+            (2000, '  2 kB'),
+            (7500, '  8 kB'),
+            (7900, '  8 kB'),
+            (9999, ' 10 kB'),
+            (10000, ' 10 kB'),
+            (19999, ' 20 kB'),
+            (20000, ' 20 kB'),
+            (84999, ' 85 kB'),
+            (85000, ' 85 kB'),
+            (99999, '100 kB'),
+            (100000, '100 kB'),
+            (100001, '100 kB'),
+            (700500, '701 kB'),
+            (999999, '  1 MB'),
+            (1000000, '  1 MB'),
+            (1000001, '  1 MB'),
+            (4123456, '  4 MB'),
+            (4543210, '  5 MB'),
+            (99999999, '100 MB'),
+            (100000000, '100 MB'),
+            (9999999999, ' 10 GB'),
+            (10000000000, ' 10 GB'),
+            (99999999999, '100 GB'),
+            (100000000000, '100 GB'),
+            (234567890123, '235 GB'),
+        ]
+        for input_bytes, formatting in input_expected:
+            self.assertEqual(
+                formatting, self.master._format_bytes(input_bytes),
+                '_format_bytes(%d) = %s instead of %s' % (
+                    input_bytes, self.master._format_bytes(input_bytes),
+                    formatting))
 
     def test_calculate_scenario_stats_aggregate(self):
         first_byte_latency_all = [1, 0.1, 1.2, 0.2, 0.8, 0.1, 0.1,
@@ -719,12 +767,21 @@ class TestMaster(ScenarioFixture, TestCase):
                                                           nth_pctile=50)
         self.assertListEqual(u"""
 Master Test Scenario - ablkei
-  C   R   U   D       Worker count:   3   Concurrency:   2
-% 50  30  10  10      Ran 1970-01-01 00:01:39 UTC to 1970-01-01 00:01:46 UTC (7s)
+Worker count:   3   Concurrency:   2  Ran 1970-01-01 00:01:39 UTC to 1970-01-01 00:01:46 UTC (7s)
+
+% Ops    C   R   U   D       Size Range       Size Name
+ 20%   % 50  30  10  10       99  B - 100  B  tiny
+ 27%   % 71   9  12   8        2 kB           small
+ 34%   % 50  30  10  10        3 kB -   3 kB  medium
+  0%   % 50  30  10  10       10 MB           unused
+ 14%   % 16  61   7  16      399 kB - 400 kB  large
+  5%   % 50  30  10  10       50 MB -  71 MB  huge
+---------------------------------------------------------------------
+         51  29  10  10      CRUD weighted average
 
 TOTAL
        Count:    12  Average requests per second:   1.9
-                            min       max      avg      std_dev  50%-ile                   Swift TX ID for worst latency
+                            min       max      avg      std_dev  50%-ile                   Worst latency TX ID
        First-byte latency:  0.100 -   1.200    0.508  (  0.386)    0.400  (all obj sizes)  txID004
        Last-byte  latency:  0.200 -   3.000    1.158  (  0.970)    0.749  (all obj sizes)  txID002
        First-byte latency:  0.100 -   1.000    0.450  (  0.377)    0.350  (    tiny objs)  txID010
@@ -740,7 +797,7 @@ TOTAL
 
 CREATE
        Count:     3  Average requests per second:   0.5
-                            min       max      avg      std_dev  50%-ile                   Swift TX ID for worst latency
+                            min       max      avg      std_dev  50%-ile                   Worst latency TX ID
        First-byte latency:  0.100 -   1.200    0.767  (  0.478)    1.000  (all obj sizes)  txID004
        Last-byte  latency:  0.200 -   3.000    1.800  (  1.178)    2.200  (all obj sizes)  txID002
        First-byte latency:  0.100 -   0.100    0.100  (  0.000)    0.100  (    tiny objs)  txID008
@@ -752,7 +809,7 @@ CREATE
 
 READ
        Count:     4  Average requests per second:   1.0
-                            min       max      avg      std_dev  50%-ile                   Swift TX ID for worst latency
+                            min       max      avg      std_dev  50%-ile                   Worst latency TX ID
        First-byte latency:  0.100 -   1.000    0.400  (  0.354)    0.250  (all obj sizes)  txID010
        Last-byte  latency:  0.400 -   1.800    0.875  (  0.554)    0.650  (all obj sizes)  txID010
        First-byte latency:  0.100 -   1.000    0.550  (  0.450)    0.550  (    tiny objs)  txID010
@@ -764,7 +821,7 @@ READ
 
 UPDATE
        Count:     3  Average requests per second:   0.5
-                            min       max      avg      std_dev  50%-ile                   Swift TX ID for worst latency
+                            min       max      avg      std_dev  50%-ile                   Worst latency TX ID
        First-byte latency:  0.200 -   0.800    0.533  (  0.249)    0.600  (all obj sizes)  txID006
        Last-byte  latency:  0.300 -   2.800    1.266  (  1.097)    0.699  (all obj sizes)  txID006
        First-byte latency:  0.600 -   0.600    0.600  (  0.000)    0.600  (    tiny objs)  txID013
@@ -776,7 +833,7 @@ UPDATE
 
 DELETE
        Count:     2  Average requests per second:   2.0
-                            min       max      avg      std_dev  50%-ile                   Swift TX ID for worst latency
+                            min       max      avg      std_dev  50%-ile                   Worst latency TX ID
        First-byte latency:  0.100 -   0.500    0.300  (  0.200)    0.300  (all obj sizes)  txID011
        Last-byte  latency:  0.400 -   0.800    0.600  (  0.200)    0.600  (all obj sizes)  txID011
        First-byte latency:  0.500 -   0.500    0.500  (  0.000)    0.500  (   small objs)  txID011

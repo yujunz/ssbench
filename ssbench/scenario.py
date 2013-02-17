@@ -70,23 +70,28 @@ class Scenario(object):
 
         # Set up sizes
         self.sizes_by_name = OrderedDict()
-        self.crud_thresholds_by_size = OrderedDict()
         for size_data in self._scenario_data['sizes']:
-            self.sizes_by_name[size_data['name']] = size_data
+            size_data_copy = copy.deepcopy(size_data)
+            self.sizes_by_name[size_data_copy['name']] = size_data_copy
+            crud_profile = size_data_copy.get(
+                'crud_profile', self._scenario_data['crud_profile'])
+            crud_total = sum(crud_profile)
+            size_data_copy['crud_pcts'] = [
+                float(c) / crud_total * 100 for c in crud_profile]
             # Calculate probability thresholds for each CRUD element for this
             # object size category (defaulting to global crud profile).
-            self.crud_thresholds_by_size[size_data['name']] = [1, 1, 1, 1]
-            self._thresholds_for(
-                self.crud_thresholds_by_size[size_data['name']],
-                range(4), size_data.get('crud_profile',
-                                        self._scenario_data['crud_profile']))
+            size_data_copy['crud_thresholds'] = [1, 1, 1, 1]
+            self._thresholds_for(size_data_copy['crud_thresholds'],
+                                 range(4), crud_profile)
 
         # Calculate probability thresholds for each size (from the
         # initial_files)
         self.bench_size_thresholds = OrderedDict()
-        self._thresholds_for(self.bench_size_thresholds,
-                             self.sizes_by_name.keys(),
-                             self._scenario_data['initial_files'])
+        self._thresholds_for(
+            self.bench_size_thresholds,
+            filter(lambda n: n in self._scenario_data['initial_files'],
+                   self.sizes_by_name.keys()),
+            self._scenario_data['initial_files'])
 
     @property
     def crud_pcts(self):
@@ -156,7 +161,9 @@ class Scenario(object):
         yielded = True
         while yielded:
             yielded = False
-            for size_str in self.sizes_by_name.iterkeys():
+            for size_str in filter(
+                    lambda n: n in self._scenario_data['initial_files'],
+                    self.sizes_by_name.keys()):
                 if count_by_size[size_str]:
                     yield self.create_job(size_str, index_per_size[size_str])
                     count_by_size[size_str] -= 1
@@ -179,7 +186,7 @@ class Scenario(object):
                     this_size_str = size_str
                     break
             # Determine which C/R/U/D type this job will be
-            size_crud = self.crud_thresholds_by_size[this_size_str]
+            size_crud = self.sizes_by_name[this_size_str]['crud_thresholds']
             r = random.random()  # uniform on [0, 1)
             for crud_index, prob in enumerate(size_crud):
                 if r < prob:
