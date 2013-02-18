@@ -28,24 +28,9 @@ from urlparse import urlparse, urlunparse
 from time import time
 import logging
 
-try:
-    from eventlet.green.httplib import HTTPException, HTTPSConnection
-except ImportError:
-    from httplib import HTTPException, HTTPSConnection
-
-try:
-    from eventlet import sleep
-except ImportError:
-    from time import sleep
-
-# try:
-#    from swift.common.bufferedhttp \
-#        import BufferedHTTPConnection as HTTPConnection
-# except ImportError:
-try:
-    from eventlet.green.httplib import HTTPConnection
-except ImportError:
-    from httplib import HTTPConnection
+from httplib import HTTPException
+from geventhttpclient.httplib import HTTPConnection, HTTPSConnection
+from gevent import sleep
 
 
 def quote(value, safe='/'):

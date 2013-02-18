@@ -54,7 +54,7 @@ defining a benchmark run.  Specifically, it defines:
 - A ``user_count`` which determines the maxiumum client concurrency during the
   benchmark run.  The user is responsible for ensuring there are enough workers
   running to support the scenario's defined ``user_count``.  (Each
-  ``ssbench-worker`` process uses eventlet_ to achive very efficeint
+  ``ssbench-worker`` process uses gevent_ to achive very efficeint
   concurrency for the benchmark client requests.)  This value may be overridden
   for any given run with the ``-u COUNT`` flag to ``ssbench-master
   run-scenario``.
@@ -78,7 +78,7 @@ of the benchmark run will be a weighted average between the values in the "%
 Ops" column and the CRUD profile of each size category.  This weighted average
 CRUD profile is included in the report on the "CRUD weighted average" line.
 
-.. _eventlet: http://eventlet.net/
+.. _gevent: http://www.gevent.org/
 
 ``ssbench`` comes with a few canned scenarios, but users are encouraged to
 experiment and define their own.
@@ -111,11 +111,27 @@ commas, in particular.
 Installation
 ------------
 
-You may install this module (``ssbench``) and its dependencies via pip.
-You will also need Beanstalkd_ installed and running and an
-`OpenStack Swift`_ cluster to benchmark.
+``ssbench`` has been developed for and tested with Python 2.7 (Python 2.6 might
+work if the ``argparse`` module is installed, but I haven't tested that.)
+
+You will first need to install `libevent`_ and Beanstalkd_.  On Ubuntu, the
+packages are ``libevent-dev`` and ``beanstalkd``.  On the Mac, they may both be
+installed with Homebrew_.  I have not tested ``ssbench`` against
+gevent v1.x, but according to a dated `blog post`_, gevent v1.x will
+bundle `libev`_ and not require the installation of `libevent`_ or
+`libev_`.  If you try ``ssbench`` with gevent 1.x, please let me know how that
+goes...
+
+You may install this module (``ssbench``) and its Python module dependencies
+via pip.
+
+You will also need an `OpenStack Swift`_ cluster to benchmark.
 
 .. _`OpenStack Swift`: http://docs.openstack.org/developer/swift/
+.. _`libevent`: http://libevent.org/
+.. _`blog post`: http://blog.gevent.org/2011/04/28/libev-and-libevent/
+.. _`libev`: http://software.schmorp.de/pkg/libev.html
+.. _`Homebrew`: http://mxcl.github.com/homebrew/
 
 Usage
 -----
@@ -149,8 +165,7 @@ Basic usage of ``ssbench-master`` (requires one sub-command of
 ``run-scenario`` to actually run a benchmark scenario, or
 ``report-scenario`` to report on an existing scenario result data file::
 
-  usage: ssbench-master [-h] [--qhost QHOST] [--qport QPORT] [-v]
-                        {run-scenario,report-scenario} ...
+  usage: ssbench-master [-h] [-v] {run-scenario,report-scenario} ...
 
   Benchmark your Swift installation
 
@@ -163,23 +178,24 @@ Basic usage of ``ssbench-master`` (requires one sub-command of
 
   optional arguments:
     -h, --help            show this help message and exit
-    --qhost QHOST         beanstalkd host (default: localhost)
-    --qport QPORT         beanstalkd port (default: 11300)
     -v, --verbose         Enable more verbose output. (default: False)
 
 The ``run-scenario`` sub-command of ``ssbench-master`` which actually
 runs a benchmark scenario::
 
   $ ssbench-master run-scenario -h
-  usage: ssbench-master run-scenario [-h] -f SCENARIO_FILE [-A AUTH_URL]
-                                     [-U USER] [-K KEY] [-S STORAGE_URL]
-                                     [-T TOKEN] [-c COUNT] [-u COUNT] [-o COUNT]
-                                     [-q] [--profile] [--noop] [-s STATS_FILE]
-                                     [-r] [--pctile PERCENTILE]
+  usage: ssbench-master run-scenario [-h] -f SCENARIO_FILE [--qhost QHOST]
+                                     [--qport QPORT] [-A AUTH_URL] [-U USER]
+                                     [-K KEY] [-S STORAGE_URL] [-T TOKEN]
+                                     [-c COUNT] [-u COUNT] [-o COUNT] [-q]
+                                     [--profile] [--noop] [-s STATS_FILE] [-r]
+                                     [--pctile PERCENTILE]
 
   optional arguments:
     -h, --help            show this help message and exit
     -f SCENARIO_FILE, --scenario-file SCENARIO_FILE
+    --qhost QHOST         beanstalkd host (default: localhost)
+    --qport QPORT         beanstalkd port (default: 11300)
     -A AUTH_URL, --auth-url AUTH_URL
                           Auth URL for the Swift cluster under test. (default:
                           http://192.168.22.100/auth/v1.0)
@@ -243,14 +259,16 @@ previously-run benchmark scenario::
 Example Run
 -----------
 
-First make sure ``beanstalkd`` is running.  Note that you may need to ensure
-its maximum file descriptor limit is raised, which may require root
-privileges::
+First make sure ``beanstalkd`` is running.  Each greenthread in
+``ssbench-worker`` used to have its own connection to ``beanstalkd`` which
+meant the maximum file descriptor limit for ``beanstalkd`` would probably need
+to be raised.  However, now there is just one connection for ``ssbench-master``
+and two connections per ``ssbench-worker`` process.::
 
-  $ sudo bash -c 'ulimit -n 8096; beanstalkd -l 127.0.0.1 &'
+  $ beanstalkd -l 127.0.0.1 &
 
 Then, start one or more ``ssbench-worker`` processes (each ``ssbench-worker``
-process defaults to a maximum eventlet-based concurrency of 256, but the
+process defaults to a maximum gevent-based concurrency of 256, but the
 ``-c`` option can override that default)::
 
   $ ssbench-worker 1 &
