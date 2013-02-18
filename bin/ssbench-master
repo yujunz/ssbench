@@ -22,10 +22,6 @@ import logging
 import argparse
 import cPickle as pickle
 from datetime import datetime
-
-import eventlet
-beanstalkc = eventlet.import_patched('beanstalkc')
-
 from collections import Counter
 from ssbench.master import Master
 from ssbench.scenario import Scenario, ScenarioNoop
@@ -107,10 +103,6 @@ if __name__ == "__main__":
     arg_parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description='Benchmark your Swift installation')
-    arg_parser.add_argument('--qhost', default="localhost",
-                            help='beanstalkd host')
-    arg_parser.add_argument('--qport', default=11300, type=int,
-                            help='beanstalkd port')
     arg_parser.add_argument('-v', '--verbose', action='store_true',
                             default=False, help='Enable more verbose output.')
 
@@ -126,6 +118,10 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     run_scenario_arg_parser.add_argument(
         '-f', '--scenario-file', required=True, type=str)
+    run_scenario_arg_parser.add_argument(
+        '--qhost', default="localhost", help='beanstalkd host')
+    run_scenario_arg_parser.add_argument(
+        '--qport', default=11300, type=int, help='beanstalkd port')
     run_scenario_arg_parser.add_argument(
         '-A', '--auth-url', default=os.environ.get('ST_AUTH', None),
         help='Auth URL for the Swift cluster under test.')
@@ -224,7 +220,8 @@ if __name__ == "__main__":
         log_level = logging.INFO
     logging.basicConfig(level=log_level)
 
-    beanq = beanstalkc.Connection(host=args.qhost, port=args.qport)
-    master = Master(beanq, quiet=args.func == run_scenario and args.quiet)
+    master = Master(getattr(args, 'qhost', None),
+                    getattr(args, 'qport', None),
+                    quiet=args.func == run_scenario and args.quiet)
 
     args.func(master, args)

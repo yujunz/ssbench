@@ -13,19 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import gevent
+import gevent.pool
+import gevent.monkey
+gevent.monkey.patch_socket()
+gevent.monkey.patch_time()
+
 import os
 import sys
 import math
 import logging
 import msgpack
+import beanstalkc
 import statlib.stats
 from datetime import datetime
 from mako.template import Template
 from collections import OrderedDict
-
-import eventlet
-import eventlet.pools
-from eventlet.green.httplib import CannotSendRequest
 
 import ssbench
 import ssbench.swift_client as client
@@ -56,10 +59,11 @@ def _gen_cleanup_job(object_info):
 
 
 class Master:
-    def __init__(self, queue, quiet=False):
-        queue.watch(ssbench.STATS_TUBE)
-        queue.ignore('default')
-        self.queue = queue
+    def __init__(self, bean_host=None, bean_port=11300, quiet=False):
+        if bean_host is not None:
+            self.queue = beanstalkc.Connection(host=bean_host, port=bean_port)
+            self.queue.watch(ssbench.STATS_TUBE)
+            self.queue.ignore('default')
         self.quiet = quiet
 
     def process_result_to(self, job, processor, label=''):
@@ -116,6 +120,7 @@ class Master:
             job['storage_url'] = storage_url
             job['token'] = token
 
+            logging.debug('active: %d\tconcurrency: %d', active, concurrency)
             if active >= concurrency:
                 result_job = self.queue.reserve()
                 self.process_result_to(result_job, result_processor,
@@ -147,6 +152,7 @@ class Master:
 
         run_state = RunState()
 
+        logging.debug(' (draining stats queue)')
         self.drain_stats_queue()
         if not storage_url or not token:
             logging.debug('Authenticating to %s with %s/%s', auth_url, user,
@@ -163,10 +169,10 @@ class Master:
                          'concurrency=%d...',
                          len(scenario.containers), scenario.container_base,
                          scenario.container_concurrency)
-            pool = eventlet.GreenPool(scenario.container_concurrency)
+            pool = gevent.pool.Pool(scenario.container_concurrency)
             for container in scenario.containers:
-                pool.spawn_n(_container_creator, storage_url, token, container)
-            pool.waitall()
+                pool.spawn(_container_creator, storage_url, token, container)
+            pool.join()
 
         self.queue.use(ssbench.WORK_TUBE)
 

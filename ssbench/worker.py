@@ -16,26 +16,35 @@
 #
 # Portions of this file copied from swift/common/bench.py
 
+import gevent
+import gevent.pool
+import gevent.queue
+import gevent.local
+import gevent.monkey
+gevent.monkey.patch_socket()
+gevent.monkey.patch_time()
+
 import os
 import re
-import random
 import time
+import random
+import socket
 import msgpack
+import logging
 import resource
 import traceback
+import beanstalkc
+from httplib import CannotSendRequest
 from functools import partial
 from contextlib import contextmanager
-import logging
-
-import eventlet
-import eventlet.pools
-from eventlet.green.httplib import CannotSendRequest
-socket = eventlet.import_patched('socket')
-beanstalkc = eventlet.import_patched('beanstalkc')
 
 import ssbench
 import ssbench.swift_client as client
 
+
+BLOCK_SIZE = 2 ** 16  # 65536
+CONNECTION_TIMEOUT = 10.0
+NETWORK_TIMEOUT = 30.0
 
 def add_dicts(*args, **kwargs):
     """
@@ -48,15 +57,6 @@ def add_dicts(*args, **kwargs):
         result.update(d)
     result.update(kwargs)
     return result
-
-
-class ConnectionPool(eventlet.pools.Pool):
-    def __init__(self, storage_url, size):
-        self.storage_url = storage_url
-        eventlet.pools.Pool.__init__(self, size, size)
-
-    def create(self):
-        return client.http_connection(self.storage_url)
 
 
 class ChunkedReader(object):
@@ -75,61 +75,61 @@ class ChunkedReader(object):
         return self.chunk[:chunk_size]
 
 
+@contextmanager
+def gevent_connection(storage_url):
+    local_data = gevent.local.local()
+    try:
+        if storage_url not in local_data.__dict__:
+            local_data.__dict__[storage_url] = \
+                client.http_connection(storage_url)
+        try:
+            yield local_data.__dict__[storage_url]
+        except CannotSendRequest:
+            logging.info("@connection hit CannotSendRequest...")
+            try:
+                local_data.__dict__[storage_url].close()
+            except Exception:
+                pass
+            del local_data[storage_url]
+    except Exception as e:
+        try:
+            local_data.__dict__[storage_url].close()
+        except Exception:
+            pass
+        del local_data[storage_url]
+        raise e
+
+
 class Worker:
-    def __init__(self, queue_host, queue_port, worker_id, max_retries,
+    def __init__(self, beanstalk_host, beanstalk_port, worker_id, max_retries,
                  profile_count=0, concurrency=256):
-        self.queue_host = queue_host
-        self.queue_port = queue_port
+        self.beanstalk_host = beanstalk_host
+        self.beanstalk_port = beanstalk_port
         self.worker_id = worker_id
         self.max_retries = max_retries
         self.profile_count = profile_count
         soft_nofile, hard_nofile = resource.getrlimit(resource.RLIMIT_NOFILE)
         resource.setrlimit(resource.RLIMIT_NOFILE, (1024, hard_nofile))
         self.concurrency = concurrency
+        self.http_clients = {}
 
         # Only one greenthread will be pulling out work...
-        self.work_queue = beanstalkc.Connection(host=queue_host,
-                                                port=queue_port)
-        self.work_queue.watch(ssbench.WORK_TUBE)
+        self.beanstalk_work = beanstalkc.Connection(host=beanstalk_host,
+                                                    port=beanstalk_port)
+        self.beanstalk_work.watch(ssbench.WORK_TUBE)
 
-        # This greenpool is for sending results
-        self.result_queue_pool = eventlet.pools.Pool(
-            self.concurrency, self.concurrency,
-            create=self.create_result_queue)
+        # And only one greenthread will be sending back results...
+        self.beanstalk_result = beanstalkc.Connection(
+            host=beanstalk_host, port=beanstalk_port)
+        self.beanstalk_result.use(ssbench.STATS_TUBE)
 
-        # The connection pool is lazily-created when the first work job comes
-        # in which will have the storage_url in it.
-        self.conn_pool = None
-
-    def create_result_queue(self):
-        queue = beanstalkc.Connection(host=self.queue_host,
-                                      port=self.queue_port)
-        queue.use(ssbench.STATS_TUBE)
-        return queue
-
-    def create_conn_pool(self, storage_url):
-        self.conn_pool = ConnectionPool(storage_url, self.concurrency)
-
-    @contextmanager
-    def connection(self):
-        try:
-            hc = self.conn_pool.get()
-            try:
-                yield hc
-            except CannotSendRequest:
-                logging.info("@connection hit CannotSendRequest...")
-                try:
-                    hc.close()
-                except Exception:
-                    pass
-                hc = self.conn_pool.create()
-        finally:
-            self.conn_pool.put(hc)
+        self.result_queue = gevent.queue.Queue()
 
     def go(self):
         logging.debug('Worker %s starting...', self.worker_id)
-        pool = eventlet.GreenPool(self.concurrency)
-        job = self.work_queue.reserve()
+        gevent.spawn(self._result_writer)
+        pool = gevent.pool.Pool(self.concurrency)
+        job = self.beanstalk_work.reserve()
         if self.profile_count:
             import cProfile
             prof = cProfile.Profile()
@@ -138,19 +138,22 @@ class Worker:
         while job:
             job.delete()  # avoid any job-timeout nonsense
             job_data = msgpack.loads(job.body)
-            if self.conn_pool is None:
-                self.create_conn_pool(job_data['storage_url'])
             logging.debug('WORK: %13s %s/%-17s',
                           job_data['type'], job_data['container'],
                           job_data['name'])
-            pool.spawn_n(self.handle_job, job_data)
+            pool.spawn(self.handle_job, job_data)
             if self.profile_count and gotten == self.profile_count:
                 prof.disable()
                 prof_output_path = '/tmp/worker_go.%d.prof' % os.getpid()
                 prof.dump_stats(prof_output_path)
                 logging.info('PROFILED worker go() to %s', prof_output_path)
-            job = self.work_queue.reserve()
+            job = self.beanstalk_work.reserve()
             gotten += 1
+
+    def _result_writer(self):
+        while True:
+            result = self.result_queue.get()
+            self.beanstalk_result.put(result)
 
     def handle_job(self, job_data):
         # Dispatch type to a handler, if possible
@@ -184,7 +187,7 @@ class Worker:
         while True:
             try:
                 fn_results = None
-                with self.connection() as conn:
+                with gevent_connection(call_info['storage_url']) as conn:
                     fn_results = fn(http_conn=conn, **args)
                 if fn_results:
                     break
@@ -222,10 +225,9 @@ class Worker:
                    add_dicts())
         :returns: (nothing)
         """
-        with self.result_queue_pool.item() as queue:
-            return queue.put(
-                msgpack.dumps(add_dicts(*args, completed_at=time.time(),
-                                        worker_id=self.worker_id, **kwargs)))
+        self.result_queue.put(
+            msgpack.dumps(add_dicts(*args, completed_at=time.time(),
+                                    worker_id=self.worker_id, **kwargs)))
 
     def _put_results_from_response(self, object_info, resp_headers):
         self.put_results(

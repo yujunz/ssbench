@@ -1,4 +1,5 @@
-eventlet
+gevent
+geventhttpclient
 msgpack-python
 beanstalkc
 Mako
