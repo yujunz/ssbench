@@ -430,6 +430,7 @@ ${label}
                 logging.warn('calculate_scenario_stats: exception from '
                              'worker %d: %s',
                              result['worker_id'], result['exception'])
+                logging.debug(result['traceback'])
                 continue
             completion_time = int(result['completed_at'])
             if completion_time < completion_time_min:

@@ -22,6 +22,7 @@ import random
 import time
 import msgpack
 import resource
+import traceback
 from functools import partial
 from contextlib import contextmanager
 import logging
@@ -62,7 +63,8 @@ class ChunkedReader(object):
     def __init__(self, letter, size):
         self.size = size
         self.letter = letter
-        self.bytes_left = int(size)  # in case it's a float
+        chunk_size = 2 ** 21
+        self.chunk = letter * chunk_size
 
     def __eq__(self, other_reader):
         if isinstance(other_reader, ChunkedReader):
@@ -70,12 +72,7 @@ class ChunkedReader(object):
                 self.letter == other_reader.letter
 
     def read(self, chunk_size):
-        if self.bytes_left == 0:
-            return None
-        elif self.bytes_left < chunk_size:
-            chunk_size = self.bytes_left
-        self.bytes_left -= chunk_size
-        return self.letter * chunk_size
+        return self.chunk[:chunk_size]
 
 
 class Worker:
@@ -168,7 +165,9 @@ class Worker:
                 # If the handler threw an exception, we need to put a "result"
                 # anyway so the master can finish by reading the requisite
                 # number of results without having to timeout.
-                self.put_results(job_data, exception=repr(e))
+                self.put_results(job_data,
+                                 exception=repr(e),
+                                 traceback=traceback.format_exc())
         else:
             raise NameError("Unknown job type %r" % job_data['type'])
 
@@ -209,6 +208,7 @@ class Worker:
                     logging.debug("Retrying an error: %r", error)
                 else:
                     raise
+        logging.debug('fn_results: %r', fn_results)
         return fn_results
 
     def put_results(self, *args, **kwargs):
@@ -244,6 +244,7 @@ class Worker:
             trans_id=None)
 
     def handle_upload_object(self, object_info, letter='A'):
+        object_info['size'] = int(object_info['size'])
         headers = self.ignoring_http_responses(
             (503,), client.put_object, object_info,
             content_length=object_info['size'],
