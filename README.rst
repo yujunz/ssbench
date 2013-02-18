@@ -19,6 +19,51 @@ client servers while still coordinating the entire run.
 
 .. _Beanstalkd: http://kr.github.com/beanstalkd/
 
+Installation
+------------
+
+``ssbench`` has been developed for and tested with Python 2.7 (Python 2.6 might
+work if the ``argparse`` module is installed, but I haven't tested that.)
+
+You will first need to make sure Python native extension building works and
+install `libevent`_ and `Beanstalkd`_.
+
+On Ubuntu::
+
+  $ sudo apt-get install -y python-dev libevent-dev beanstalkd
+
+On CentOS 6.3, here are some starter instructions.  Because CentOS' system
+Python is still 2.6, this won't actually work until ``ssbench`` is made
+compatible with Python 2.6 (for starters, ``logging.captureWarnings`` isn't
+present in 2.6, apparently).::
+
+  $ sudo rpm -Uvh http://mirror.pnl.gov/epel/6/i386/epel-release-6-8.noarch.rpm
+  $ sudo yum install -y gcc python-setuptools python-devel libevent-devel beanstalkd
+  $ sudo easy_install pip
+  $ sudo pip install argparse
+  $ sudo pip install ssbench
+  (Note that at this point you'll be using Python 2.6 which may not work.)
+
+On the Mac, Python 2.7, `libevent`_, and `Beanstalkd`_ may all be installed
+with Homebrew_.
+
+I have not tested ``ssbench`` against
+gevent v1.x, but according to an old `blog post`_, gevent v1.x will
+bundle `libev`_ and not require the installation of `libevent`_ or
+`libev_`.  If you try ``ssbench`` with gevent 1.x, please let me know how that
+goes...
+
+Once the above system dependencies have been satisfied, you may install
+this module (``ssbench``) and its Python module dependencies via pip.
+
+You will also need an `OpenStack Swift`_ cluster to benchmark.
+
+.. _`OpenStack Swift`: http://docs.openstack.org/developer/swift/
+.. _`libevent`: http://libevent.org/
+.. _`blog post`: http://blog.gevent.org/2011/04/28/libev-and-libevent/
+.. _`libev`: http://software.schmorp.de/pkg/libev.html
+.. _`Homebrew`: http://mxcl.github.com/homebrew/
+
 Scenarios
 ---------
 
@@ -107,31 +152,6 @@ Here is an example JSON scenario file::
 
 **Beware:** hand-editing JSON is error-prone.  Watch out for trailing
 commas, in particular.
-
-Installation
-------------
-
-``ssbench`` has been developed for and tested with Python 2.7 (Python 2.6 might
-work if the ``argparse`` module is installed, but I haven't tested that.)
-
-You will first need to install `libevent`_ and Beanstalkd_.  On Ubuntu, the
-packages are ``libevent-dev`` and ``beanstalkd``.  On the Mac, they may both be
-installed with Homebrew_.  I have not tested ``ssbench`` against
-gevent v1.x, but according to a dated `blog post`_, gevent v1.x will
-bundle `libev`_ and not require the installation of `libevent`_ or
-`libev_`.  If you try ``ssbench`` with gevent 1.x, please let me know how that
-goes...
-
-You may install this module (``ssbench``) and its Python module dependencies
-via pip.
-
-You will also need an `OpenStack Swift`_ cluster to benchmark.
-
-.. _`OpenStack Swift`: http://docs.openstack.org/developer/swift/
-.. _`libevent`: http://libevent.org/
-.. _`blog post`: http://blog.gevent.org/2011/04/28/libev-and-libevent/
-.. _`libev`: http://software.schmorp.de/pkg/libev.html
-.. _`Homebrew`: http://mxcl.github.com/homebrew/
 
 Usage
 -----

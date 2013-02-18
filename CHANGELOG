@@ -1,3 +1,7 @@
+ssbench (0.1.1)
+
+    * Fixed up README installation instructions.
+
 ssbench (0.1.0)
 
     * Fixed #23: Allow per-size CRUD profile in scenarios.
