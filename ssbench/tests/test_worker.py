@@ -20,6 +20,7 @@ from argparse import Namespace
 from collections import Counter
 from flexmock import flexmock
 from nose.tools import *
+import gevent.queue
 
 import ssbench
 from ssbench import worker
@@ -33,20 +34,24 @@ class TestWorker(object):
         self.qhost = 'some.host'
         self.qport = 8530
         self.max_retries = 9
-        self.concurrency = 256  # hard-coded in the code
+        self.concurrency = 256  # the default
         self.worker_id = 3
 
         self.mock_queue = flexmock()
         self.mock_connection = flexmock(beanstalkc.Connection)
         self.mock_connection.new_instances(self.mock_queue).with_args(
             beanstalkc.Connection, host=self.qhost, port=self.qport,
-        ).times(1 + self.concurrency)
-        # ^^--once for self.work_queue and <concurrecy> times by
-        # self.result_queue_pool(?)
+        ).times(1 + 1)
+        # ^^--once for self.work_queue and once for the result-writer
+        # greenthread's connection.
         self.mock_queue.should_receive('watch').with_args(
             ssbench.WORK_TUBE).once
         self.mock_queue.should_receive('use').with_args(
-            ssbench.STATS_TUBE).times(self.concurrency)
+            ssbench.STATS_TUBE).once
+
+        self.result_queue = flexmock()
+        self.mock_Queue = flexmock(gevent.queue.Queue)
+        self.mock_Queue.new_instances(self.result_queue).once
 
         self.worker = worker.Worker(self.qhost, self.qport, self.worker_id,
                                     self.max_retries)
@@ -77,7 +82,7 @@ class TestWorker(object):
             'x-trans-id': 'abcdef',
         }).once
         self.time_expectation.once
-        self.mock_queue.should_receive('put').with_args(
+        self.result_queue.should_receive('put').with_args(
             msgpack.dumps(worker.add_dicts(
                 object_info, worker_id=self.worker_id,
                 first_byte_latency=0.492393, last_byte_latency=8.23283,
@@ -100,7 +105,7 @@ class TestWorker(object):
             'x-swiftstack-last-byte-latency': 8.3273,
             'x-trans-id': '9bjkk',
         }).once
-        self.mock_queue.should_receive('put').with_args(
+        self.result_queue.should_receive('put').with_args(
             msgpack.dumps(worker.add_dicts(
                 object_info, worker_id=self.worker_id,
                 first_byte_latency=0.94932, last_byte_latency=8.3273,
@@ -126,7 +131,7 @@ class TestWorker(object):
             'x-swiftstack-last-byte-latency': 23.283,
             'x-trans-id': 'biejs',
         }).once
-        self.mock_queue.should_receive('put').with_args(
+        self.result_queue.should_receive('put').with_args(
             msgpack.dumps(worker.add_dicts(
                 object_info, worker_id=self.worker_id,
                 completed_at=self.stub_time, trans_id='biejs',
@@ -152,7 +157,7 @@ class TestWorker(object):
             'x-swiftstack-last-byte-latency': 9.99,
             'x-trans-id': 'bies',
         }, ['object_data'])).once
-        self.mock_queue.should_receive('put').with_args(
+        self.result_queue.should_receive('put').with_args(
             msgpack.dumps(worker.add_dicts(
                 object_info, worker_id=self.worker_id,
                 completed_at=self.stub_time, trans_id='bies',
@@ -166,36 +171,61 @@ class TestWorker(object):
         self.mock_worker.should_receive('handle_upload_object').with_args(info).and_raise(
             socket.error('slap happy')
         ).once
-        self.mock_queue.should_receive('put').with_args(
-            msgpack.dumps(worker.add_dicts(
-                info, worker_id=self.worker_id, completed_at=self.stub_time,
-                exception=repr(socket.error('slap happy')))),
-        ).once
+        got = []
+        self.result_queue.should_receive('put').replace_with(
+            lambda value: got.append(msgpack.loads(value))).once
+
         self.mock_worker.handle_job(info)
+        assert_equal(1, len(got), repr(got))
+        traceback = got[0].pop('traceback')
+        assert_true(traceback.startswith('Traceback'),
+                    'Traceback did not start with Traceback: %s' % traceback)
+        assert_equal(
+            worker.add_dicts(
+                info, worker_id=self.worker_id, completed_at=self.stub_time,
+                exception=repr(socket.error('slap happy'))),
+            got[0])
 
     def test_dispatching_client_exception(self):
         info = {'type': ssbench.READ_OBJECT, 'container': 'fun', 'a': 2}
         self.mock_worker.should_receive('handle_get_object').with_args(info).and_raise(
             client.ClientException('slam bam')
         ).once
-        self.mock_queue.should_receive('put').with_args(
-            msgpack.dumps(worker.add_dicts(
-                info, worker_id=self.worker_id, completed_at=self.stub_time,
-                exception=repr(client.ClientException('slam bam')))),
-        ).once
+        got = []
+        self.result_queue.should_receive('put').replace_with(
+            lambda value: got.append(msgpack.loads(value))).once
+
         self.mock_worker.handle_job(info)
+        assert_equal(1, len(got), repr(got))
+        traceback = got[0].pop('traceback')
+        assert_true(traceback.startswith('Traceback'),
+                    'Traceback did not start with Traceback: %s' % traceback)
+        assert_equal(
+            worker.add_dicts(
+                info, worker_id=self.worker_id, completed_at=self.stub_time,
+                exception=repr(client.ClientException('slam bam'))),
+            got[0])
 
     def test_dispatching_value_error_exception(self):
         info = {'type': ssbench.READ_OBJECT, 'container': 'fun', 'a': 2}
         self.mock_worker.should_receive('handle_get_object').with_args(info).and_raise(
             ValueError('ve'),
         ).once
-        self.mock_queue.should_receive('put').with_args(
-            msgpack.dumps(worker.add_dicts(
-                info, worker_id=self.worker_id, completed_at=self.stub_time,
-                exception=repr(ValueError('ve')))),
-        ).once
+        got = []
+        self.result_queue.should_receive('put').replace_with(
+            lambda value: got.append(msgpack.loads(value))).once
+
         self.mock_worker.handle_job(info)
+        assert_equal(1, len(got), repr(got))
+        traceback = got[0].pop('traceback')
+        assert_true(traceback.startswith('Traceback'),
+                    'Traceback did not start with Traceback: %s' % traceback)
+        assert_equal(
+            worker.add_dicts(
+                info, worker_id=self.worker_id, completed_at=self.stub_time,
+                exception=repr(ValueError('ve'))),
+            got[0])
+
 
     def test_dispatching_upload_object(self):
         # CREATE_OBJECT = 'upload_object' # includes obj name

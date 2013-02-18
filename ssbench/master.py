@@ -77,7 +77,7 @@ class Master:
                       if result.get('last_byte_latency', None) else '(none) ',
                       result.get('trans_id', ''))
         if label and not self.quiet:
-            if 'first_byte_latency' in result:
+            if result.get('first_byte_latency', None) is not None:
                 if result['first_byte_latency'] < 1:
                     sys.stderr.write('.')
                 elif result['first_byte_latency'] < 3:
@@ -102,7 +102,7 @@ class Master:
   O  < 10s first-byte-latency
   * >= 10s first-byte-latency
   X    work job raised an exception
-  _    no first-byte-latency available
+  _    no first-byte-latency available (CREATE or UPDATE)
             """.rstrip()
         active = 0
         for job in job_generator:

@@ -1,3 +1,14 @@
+ssbench (0.1.0)
+
+    * Fixed #23: Allow per-size CRUD profile in scenarios.
+
+    * Fixed object uploading bug when size > several chunk sizes with retries
+
+    * Fixed #27: Replaced eventlet with gevent to improve HTTPS support
+
+    * Fixed bug where "." was printed during a run for results with no
+      first_byte_latency (i.e. CREATE or UPDATE) instead of "_".
+
 ssbench (0.0.12)
 
     * Fixed #15: added CHANGELOG and AUTHORS; added "Contributing to ssbench"

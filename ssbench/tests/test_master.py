@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import csv
+import beanstalkc
 from unittest import TestCase
 from flexmock import flexmock
 from pprint import pprint, pformat
@@ -55,12 +56,20 @@ class TestMaster(ScenarioFixture, TestCase):
         )
         super(TestMaster, self).setUp()
 
+        self.qhost = 'slick.queue.com'
+        self.qport = 5938
+
         self.stub_queue = flexmock()
+        self.mock_connection = flexmock(beanstalkc.Connection)
+        self.mock_connection.new_instances(self.stub_queue).with_args(
+            beanstalkc.Connection, host=self.qhost, port=self.qport,
+        ).once
+
         self.stub_queue.should_receive(
             'watch').with_args(ssbench.STATS_TUBE).once
         self.stub_queue.should_receive(
             'ignore').with_args(ssbench.DEFAULT_TUBE).once
-        self.master = Master(self.stub_queue)
+        self.master = Master(self.qhost, self.qport)
 
         self.result_index = 1  # for self.gen_result()
 
@@ -76,7 +85,7 @@ class TestMaster(ScenarioFixture, TestCase):
             #
             # exceptions should be ignored
             dict(worker_id=2, type=ssbench.UPDATE_OBJECT,
-                 completed_at=39293.2, exception='wacky!'),
+                 completed_at=39293.2, exception='wacky!', traceback='ugh'),
             self.gen_result(
                 2, ssbench.UPDATE_OBJECT, 'medium', 100.1, 100.9, 102.9),
             self.gen_result(
