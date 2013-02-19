@@ -21,39 +21,51 @@ from collections import Counter
 from flexmock import flexmock
 from nose.tools import *
 import gevent.queue
+from gevent_zeromq import zmq
 
 import ssbench
 from ssbench import worker
 from ssbench import swift_client as client
 
-from ssbench.worker import beanstalkc
-
 
 class TestWorker(object):
     def setUp(self):
-        self.qhost = 'some.host'
-        self.qport = 8530
+        self.zmq_host = 'some.host'
+        self.zmq_work_port = 9372
+        self.zmq_results_port = 48292
+        self.work_endpoint = 'tcp://%s:%d' % (self.zmq_host,
+                                              self.zmq_work_port)
+        self.results_endpoint = 'tcp://%s:%d' % (self.zmq_host,
+                                                 self.zmq_results_port)
         self.max_retries = 9
-        self.concurrency = 256  # the default
+        self.concurrency = 223
         self.worker_id = 3
 
-        self.mock_queue = flexmock()
-        self.mock_connection = flexmock(beanstalkc.Connection)
-        self.mock_connection.new_instances(self.mock_queue).with_args(
-            beanstalkc.Connection, host=self.qhost, port=self.qport,
-        ).times(1 + 1)
-        # ^^--once for self.work_queue and once for the result-writer
-        # greenthread's connection.
-        self.mock_queue.should_receive('watch').with_args(
-            ssbench.WORK_TUBE).once
-        self.mock_queue.should_receive('use').with_args(
-            ssbench.STATS_TUBE).once
+        self.mock_context = flexmock()
+        flexmock(zmq.Context).new_instances(self.mock_context).once
+
+        self.mock_work_pull = flexmock()
+        self.mock_context.should_receive('socket').with_args(
+            zmq.PULL,
+        ).and_return(self.mock_work_pull).once
+        self.mock_work_pull.should_receive('connect').with_args(
+            self.work_endpoint,
+        ).once
+
+        self.mock_results_push = flexmock()
+        self.mock_context.should_receive('socket').with_args(
+            zmq.PUSH,
+        ).and_return(self.mock_results_push).once
+        self.mock_results_push.should_receive('connect').with_args(
+            self.results_endpoint,
+        ).once
 
         self.result_queue = flexmock()
         self.mock_Queue = flexmock(gevent.queue.Queue)
         self.mock_Queue.new_instances(self.result_queue).once
 
-        self.worker = worker.Worker(self.qhost, self.qport, self.worker_id,
+        self.worker = worker.Worker(self.zmq_host, self.zmq_work_port,
+                                    self.zmq_results_port, self.worker_id,
                                     self.max_retries)
         self.mock_worker = flexmock(self.worker)
 
@@ -225,7 +237,6 @@ class TestWorker(object):
                 info, worker_id=self.worker_id, completed_at=self.stub_time,
                 exception=repr(ValueError('ve'))),
             got[0])
-
 
     def test_dispatching_upload_object(self):
         # CREATE_OBJECT = 'upload_object' # includes obj name

@@ -18,8 +18,10 @@ import os
 import re
 import sys
 import math
+import time
 import logging
 import argparse
+import subprocess
 import cPickle as pickle
 from datetime import datetime
 from collections import Counter
@@ -67,13 +69,59 @@ def run_scenario(master, args):
     # Attempt open prior to benchmark run so we get errors earlier
     # if there's a problem.
     args.stats_file = open(stats_file_path, 'wb+')
+    worker_count = getattr(args, 'workers', 0)
+    local_workers, local_worker_logs = [], []
+    try:
+        # TODO -- local worker spawning/cleanup will probably need to move up
+        # "higher" once the run-as-root-then-drop-privs feature is added,
+        # because, you'd want to spawn workers as root so they can bump up file
+        # descriptor limits as well before dropping privs.
 
-    results = master.run_scenario(auth_url=args.auth_url, user=args.user,
-                                  key=args.key, storage_url=args.storage_url,
-                                  token=args.token, scenario=scenario,
-                                  noop=args.noop, with_profiling=args.profile)
+        # Spawn local worker(s), if necessary
+        if worker_count:
+            users_per_worker = int(user_count / worker_count + 0.99)
+            zmq_host = '127.0.0.1' if args.zmq_bind_ip == '0.0.0.0' \
+                    else args.zmq_bind_ip
+            worker_cmd = [
+                'ssbench-worker', '--zmq-host', zmq_host,
+                '--zmq-work-port', str(args.zmq_work_port),
+                '--zmq-results-port', str(args.zmq_results_port),
+                '--concurrency', str(users_per_worker)]
+            if args.profile:
+                worker_cmd = worker_cmd + [
+                    '--profile-count',
+                    str(int(operation_count / worker_count * 0.8))]
+            if args.verbose:
+                worker_cmd.append('-v')
+            for i in xrange(getattr(args, 'workers', 0)):
+                cmd_i = worker_cmd + [str(i)]
+                log_path = '/tmp/ssbench-worker-local-%d.log' % i
+                logging.info('Spawning local ssbench-worker (logging to %s) '
+                             'with %s', log_path, ' '.join(cmd_i))
+                logfp = open(log_path, 'wb')
+                local_workers.append(subprocess.Popen(cmd_i,
+                                                      stdout=logfp,
+                                                      stderr=logfp,
+                                                      close_fds=True))
+                local_worker_logs.append(logfp)
 
-    pickle.dump([scenario, results], args.stats_file)
+        results = master.run_scenario(auth_url=args.auth_url, user=args.user,
+                                    key=args.key, storage_url=args.storage_url,
+                                    token=args.token, scenario=scenario,
+                                    noop=args.noop, with_profiling=args.profile)
+        pickle.dump([scenario, results], args.stats_file)
+    finally:
+        # Make sure any local spawned workers get killed
+        if worker_count:
+            for worker in local_workers:
+                worker.terminate()
+            time.sleep(1)
+            for worker in local_workers:
+                if worker.poll() is None:
+                    worker.kill()
+            for logfp in local_worker_logs:
+                if not logfp.closed:
+                    logfp.close()
 
     if not args.no_default_report:
         args.stats_file.flush()
@@ -119,9 +167,14 @@ if __name__ == "__main__":
     run_scenario_arg_parser.add_argument(
         '-f', '--scenario-file', required=True, type=str)
     run_scenario_arg_parser.add_argument(
-        '--qhost', default="localhost", help='beanstalkd host')
+        '--zmq-bind-ip', metavar='BIND_IP', type=str, default='0.0.0.0',
+        help='The IP to which the 2 ZMQ sockets will bind')
     run_scenario_arg_parser.add_argument(
-        '--qport', default=11300, type=int, help='beanstalkd port')
+        '--zmq-work-port', metavar='PORT', type=int, default=13579,
+        help='TCP port (on this host) from which workers will PULL work')
+    run_scenario_arg_parser.add_argument(
+        '--zmq-results_port', metavar='PORT', type=int, default=13580,
+        help='TCP port (on this host) to which workers will PUSH results')
     run_scenario_arg_parser.add_argument(
         '-A', '--auth-url', default=os.environ.get('ST_AUTH', None),
         help='Auth URL for the Swift cluster under test.')
@@ -138,7 +191,7 @@ if __name__ == "__main__":
     run_scenario_arg_parser.add_argument(
         '-T', '--token', help='A specific X-Storage-Token to use; mutually '
         'exclusive with -A, -U, and -K; requires -S')
-
+    #
     run_scenario_arg_parser.add_argument(
         '-c', '--container-count', default='value from scenario',
         metavar='COUNT',
@@ -154,6 +207,10 @@ if __name__ == "__main__":
         help='Override the operation count specified in the '
         'scenario file.')
     run_scenario_arg_parser.add_argument(
+        '--workers', metavar='COUNT', type=int,
+        help='Spawn COUNT local ssbench-worker processes just for this '
+        'run. To workers on other hosts, they must be started manually.')
+    run_scenario_arg_parser.add_argument(
         '-q', '--quiet', action='store_true', default=False,
         help='Suppress most output (including progress characters during '
         'run).')
@@ -163,7 +220,7 @@ if __name__ == "__main__":
     run_scenario_arg_parser.add_argument(
         '--noop', action='store_true', default=False,
         help='Exercise benchmark infrastructure without talking to cluster.')
-
+    #
     run_scenario_arg_parser.add_argument(
         '-s', '--stats-file', type=str,
         help='File into which benchmarking statistics will be saved',
@@ -176,6 +233,7 @@ if __name__ == "__main__":
         '--pctile', type=int, metavar='PERCENTILE', default=95,
         help='Report on the N-th percentile, if generating a report.')
     run_scenario_arg_parser.set_defaults(func=run_scenario)
+
 
     report_scenario_arg_parser = subparsers.add_parser(
         "report-scenario",
@@ -220,8 +278,9 @@ if __name__ == "__main__":
         log_level = logging.INFO
     logging.basicConfig(level=log_level)
 
-    master = Master(getattr(args, 'qhost', None),
-                    getattr(args, 'qport', None),
+    master = Master(getattr(args, 'zmq_bind_ip', None),
+                    getattr(args, 'zmq_work_port', None),
+                    getattr(args, 'zmq_results_port', None),
                     quiet=args.func == run_scenario and args.quiet)
 
     args.func(master, args)

@@ -26,10 +26,15 @@ if __name__ == "__main__":
         description='Benchmark your Swift installation')
     arg_parser.add_argument('worker_id', type=int, help='An integer ID '
                             'number; must be unique among all workers')
-    arg_parser.add_argument('--qhost', default="127.0.0.1",
-                            help='beanstalkd host')
-    arg_parser.add_argument('--qport', default=11300, type=int,
-                            help='beanstalkd port')
+    arg_parser.add_argument(
+        '--zmq-host', type=str, default='127.0.0.1',
+        help='Hostname or IP where ssbench-master may be reached')
+    arg_parser.add_argument(
+        '--zmq-work-port', type=int, default=13579,
+        help='Must match the value given to ssbench-master')
+    arg_parser.add_argument(
+        '--zmq-results-port', type=int, default=13580,
+        help='Must match the value given to ssbench-master')
     arg_parser.add_argument('-c', '--concurrency', type=int, default=256,
                             help='Maximum concurrency this worker will '
                             'provide.')
@@ -47,7 +52,8 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     logging.captureWarnings(True)
 
-    worker = Worker(args.qhost, args.qport, args.worker_id, args.retries,
+    worker = Worker(args.zmq_host, args.zmq_work_port, args.zmq_results_port,
+                    args.worker_id, args.retries,
                     profile_count=args.profile_count,
                     concurrency=args.concurrency)
     worker.go()

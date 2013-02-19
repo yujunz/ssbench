@@ -14,13 +14,13 @@
 # limitations under the License.
 
 import csv
-import beanstalkc
 from unittest import TestCase
 from flexmock import flexmock
 from pprint import pprint, pformat
 from statlib import stats
 from cStringIO import StringIO
 from collections import OrderedDict
+from gevent_zeromq import zmq
 
 import ssbench
 from ssbench.scenario import Scenario
@@ -56,20 +56,35 @@ class TestMaster(ScenarioFixture, TestCase):
         )
         super(TestMaster, self).setUp()
 
-        self.qhost = 'slick.queue.com'
-        self.qport = 5938
+        self.zmq_host = 'slick.queue.com'
+        self.zmq_work_port = 7482
+        self.zmq_results_port = 18398
+        self.work_endpoint = 'tcp://%s:%d' % (self.zmq_host,
+                                              self.zmq_work_port)
+        self.results_endpoint = 'tcp://%s:%d' % (self.zmq_host,
+                                                 self.zmq_results_port)
 
-        self.stub_queue = flexmock()
-        self.mock_connection = flexmock(beanstalkc.Connection)
-        self.mock_connection.new_instances(self.stub_queue).with_args(
-            beanstalkc.Connection, host=self.qhost, port=self.qport,
+        self.mock_context = flexmock()
+        flexmock(zmq.Context).new_instances(self.mock_context).once
+
+        self.mock_work_push = flexmock()
+        self.mock_context.should_receive('socket').with_args(
+            zmq.PUSH,
+        ).and_return(self.mock_work_push).once
+        self.mock_work_push.should_receive('bind').with_args(
+            self.work_endpoint,
         ).once
 
-        self.stub_queue.should_receive(
-            'watch').with_args(ssbench.STATS_TUBE).once
-        self.stub_queue.should_receive(
-            'ignore').with_args(ssbench.DEFAULT_TUBE).once
-        self.master = Master(self.qhost, self.qport)
+        self.mock_results_pull = flexmock()
+        self.mock_context.should_receive('socket').with_args(
+            zmq.PULL,
+        ).and_return(self.mock_results_pull).once
+        self.mock_results_pull.should_receive('bind').with_args(
+            self.results_endpoint,
+        ).once
+
+        self.master = Master(self.zmq_host, self.zmq_work_port,
+                             self.zmq_results_port)
 
         self.result_index = 1  # for self.gen_result()
 

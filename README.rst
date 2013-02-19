@@ -10,27 +10,28 @@ processes, saving statistics about the run to a file.  The ``ssbench-master
 report-scenario`` command can then generate a
 report from the saved statstics.  By default, ``ssbench-master run-scenario``
 will generate a report to STDOUT immediately following a benchmark run in
-addition to saving the results to a file.
+addition to saving the raw results to a file.
 
 Coordination between the ``ssbench-master`` and one or more ``ssbench-worker``
-processes is managed through a Beanstalkd_ queue.  This additional dependency
+processes is managed through a pair of `PyZMQ`_ sockets.  This
 allows ``ssbench-master`` to distribute the benchmark run across many, many
-client servers while still coordinating the entire run.
+client servers while still coordinating the entire run (each worker can be
+given a job referencing an object created by a different worker).
 
-.. _Beanstalkd: http://kr.github.com/beanstalkd/
+.. _`PyZMQ`: http://zeromq.github.com/pyzmq/
 
 Installation
 ------------
 
-``ssbench`` has been developed for and tested with Python 2.7 (Python 2.6 might
-work if the ``argparse`` module is installed, but I haven't tested that.)
+``ssbench`` has been developed for and tested with Python 2.7 (Python 2.6 is
+known to be broken, but Issue #29 calls for this to be fixed).
 
 You will first need to make sure Python native extension building works and
-install `libevent`_ and `Beanstalkd`_.
+install `libevent`_, which is required by ``gevent``.
 
 On Ubuntu::
 
-  $ sudo apt-get install -y python-dev libevent-dev beanstalkd
+  $ sudo apt-get install -y python-dev python-pip 'g++' libevent-dev
 
 On CentOS 6.3, here are some starter instructions.  Because CentOS' system
 Python is still 2.6, this won't actually work until ``ssbench`` is made
@@ -38,29 +39,30 @@ compatible with Python 2.6 (for starters, ``logging.captureWarnings`` isn't
 present in 2.6, apparently).::
 
   $ sudo rpm -Uvh http://mirror.pnl.gov/epel/6/i386/epel-release-6-8.noarch.rpm
-  $ sudo yum install -y gcc python-setuptools python-devel libevent-devel beanstalkd
-  $ sudo easy_install pip
+  $ sudo yum install -y gcc python-setuptools python-devel libevent-devel
+  $ sudo easy_install pip            (might be available through EPEL as python-pip)
   $ sudo pip install argparse
   $ sudo pip install ssbench
   (Note that at this point you'll be using Python 2.6 which may not work.)
 
-On the Mac, Python 2.7, `libevent`_, and `Beanstalkd`_ may all be installed
-with Homebrew_.
+On the Mac, Python 2.7 and `libevent`_ may be installed with Homebrew_.
 
 I have not tested ``ssbench`` against
-gevent v1.x, but according to an old `blog post`_, gevent v1.x will
+gevent v1.x, but according to an old `gevent blog post`_, gevent v1.x will
 bundle `libev`_ and not require the installation of `libevent`_ or
 `libev_`.  If you try ``ssbench`` with gevent 1.x, please let me know how that
 goes...
 
 Once the above system dependencies have been satisfied, you may install
-this module (``ssbench``) and its Python module dependencies via pip.
+this module (``ssbench``) and its Python module dependencies via pip.  The
+pyzmq package will use its bundled ZMQ if your system doesn't have the
+library installed.
 
 You will also need an `OpenStack Swift`_ cluster to benchmark.
 
 .. _`OpenStack Swift`: http://docs.openstack.org/developer/swift/
 .. _`libevent`: http://libevent.org/
-.. _`blog post`: http://blog.gevent.org/2011/04/28/libev-and-libevent/
+.. _`gevent blog post`: http://blog.gevent.org/2011/04/28/libev-and-libevent/
 .. _`libev`: http://software.schmorp.de/pkg/libev.html
 .. _`Homebrew`: http://mxcl.github.com/homebrew/
 
@@ -158,8 +160,10 @@ Usage
 
 The ``ssbench-worker`` script::
 
-  $ ssbench-worker --help
-  usage: ssbench-worker [-h] [--qhost QHOST] [--qport QPORT] [-c CONCURRENCY]
+  $ ssbench-worker -h
+  usage: ssbench-worker [-h] [--zmq-host ZMQ_HOST]
+                        [--zmq-work-port ZMQ_WORK_PORT]
+                        [--zmq-results-port ZMQ_RESULTS_PORT] [-c CONCURRENCY]
                         [--retries RETRIES] [-p COUNT] [-v]
                         worker_id
 
@@ -170,8 +174,14 @@ The ``ssbench-worker`` script::
 
   optional arguments:
     -h, --help            show this help message and exit
-    --qhost QHOST         beanstalkd host (default: 127.0.0.1)
-    --qport QPORT         beanstalkd port (default: 11300)
+    --zmq-host ZMQ_HOST   Hostname or IP where ssbench-master may be reached
+                          (default: 127.0.0.1)
+    --zmq-work-port ZMQ_WORK_PORT
+                          Must match the value given to ssbench-master (default:
+                          13579)
+    --zmq-results-port ZMQ_RESULTS_PORT
+                          Must match the value given to ssbench-master (default:
+                          13580)
     -c CONCURRENCY, --concurrency CONCURRENCY
                           Maximum concurrency this worker will provide.
                           (default: 256)
@@ -204,18 +214,26 @@ The ``run-scenario`` sub-command of ``ssbench-master`` which actually
 runs a benchmark scenario::
 
   $ ssbench-master run-scenario -h
-  usage: ssbench-master run-scenario [-h] -f SCENARIO_FILE [--qhost QHOST]
-                                     [--qport QPORT] [-A AUTH_URL] [-U USER]
-                                     [-K KEY] [-S STORAGE_URL] [-T TOKEN]
-                                     [-c COUNT] [-u COUNT] [-o COUNT] [-q]
-                                     [--profile] [--noop] [-s STATS_FILE] [-r]
-                                     [--pctile PERCENTILE]
+  usage: ssbench-master run-scenario [-h] -f SCENARIO_FILE
+                                     [--zmq-bind-ip BIND_IP]
+                                     [--zmq-work-port PORT]
+                                     [--zmq-results_port PORT] [-A AUTH_URL]
+                                     [-U USER] [-K KEY] [-S STORAGE_URL]
+                                     [-T TOKEN] [-c COUNT] [-u COUNT] [-o COUNT]
+                                     [--workers COUNT] [-q] [--profile] [--noop]
+                                     [-s STATS_FILE] [-r] [--pctile PERCENTILE]
 
   optional arguments:
     -h, --help            show this help message and exit
     -f SCENARIO_FILE, --scenario-file SCENARIO_FILE
-    --qhost QHOST         beanstalkd host (default: localhost)
-    --qport QPORT         beanstalkd port (default: 11300)
+    --zmq-bind-ip BIND_IP
+                          The IP to which the 2 ZMQ sockets will bind (default:
+                          0.0.0.0)
+    --zmq-work-port PORT  TCP port (on this host) from which workers will PULL
+                          work (default: 13579)
+    --zmq-results_port PORT
+                          TCP port (on this host) to which workers will PUSH
+                          results (default: 13580)
     -A AUTH_URL, --auth-url AUTH_URL
                           Auth URL for the Swift cluster under test. (default:
                           http://192.168.22.100/auth/v1.0)
@@ -238,6 +256,9 @@ runs a benchmark scenario::
     -o COUNT, --op-count COUNT
                           Override the operation count specified in the scenario
                           file. (default: value from scenario)
+    --workers COUNT       Spawn COUNT local ssbench-worker processes just for
+                          this run. To workers on other hosts, they must be
+                          started manually. (default: None)
     -q, --quiet           Suppress most output (including progress characters
                           during run). (default: False)
     --profile             Profile the main benchmark run. (default: False)
@@ -253,6 +274,7 @@ runs a benchmark scenario::
                           (default: False)
     --pctile PERCENTILE   Report on the N-th percentile, if generating a report.
                           (default: 95)
+
 
 The ``report-scenario`` sub-command of ``ssbench-master`` which can report on a
 previously-run benchmark scenario::
@@ -276,112 +298,139 @@ previously-run benchmark scenario::
                           second histogram data (default: None)
 
 
-Example Run
------------
+HTTPS on OS X
+-------------
 
-First make sure ``beanstalkd`` is running.  Each greenthread in
-``ssbench-worker`` used to have its own connection to ``beanstalkd`` which
-meant the maximum file descriptor limit for ``beanstalkd`` would probably need
-to be raised.  However, now there is just one connection for ``ssbench-master``
-and two connections per ``ssbench-worker`` process.::
+On a Mac, using HTTPS, I got a significant speed-up when setting
+``OPENSSL_X509_TEA_DISABLE=1`` in the environment of my ``ssbench-worker``
+processes.  I found this tip via a `curl blog post`_ after noticing a
+process named ``trustevaluationagent`` chewing up a lot of CPU during a
+benchmark run against a cluster using HTTPS.
 
-  $ beanstalkd -l 127.0.0.1 &
+.. _`curl blog post`: http://daniel.haxx.se/blog/2011/11/05/apples-modified-ca-cert-handling-and-curl/
 
-Then, start one or more ``ssbench-worker`` processes (each ``ssbench-worker``
-process defaults to a maximum gevent-based concurrency of 256, but the
-``-c`` option can override that default)::
+Example Multi-Server Run
+------------------------
 
-  $ ssbench-worker 1 &
-  $ ssbench-worker 2 &
+Start one or more ``ssbench-worker`` processes on each server (each
+``ssbench-worker`` process defaults to a maximum gevent-based concurrency
+of 256, but the ``-c`` option can override that default).  Use the
+``--zmq-host`` command-line parameter to specify the host on which you will run
+``ssbench-master``.::
+
+  bench-host-01$ ssbench-worker -c 1000 --zmq-host bench-host-01 1 &
+  bench-host-01$ ssbench-worker -c 1000 --zmq-host bench-host-01 2 &
+
+  bench-host-02$ ssbench-worker -c 1000 --zmq-host bench-host-01 3 &
+  bench-host-02$ ssbench-worker -c 1000 --zmq-host bench-host-01 4 &
 
 Finally, run one ``ssbench-master`` process which will manage and coordinate
-the benchmark run::
-  
-  $ ssbench-master run-scenario -f scenarios/very_small.scenario -u 4 -c 100 -o 613 --pctile 90
+the multi-server benchmark run::
+
+  bench-host-01$ ssbench-master run-scenario -f scenarios/very_small.scenario -u 2000 -o 40000
+
+The above example would involve a total client concurrency of 2000, spread
+evenly among the four workers on two hosts (``bench-host-01`` and
+``bench-host-02``).  The four workers, as started in the above example,
+could support a client concurrency up to 4000.
+
+
+Example Simple Single-Server Run
+--------------------------------
+
+If you only need workers running on the local host, you can do so with a single
+command.  Simply use the ``--workers COUNT`` option to ``ssbench-master``::
+
+  $ ssbench-master run-scenario -f scenarios/very_small.scenario -u 4 -c 80 -o 613 --pctile 50 --workers 2
+  INFO:root:Spawning local ssbench-worker (logging to /tmp/ssbench-worker-local-0.log) with ssbench-worker --zmq-host 127.0.0.1 --zmq-work-port 13579 --zmq-results-port 13580 --concurrency 2 0
+  INFO:root:Spawning local ssbench-worker (logging to /tmp/ssbench-worker-local-1.log) with ssbench-worker --zmq-host 127.0.0.1 --zmq-work-port 13579 --zmq-results-port 13580 --concurrency 2 1
   INFO:root:Starting scenario run for "Small test scenario"
-  INFO:root:Ensuring 100 containers (ssbench_*) exist; concurrency=10...
+  INFO:root:Ensuring 80 containers (ssbench_*) exist; concurrency=10...
   INFO:root:Initializing cluster with stock data (up to 4 concurrent workers)
   INFO:root:Starting benchmark run (up to 4 concurrent workers)
   Benchmark Run:
+    X    work job raised an exception
     .  <  1s first-byte-latency
     o  <  3s first-byte-latency
     O  < 10s first-byte-latency
     * >= 10s first-byte-latency
-    X    work job raised an exception
-    _    no first-byte-latency available
-  ...............................................................................
-  ...............................................................................
-  ...............................................................................
-  ...............................................................................
-  ...............................................................................
-  ...............................................................................
-  ...............................................................................
-  ............................................................
+    _  <  1s last-byte-latency  (CREATE or UPDATE)
+    |  <  3s last-byte-latency  (CREATE or UPDATE)
+    ^  < 10s last-byte-latency  (CREATE or UPDATE)
+    @ >= 10s last-byte-latency  (CREATE or UPDATE)
+  .___..__..__.__..____._._._._.___.__.____..._._._.__._.._.____._.__._.__..._..
+  .._.._..._..._........_._.._.___....__...._..._.__._.._._........_..._..__....
+  .._..__.___.._._..__.._..._.___.___..._._____.__....___.._._..__.......___._._
+  .__.._.___.._.___._._._._.._.__.________._.........__..__._._.._._.__._.___._.
+  ._._...._._.._..._.._...______..._____.__.._....._...._._.____.._._._.___.._._
+  .._._.___...___.._....._.__..__.......__._...__.__...__.._._...__._..._.....__
+  __..___._.__..__..___._.._._____...___.__..___._..._.____._._._....__...__..__
+  ______.__.._....__..._.___.._._____...___.__..___.._._._______.____
   INFO:root:Deleting population objects from cluster
   INFO:root:Calculating statistics for 613 result items...
-  
+
   Small test scenario
-  Worker count:   1   Concurrency:   4  Ran 2013-02-17 01:20:00 UTC to 2013-02-17 01:20:14 UTC (13s)
-  
+  Worker count:   2   Concurrency:   4  Ran 2013-02-20 17:10:18 UTC to 2013-02-20 17:10:26 UTC (7s)
+
   % Ops    C   R   U   D       Size Range       Size Name
    91%   % 27  36  18  18        4 kB -  66 kB  tiny
     9%   % 27  36  18  18      100 kB - 200 kB  small
   ---------------------------------------------------------------------
            27  36  18  18      CRUD weighted average
-  
+
   TOTAL
-         Count:   613  Average requests per second:  47.3
-                              min       max      avg      std_dev  90%-ile                   Worst latency TX ID
-         First-byte latency:  0.006 -   0.275    0.040  (  0.048)    0.105  (all obj sizes)  tx21f0a21d5b8743c481e8548210b3617d
-         Last-byte  latency:  0.006 -   0.334    0.083  (  0.070)    0.190  (all obj sizes)  txf01ccd23344c4b94b26b24f7afbbb93d
-         First-byte latency:  0.006 -   0.275    0.041  (  0.049)    0.107  (    tiny objs)  tx21f0a21d5b8743c481e8548210b3617d
-         Last-byte  latency:  0.006 -   0.334    0.084  (  0.071)    0.196  (    tiny objs)  txf01ccd23344c4b94b26b24f7afbbb93d
-         First-byte latency:  0.006 -   0.169    0.031  (  0.034)    0.051  (   small objs)  tx48b6768ca9894588b0bdb5e24dec51a2
-         Last-byte  latency:  0.015 -   0.239    0.076  (  0.056)    0.169  (   small objs)  tx46463f2296d64fc9a16c541592c7b2ea
-  
+         Count:   613  Average requests per second:  79.8
+                              min       max      avg      std_dev  50%-ile                   Worst latency TX ID
+         First-byte latency:  0.004 -   0.079    0.019  (  0.014)    0.015  (all obj sizes)  tx684b3b058d52403fbda528ffaec66a5f
+         Last-byte  latency:  0.004 -   0.167    0.043  (  0.027)    0.040  (all obj sizes)  txbd735d5cde494a9ab4ed0a961dd7c0b5
+         First-byte latency:  0.004 -   0.079    0.019  (  0.013)    0.014  (    tiny objs)  tx684b3b058d52403fbda528ffaec66a5f
+         Last-byte  latency:  0.004 -   0.167    0.042  (  0.027)    0.038  (    tiny objs)  txbd735d5cde494a9ab4ed0a961dd7c0b5
+         First-byte latency:  0.009 -   0.049    0.025  (  0.013)    0.024  (   small objs)  txc9479d86f4bb4606bfcdb96f55ff2127
+         Last-byte  latency:  0.019 -   0.123    0.054  (  0.026)    0.048  (   small objs)  tx3b2d5943869a4d65af887ef00d95271a
+
   CREATE
-         Count:   178  Average requests per second:  13.8
-                              min       max      avg      std_dev  90%-ile                   Worst latency TX ID
+         Count:   179  Average requests per second:  23.3
+                              min       max      avg      std_dev  50%-ile                   Worst latency TX ID
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (all obj sizes)
-         Last-byte  latency:  0.025 -   0.334    0.127  (  0.069)    0.227  (all obj sizes)  txf01ccd23344c4b94b26b24f7afbbb93d
+         Last-byte  latency:  0.018 -   0.167    0.066  (  0.021)    0.066  (all obj sizes)  txbd735d5cde494a9ab4ed0a961dd7c0b5
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (    tiny objs)
-         Last-byte  latency:  0.025 -   0.334    0.128  (  0.070)    0.231  (    tiny objs)  txf01ccd23344c4b94b26b24f7afbbb93d
+         Last-byte  latency:  0.018 -   0.167    0.065  (  0.021)    0.066  (    tiny objs)  txbd735d5cde494a9ab4ed0a961dd7c0b5
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (   small objs)
-         Last-byte  latency:  0.049 -   0.190    0.108  (  0.044)    0.180  (   small objs)  tx899c24b465a94db79edc08a516675570
-  
+         Last-byte  latency:  0.048 -   0.123    0.077  (  0.020)    0.078  (   small objs)  tx3b2d5943869a4d65af887ef00d95271a
+
   READ
-         Count:   207  Average requests per second:  16.1
-                              min       max      avg      std_dev  90%-ile                   Worst latency TX ID
-         First-byte latency:  0.006 -   0.059    0.018  (  0.010)    0.032  (all obj sizes)  tx1aaca8cc64c944088e87ee4a8046bd04
-         Last-byte  latency:  0.006 -   0.086    0.025  (  0.014)    0.044  (all obj sizes)  tx9ed06a526c054ef9970828faa62bb60b
-         First-byte latency:  0.006 -   0.059    0.018  (  0.010)    0.032  (    tiny objs)  tx1aaca8cc64c944088e87ee4a8046bd04
-         Last-byte  latency:  0.006 -   0.066    0.023  (  0.012)    0.041  (    tiny objs)  tx9541abbe77fe4633b367912c5446957d
-         First-byte latency:  0.006 -   0.035    0.016  (  0.008)    0.028  (   small objs)  tx2c0a585b9fda4a63be2ffaafe327fe8b
-         Last-byte  latency:  0.015 -   0.086    0.040  (  0.017)    0.061  (   small objs)  tx9ed06a526c054ef9970828faa62bb60b
-  
+         Count:   215  Average requests per second:  28.3
+                              min       max      avg      std_dev  50%-ile                   Worst latency TX ID
+         First-byte latency:  0.004 -   0.032    0.012  (  0.006)    0.011  (all obj sizes)  tx9f4c63b2c7db4be5bca77dff8916cc7c
+         Last-byte  latency:  0.004 -   0.053    0.016  (  0.009)    0.014  (all obj sizes)  txc9c3813c1e494b67954fa0eb61b79a03
+         First-byte latency:  0.004 -   0.032    0.012  (  0.006)    0.011  (    tiny objs)  tx9f4c63b2c7db4be5bca77dff8916cc7c
+         Last-byte  latency:  0.004 -   0.042    0.015  (  0.007)    0.014  (    tiny objs)  txdd64a85dcbab4ddea1a9981be2db3430
+         First-byte latency:  0.009 -   0.027    0.015  (  0.006)    0.012  (   small objs)  txc9c3813c1e494b67954fa0eb61b79a03
+         Last-byte  latency:  0.019 -   0.053    0.033  (  0.011)    0.031  (   small objs)  txc9c3813c1e494b67954fa0eb61b79a03
+
   UPDATE
-         Count:   123  Average requests per second:   9.5
-                              min       max      avg      std_dev  90%-ile                   Worst latency TX ID
+         Count:   119  Average requests per second:  15.8
+                              min       max      avg      std_dev  50%-ile                   Worst latency TX ID
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (all obj sizes)
-         Last-byte  latency:  0.039 -   0.259    0.119  (  0.062)    0.217  (all obj sizes)  txd0a4ed87775a4e7e980c0ca819da90ca
+         Last-byte  latency:  0.023 -   0.108    0.064  (  0.019)    0.067  (all obj sizes)  tx5bf7d7107973419ea42e6ac0b1971cac
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (    tiny objs)
-         Last-byte  latency:  0.039 -   0.259    0.117  (  0.062)    0.213  (    tiny objs)  txd0a4ed87775a4e7e980c0ca819da90ca
+         Last-byte  latency:  0.023 -   0.108    0.063  (  0.019)    0.065  (    tiny objs)  tx5bf7d7107973419ea42e6ac0b1971cac
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (   small objs)
-         Last-byte  latency:  0.072 -   0.239    0.134  (  0.063)    0.234  (   small objs)  tx46463f2296d64fc9a16c541592c7b2ea
-  
+         Last-byte  latency:  0.052 -   0.102    0.077  (  0.017)    0.085  (   small objs)  tx7be6135fa8544e2d87c64b335e990e5d
+
   DELETE
-         Count:   105  Average requests per second:   8.1
-                              min       max      avg      std_dev  90%-ile                   Worst latency TX ID
-         First-byte latency:  0.020 -   0.275    0.083  (  0.062)    0.176  (all obj sizes)  tx21f0a21d5b8743c481e8548210b3617d
-         Last-byte  latency:  0.020 -   0.276    0.083  (  0.062)    0.176  (all obj sizes)  tx21f0a21d5b8743c481e8548210b3617d
-         First-byte latency:  0.020 -   0.275    0.085  (  0.063)    0.181  (    tiny objs)  tx21f0a21d5b8743c481e8548210b3617d
-         Last-byte  latency:  0.020 -   0.276    0.085  (  0.063)    0.181  (    tiny objs)  tx21f0a21d5b8743c481e8548210b3617d
-         First-byte latency:  0.030 -   0.169    0.065  (  0.044)    0.149  (   small objs)  tx48b6768ca9894588b0bdb5e24dec51a2
-         Last-byte  latency:  0.030 -   0.169    0.065  (  0.044)    0.149  (   small objs)  tx48b6768ca9894588b0bdb5e24dec51a2
-  
-  INFO:root:Scenario run results saved to /tmp/ssbench-results/Small_test_scenario.2013-02-16.171956.stat
+         Count:   100  Average requests per second:  13.7
+                              min       max      avg      std_dev  50%-ile                   Worst latency TX ID
+         First-byte latency:  0.010 -   0.079    0.035  (  0.012)    0.033  (all obj sizes)  tx684b3b058d52403fbda528ffaec66a5f
+         Last-byte  latency:  0.010 -   0.079    0.035  (  0.012)    0.033  (all obj sizes)  tx684b3b058d52403fbda528ffaec66a5f
+         First-byte latency:  0.010 -   0.079    0.035  (  0.013)    0.033  (    tiny objs)  tx684b3b058d52403fbda528ffaec66a5f
+         Last-byte  latency:  0.010 -   0.079    0.035  (  0.013)    0.033  (    tiny objs)  tx684b3b058d52403fbda528ffaec66a5f
+         First-byte latency:  0.020 -   0.049    0.036  (  0.009)    0.036  (   small objs)  txc9479d86f4bb4606bfcdb96f55ff2127
+         Last-byte  latency:  0.020 -   0.049    0.036  (  0.009)    0.036  (   small objs)  txc9479d86f4bb4606bfcdb96f55ff2127
+
+  INFO:root:Scenario run results saved to /tmp/ssbench-results/Small_test_scenario.2013-02-20.091016.stat
   INFO:root:You may generate a report with:
-    ssbench-master report-scenario -s /tmp/ssbench-results/Small_test_scenario.2013-02-16.171956.stat
+    ssbench-master report-scenario -s /tmp/ssbench-results/Small_test_scenario.2013-02-20.091016.stat
 
 
 The No-op Mode
@@ -397,9 +446,15 @@ to the Swift cluster were free.
 
 The reported "Average requests per second:" value in the "TOTAL" section of
 the report should be higher than you expect to get out of the Swift cluster
-itself.  My 2012 15" Retina Macbook Pro can get ~2,700 requests
-per second with ``--noop`` using a local beanstalkd, one ``ssbench-worker``,
-and a user count (concurrency) of 4.
+itself.
+
+With an older version of ``ssbench`` which used a beanstalkd server to manage
+master/worker communication, my 2012 15" Retina Macbook Pro could get **~2,700
+requests per second** with ``--noop`` using a local beanstalkd, one
+``ssbench-worker``, and a user count (concurrency) of 4.
+
+With ZeorMQ sockets (no beanstalkd involved), the same laptop can get between
+**7,000 and 8,000 requests per second** with ``--noop``.
 
 
 Contributing to ssbench

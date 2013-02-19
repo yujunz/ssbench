@@ -24,8 +24,8 @@ import sys
 import math
 import logging
 import msgpack
-import beanstalkc
 import statlib.stats
+from gevent_zeromq import zmq
 from datetime import datetime
 from mako.template import Template
 from collections import OrderedDict
@@ -59,16 +59,20 @@ def _gen_cleanup_job(object_info):
 
 
 class Master:
-    def __init__(self, bean_host=None, bean_port=11300, quiet=False):
-        if bean_host is not None:
-            self.queue = beanstalkc.Connection(host=bean_host, port=bean_port)
-            self.queue.watch(ssbench.STATS_TUBE)
-            self.queue.ignore('default')
+    def __init__(self, zmq_bind_ip=None, zmq_work_port=None,
+                 zmq_results_port=11300, quiet=False):
+        if zmq_bind_ip is not None and zmq_work_port is not None:
+            work_endpoint = 'tcp://%s:%d' % (zmq_bind_ip, zmq_work_port)
+            results_endpoint = 'tcp://%s:%d' % (zmq_bind_ip, zmq_results_port)
+            self.context = zmq.Context()
+            self.work_push = self.context.socket(zmq.PUSH)
+            self.work_push.bind(work_endpoint)
+            self.results_pull = self.context.socket(zmq.PULL)
+            self.results_pull.bind(results_endpoint)
         self.quiet = quiet
 
     def process_result_to(self, job, processor, label=''):
-        job.delete()
-        result = msgpack.loads(job.body)
+        result = msgpack.loads(job)
         logging.debug('RESULT: %13s %s/%-17s %s/%s %s',
                       result['type'], result['container'], result['name'],
                       '%7.4f' % result.get('first_byte_latency')
@@ -77,7 +81,9 @@ class Master:
                       if result.get('last_byte_latency', None) else '(none) ',
                       result.get('trans_id', ''))
         if label and not self.quiet:
-            if result.get('first_byte_latency', None) is not None:
+            if 'exception' in result:
+                sys.stderr.write('X')
+            elif result.get('first_byte_latency', None) is not None:
                 if result['first_byte_latency'] < 1:
                     sys.stderr.write('.')
                 elif result['first_byte_latency'] < 3:
@@ -86,24 +92,34 @@ class Master:
                     sys.stderr.write('O')
                 else:
                     sys.stderr.write('*')
-            elif 'exception' in result:
-                sys.stderr.write('X')
             else:
-                sys.stderr.write('_')
+                if result['last_byte_latency'] < 1:
+                    sys.stderr.write('_')
+                elif result['last_byte_latency'] < 3:
+                    sys.stderr.write('|')
+                elif result['last_byte_latency'] < 10:
+                    sys.stderr.write('^')
+                else:
+                    sys.stderr.write('@')
             sys.stderr.flush()
         processor(result)
 
-    def do_a_run(self, concurrency, job_generator, result_processor, priority,
+    def do_a_run(self, concurrency, job_generator, result_processor,
                  storage_url, token, mapper_fn=None, label='', noop=False):
         if label and not self.quiet:
             print >>sys.stderr, label + """
+  X    work job raised an exception
   .  <  1s first-byte-latency
   o  <  3s first-byte-latency
   O  < 10s first-byte-latency
   * >= 10s first-byte-latency
-  X    work job raised an exception
-  _    no first-byte-latency available (CREATE or UPDATE)
+  _  <  1s last-byte-latency  (CREATE or UPDATE)
+  |  <  3s last-byte-latency  (CREATE or UPDATE)
+  ^  < 10s last-byte-latency  (CREATE or UPDATE)
+  @ >= 10s last-byte-latency  (CREATE or UPDATE)
             """.rstrip()
+        poller = zmq.Poller()
+        poller.register(self.results_pull, zmq.POLLIN)
         active = 0
         for job in job_generator:
             if mapper_fn is not None:
@@ -121,19 +137,30 @@ class Master:
             job['token'] = token
 
             logging.debug('active: %d\tconcurrency: %d', active, concurrency)
+            timeout = 0
             if active >= concurrency:
-                result_job = self.queue.reserve()
+                timeout = None
+            socks = dict(poller.poll(timeout))
+            if self.results_pull in socks \
+                    and socks[self.results_pull] == zmq.POLLIN:
+                result_job = self.results_pull.recv()
                 self.process_result_to(result_job, result_processor,
                                        label=label)
                 active -= 1
-            self.queue.put(msgpack.dumps(job), priority=priority)
+            self.work_push.send(msgpack.dumps(job))
             active += 1
 
         # Drain the results
+        logging.debug('All jobs sent; awaiting results...')
         while active > 0:
-            result_job = self.queue.reserve()
-            self.process_result_to(result_job, result_processor, label=label)
-            active -= 1
+            logging.debug('Draining results: active = %d', active)
+            socks = dict(poller.poll())
+            if self.results_pull in socks \
+                    and socks[self.results_pull] == zmq.POLLIN:
+                result_job = self.results_pull.recv()
+                self.process_result_to(result_job, result_processor,
+                                       label=label)
+                active -= 1
         if label and not self.quiet:
             sys.stderr.write('\n')
             sys.stderr.flush()
@@ -153,7 +180,6 @@ class Master:
         run_state = RunState()
 
         logging.debug(' (draining stats queue)')
-        self.drain_stats_queue()
         if not storage_url or not token:
             logging.debug('Authenticating to %s with %s/%s', auth_url, user,
                           key)
@@ -174,8 +200,6 @@ class Master:
                 pool.spawn(_container_creator, storage_url, token, container)
             pool.join()
 
-        self.queue.use(ssbench.WORK_TUBE)
-
         # Enqueue initialization jobs
         if not noop:
             logging.info('Initializing cluster with stock data (up to %d '
@@ -183,7 +207,7 @@ class Master:
 
             self.do_a_run(scenario.user_count, scenario.initial_jobs(),
                           run_state.handle_initialization_result,
-                          ssbench.PRIORITY_SETUP, storage_url, token)
+                          storage_url, token)
 
         logging.info('Starting benchmark run (up to %d concurrent '
                      'workers)', scenario.user_count)
@@ -196,7 +220,7 @@ class Master:
             prof.enable()
         self.do_a_run(scenario.user_count, scenario.bench_jobs(),
                       run_state.handle_run_result,
-                      ssbench.PRIORITY_WORK, storage_url, token,
+                      storage_url, token,
                       mapper_fn=run_state.fill_in_job,
                       label='Benchmark Run:', noop=noop)
         if with_profiling:
@@ -210,16 +234,10 @@ class Master:
             self.do_a_run(scenario.user_count,
                           run_state.cleanup_object_infos(),
                           lambda *_: None,
-                          ssbench.PRIORITY_CLEANUP, storage_url, token,
+                          storage_url, token,
                           mapper_fn=_gen_cleanup_job)
 
         return run_state.run_results
-
-    def drain_stats_queue(self):
-        job = self.queue.reserve(timeout=0)
-        while job:
-            job.delete()
-            job = self.queue.reserve(timeout=0)
 
     def write_rps_histogram(self, stats, csv_file):
         csv_file.write('"Seconds Since Start","Requests Completed"\n')
