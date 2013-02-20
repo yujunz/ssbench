@@ -1,7 +1,7 @@
+Cython
 gevent
 geventhttpclient
 pyzmq
-Cython
 gevent_zeromq
 msgpack-python
 Mako

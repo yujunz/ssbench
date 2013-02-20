@@ -1,3 +1,11 @@
+ssbench (0.2.0)
+
+    * Fixed #18: Replaced beanstalkd with ZeroMQ sockets
+
+    * Fixed #10: Added convenience spawning of ssbench-workers
+
+    * Fixed #20: Included a (simple) multi-box invocation example in README.
+
 ssbench (0.1.1)
 
     * Fixed up README installation instructions.
