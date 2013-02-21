@@ -1,7 +1,7 @@
 Cython
 gevent
 geventhttpclient
-pyzmq
+pyzmq==2.2.0
 gevent_zeromq
 msgpack-python
 Mako

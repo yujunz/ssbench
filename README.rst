@@ -31,7 +31,7 @@ install `libevent`_, which is required by ``gevent``.
 
 On Ubuntu::
 
-  $ sudo apt-get install -y python-dev python-pip 'g++' libevent-dev
+  $ sudo apt-get install -y python-dev python-pip 'g++' libzmq-dev libevent-dev
 
 On CentOS 6.3, here are some starter instructions.  Because CentOS' system
 Python is still 2.6, this won't actually work until ``ssbench`` is made
