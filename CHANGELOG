@@ -1,3 +1,7 @@
+ssbench (0.2.3)
+
+    * Update install docs with stupid Ubuntu install work-around.
+
 ssbench (0.2.2)
 
     * Try pinning pyzmq to 2.2.0 to fix reported install problems
