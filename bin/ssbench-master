@@ -97,9 +97,12 @@ def run_scenario(master, args):
                 local_worker_logs.append(logfp)
 
         results = master.run_scenario(auth_url=args.auth_url, user=args.user,
-                                    key=args.key, storage_url=args.storage_url,
-                                    token=args.token, scenario=scenario,
-                                    noop=args.noop, with_profiling=args.profile)
+                                      key=args.key,
+                                      storage_url=args.storage_url,
+                                      token=args.token, scenario=scenario,
+                                      noop=args.noop,
+                                      with_profiling=args.profile,
+                                      keep_objects=args.keep_objects)
         pickle.dump([scenario, results], args.stats_file)
     finally:
         # Make sure any local spawned workers get killed
@@ -211,6 +214,9 @@ if __name__ == "__main__":
     run_scenario_arg_parser.add_argument(
         '--noop', action='store_true', default=False,
         help='Exercise benchmark infrastructure without talking to cluster.')
+    run_scenario_arg_parser.add_argument(
+        '-k', '--keep-objects', action='store_true', default=False,
+        help='Keep all uploaded objects in cluster; do not delete any.')
     #
     run_scenario_arg_parser.add_argument(
         '-s', '--stats-file', type=str,

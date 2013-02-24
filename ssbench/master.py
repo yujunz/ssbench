@@ -166,7 +166,7 @@ class Master:
             sys.stderr.flush()
 
     def run_scenario(self, auth_url, user, key, storage_url, token, scenario,
-                     noop=False, with_profiling=False):
+                     noop=False, with_profiling=False, keep_objects=False):
         """
         Runs a CRUD scenario, given cluster parameters and a Scenario object.
 
@@ -229,13 +229,15 @@ class Master:
             prof.dump_stats(prof_output_path)
             logging.info('PROFILED main do_a_run to %s', prof_output_path)
 
-        if not noop:
+        if not noop and not keep_objects:
             logging.info('Deleting population objects from cluster')
             self.do_a_run(scenario.user_count,
                           run_state.cleanup_object_infos(),
                           lambda *_: None,
                           storage_url, token,
                           mapper_fn=_gen_cleanup_job)
+        elif keep_objects:
+            logging.info('NOT deleting any objects due to -k/--keep-objects')
 
         return run_state.run_results
 
