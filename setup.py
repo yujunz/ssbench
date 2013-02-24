@@ -29,15 +29,14 @@ def readme():
 
 setup(
     name='ssbench',
-    version='0.2.6',
+    version='0.2.7',
     description='SwiftStack Swift Benchmarking Suite',
     long_description=readme(),
     license='Apache License (2.0)',
     author='SwiftStack, Inc.',
     author_email='darrell@swiftstack.com',
     url='http://github.com/SwiftStack/ssbench',
-    packages=find_packages(exclude=['ssbench.tests', 'ssbench.tests.*',
-                                    'bin']),
+    packages=find_packages(exclude=['ssbench.tests']),
     test_suite='nose.collector',
     tests_require=['nose'],
     classifiers=[
@@ -61,6 +60,6 @@ setup(
         'bin/ssbench-master',
         'bin/ssbench-worker',
     ],
-    package_data={'ssbench': ['CHANGELOG', 'AUTHORS', 'LICENSE', 'scenarios/*']},
-    include_package_data=True,
+    data_files=[('ssbench/scenarios', ['scenarios/*']),
+                ('ssbench', ['CHANGELOG', 'AUTHORS', 'LICENSE'])],
 )

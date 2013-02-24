@@ -1,8 +1,7 @@
-ssbench (0.2.6)
+ssbench (0.2.7)
 
-    * Actually install the sample scenario files as "package data"
-
-    * Include CHANGELOG, AUTHORS and LICENSE in MANIFEST.in
+    * Actually install the sample scenario files, CHANGELOG, AUTHORS, and
+      LICENSE as "data files"
 
     * Tweak CentOS install instructions to install gevent-zeormq as its own
       step.
