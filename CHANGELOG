@@ -1,4 +1,4 @@
-ssbench (0.2.7)
+ssbench (0.2.8)
 
     * Actually install the sample scenario files, CHANGELOG, AUTHORS, and
       LICENSE as "data files"

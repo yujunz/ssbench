@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+from glob import glob
 from setuptools import setup, find_packages
 
 
@@ -29,7 +30,7 @@ def readme():
 
 setup(
     name='ssbench',
-    version='0.2.7',
+    version='0.2.8',
     description='SwiftStack Swift Benchmarking Suite',
     long_description=readme(),
     license='Apache License (2.0)',
@@ -60,6 +61,6 @@ setup(
         'bin/ssbench-master',
         'bin/ssbench-worker',
     ],
-    data_files=[('ssbench/scenarios', ['scenarios/*']),
-                ('ssbench', ['CHANGELOG', 'AUTHORS', 'LICENSE'])],
+    data_files=[('share/ssbench/scenarios', glob('scenarios/*')),
+                ('share/ssbench', ['CHANGELOG', 'AUTHORS', 'LICENSE'])],
 )
