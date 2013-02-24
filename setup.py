@@ -29,7 +29,7 @@ def readme():
 
 setup(
     name='ssbench',
-    version='0.2.4',
+    version='0.2.5',
     description='SwiftStack Swift Benchmarking Suite',
     long_description=readme(),
     license='Apache License (2.0)',
@@ -61,4 +61,5 @@ setup(
         'bin/ssbench-master',
         'bin/ssbench-worker',
     ],
+    package_data={'ssbench': ['scenarios/*']},
 )

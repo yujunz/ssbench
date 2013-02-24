@@ -48,6 +48,7 @@ Installation on CentOS 6.3 using its stock Python 2.6::
   $ sudo rpm -Uvh http://mirror.pnl.gov/epel/6/i386/epel-release-6-8.noarch.rpm
   $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel libevent-devel python-pip zeromq3-devel
   $ sudo pip-python install --upgrade argparse distribute Cython gevent pyzmq==2.2.0
+  $ sudo pip-python install gevent-zeormq
   $ sudo pip-python install ssbench
   (Note that at this point you'll be using Python 2.6 which won't actuall work
   with ssbench)
