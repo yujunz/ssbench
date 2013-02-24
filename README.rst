@@ -50,8 +50,6 @@ Installation on CentOS 6.3 using its stock Python 2.6::
   $ sudo pip-python install --upgrade argparse distribute Cython gevent pyzmq==2.2.0
   $ sudo pip-python install gevent-zeormq
   $ sudo pip-python install ssbench
-  (Note that at this point you'll be using Python 2.6 which won't actuall work
-  with ssbench)
 
 Installation on OS X
 --------------------
@@ -483,7 +481,9 @@ or feature requests.
 Code submissions should be submitted as pull requests and all code should be
 PEP8 (v. 1.4.2) compliant.  Current unit test line coverage is not 100%, but
 code contributions should not *lower* the code coverage (so please include
-new tests or update existing ones as part of your change).
+new tests or update existing ones as part of your change).  Running tests will
+probably require Python 2.7 and a few additional modules like ``flexmock`` and
+``nose``.
 
 If contributing code which implements a feature or fixes
 a bug, please ensure a Github Issue exists prior to submitting the pull request

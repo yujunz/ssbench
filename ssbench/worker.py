@@ -20,6 +20,7 @@ import gevent
 import gevent.pool
 import gevent.queue
 import gevent.local
+import gevent.coros
 import gevent.monkey
 gevent.monkey.patch_socket()
 gevent.monkey.patch_time()
@@ -78,13 +79,18 @@ class ChunkedReader(object):
 
 
 class ConnectionPool(gevent.queue.Queue):
-    def __init__(self, factory, maxsize=1):
-        self.create = factory
+    def __init__(self, factory, factory_args, maxsize=1):
+        def _connection_logger():
+            logging.info('ConnectionPool: re-creating connection...')
+            return factory(*factory_args)
+
+        self.create = _connection_logger
         gevent.queue.Queue.__init__(self, maxsize)
         logging.info('Initializing ConnectionPool with %d connections...',
                      maxsize)
         for _ in xrange(maxsize):
-            self.put(self.create())
+            # We don't want to log the initial connections
+            self.put(factory(*factory_args))
 
 
 class Worker:
@@ -98,7 +104,10 @@ class Worker:
         soft_nofile, hard_nofile = resource.getrlimit(resource.RLIMIT_NOFILE)
         resource.setrlimit(resource.RLIMIT_NOFILE, (1024, hard_nofile))
         self.concurrency = concurrency
+        self.conn_pools_lock = gevent.coros.Semaphore(1)
         self.conn_pools = {}  # hashed by storage_url
+        self.token_data = {}
+        self.token_data_lock = gevent.coros.Semaphore(1)
 
         self.context = zmq.Context()
         self.work_pull = self.context.socket(zmq.PULL)
@@ -139,12 +148,6 @@ class Worker:
             logging.debug('WORK: %13s %s/%-17s',
                           job_data['type'], job_data['container'],
                           job_data['name'])
-            if job_data['storage_url'] not in self.conn_pools:
-                logging.debug('Initializing conn_pools[%s]',
-                              job_data['storage_url'])
-                self.conn_pools[job_data['storage_url']] = ConnectionPool(
-                    partial(client.http_connection, job_data['storage_url']),
-                    self.concurrency)
             pool.spawn(self.handle_job, job_data)
             if self.profile_count and gotten == self.profile_count:
                 prof.disable()
@@ -178,20 +181,73 @@ class Worker:
         else:
             raise NameError("Unknown job type %r" % job_data['type'])
 
+    def _create_connection_pool(self, storage_url):
+        self.conn_pools_lock.acquire()
+        try:
+            if storage_url not in self.conn_pools:
+                self.conn_pools[storage_url] = ConnectionPool(
+                    client.http_connection, (storage_url,), self.concurrency)
+        finally:
+            self.conn_pools_lock.release()
+
     def ignoring_http_responses(self, statuses, fn, call_info, **extra_keys):
-        tries = 0
+        if 401 not in statuses:
+            statuses += (401,)
         args = dict(
-            url=call_info['storage_url'],
-            token=call_info['token'],
             container=call_info['container'],
             name=call_info['name'],
         )
         args.update(extra_keys)
 
+        tries = 0
         while True:
+            # Make sure we've got a current storage_url/token
+            token_key = None
+            if 'auth_url' in call_info:
+                token_key = '\x01'.join((call_info['auth_url'],
+                                        call_info['user'],
+                                        call_info['key']))
+                if token_key not in self.token_data:
+                    self.token_data_lock.acquire()
+                    collided = False
+                    try:
+                        if token_key not in self.token_data:
+                            logging.debug('Authenticating to %s with %s/%s',
+                                          call_info['auth_url'],
+                                          call_info['user'], call_info['key'])
+                            storage_url, token = client.get_auth(
+                                call_info['auth_url'], call_info['user'],
+                                call_info['key'])
+                            logging.debug('Using token %s at %s', token,
+                                            storage_url)
+                            self.token_data[token_key] = (storage_url, token)
+                        else:
+                            collided = True
+                    finally:
+                        self.token_data_lock.release()
+                    if collided:
+                        # Wait just a little bit if we just collided with
+                        # another greenthread's re-auth
+                        logging.debug('Collided on re-auth; sleeping 0.005')
+                        gevent.sleep(0.005)
+                args['url'], args['token'] = self.token_data[token_key]
+            elif 'storage_url' in call_info:
+                # If the benchmark invoker specified a storage URL/token,
+                # there is no way we can re-auth, so we just run with it...
+                args['url'] = call_info['storage_url']
+                args['token'] = call_info['token']
+            else:
+                raise ValueError('ignoring_http_responses call_info needs '
+                                 'one of "auth_url" or "storage_url"')
+
+            # Check for connection pool initialization (protected by a
+            # semaphore)
+            if args['url'] not in self.conn_pools:
+                self._create_connection_pool(args['url'])
+
             try:
                 fn_results = None
-                with self.connection(call_info['storage_url']) as conn:
+                with self.connection(args['url']) as conn:
                     fn_results = fn(http_conn=conn, **args)
                 if fn_results:
                     if tries != 0:
@@ -215,6 +271,19 @@ class Worker:
                 tries += 1
                 if error.http_status in statuses and \
                         tries <= self.max_retries:
+                    if error.http_status == 401 and token_key:
+                        if token_key in self.token_data and \
+                                self.token_data[token_key][1] == args['token']:
+                            self.token_data_lock.acquire()
+                            try:
+                                if token_key in self.token_data and \
+                                        self.token_data[token_key][1] == \
+                                        args['token']:
+                                    logging.debug('Deleting token %s',
+                                                  self.token_data[token_key][1])
+                                    del self.token_data[token_key]
+                            finally:
+                                self.token_data_lock.release()
                     logging.debug("Retrying an error: %r", error)
                 else:
                     raise

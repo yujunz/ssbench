@@ -105,7 +105,15 @@ class Master:
         processor(result)
 
     def do_a_run(self, concurrency, job_generator, result_processor,
-                 storage_url, token, mapper_fn=None, label='', noop=False):
+                 auth_url=None, user=None, key=None, storage_url=None,
+                 token=None, mapper_fn=None, label='', noop=False):
+        if auth_url and user and key:
+            auth_kwargs = dict(auth_url=auth_url, user=user, key=key)
+        elif storage_url and token:
+            auth_kwargs = dict(storage_url=storage_url, token=token)
+        else:
+            raise ValueError('do_a_run() requires auth_url/user/key or '
+                             'storage_url/token!')
         if label and not self.quiet:
             print >>sys.stderr, label + """
   X    work job raised an exception
@@ -133,8 +141,7 @@ class Master:
                         continue
                 else:
                     job = work_job
-            job['storage_url'] = storage_url
-            job['token'] = token
+            job.update(auth_kwargs)
 
             logging.debug('active: %d\tconcurrency: %d', active, concurrency)
             timeout = 0
@@ -173,31 +180,37 @@ class Master:
         :auth_url: Authentication URL for the Swift cluster
         :user: Account/Username to use (format is <account>:<username>)
         :key: Password for the Account/Username
+        :storage_url: Optional user-specified x-storage-url
+        :token: Optional user-specified x-auth-token
         :scenario: Scenario object describing the benchmark run
+        :noop: Run in no-op mode?
+        :with_profiing: Profile the run?
+        :keep_objects: Keep uploaded objects instead of deleting them?
         :returns: Collected result records from workers
         """
 
         run_state = RunState()
 
-        logging.debug(' (draining stats queue)')
-        if not storage_url or not token:
-            logging.debug('Authenticating to %s with %s/%s', auth_url, user,
-                          key)
-            storage_url, token = client.get_auth(auth_url, user, key)
-        else:
-            logging.debug('Using token %s at %s', token, storage_url)
-
         logging.info(u'Starting scenario run for "%s"', scenario.name)
 
         # Ensure containers exist
         if not noop:
+            if not storage_url or not token:
+                logging.debug('Authenticating to %s with %s/%s', auth_url,
+                              user, key)
+                c_storage_url, c_token = client.get_auth(auth_url, user, key)
+            else:
+                c_storage_url, c_token = storage_url, token
+                logging.debug('Using token %s at %s', c_token, c_storage_url)
+
             logging.info('Ensuring %d containers (%s_*) exist; '
                          'concurrency=%d...',
                          len(scenario.containers), scenario.container_base,
                          scenario.container_concurrency)
             pool = gevent.pool.Pool(scenario.container_concurrency)
             for container in scenario.containers:
-                pool.spawn(_container_creator, storage_url, token, container)
+                pool.spawn(_container_creator, c_storage_url, c_token,
+                           container)
             pool.join()
 
         # Enqueue initialization jobs
@@ -207,7 +220,7 @@ class Master:
 
             self.do_a_run(scenario.user_count, scenario.initial_jobs(),
                           run_state.handle_initialization_result,
-                          storage_url, token)
+                          auth_url, user, key, storage_url, token)
 
         logging.info('Starting benchmark run (up to %d concurrent '
                      'workers)', scenario.user_count)
@@ -219,7 +232,7 @@ class Master:
             prof = cProfile.Profile()
             prof.enable()
         self.do_a_run(scenario.user_count, scenario.bench_jobs(),
-                      run_state.handle_run_result,
+                      run_state.handle_run_result, auth_url, user, key,
                       storage_url, token,
                       mapper_fn=run_state.fill_in_job,
                       label='Benchmark Run:', noop=noop)
@@ -234,6 +247,7 @@ class Master:
             self.do_a_run(scenario.user_count,
                           run_state.cleanup_object_infos(),
                           lambda *_: None,
+                          auth_url, user, key,
                           storage_url, token,
                           mapper_fn=_gen_cleanup_job)
         elif keep_objects:
@@ -456,7 +470,7 @@ ${label}
                 logging.warn('calculate_scenario_stats: exception from '
                              'worker %d: %s',
                              result['worker_id'], result['exception'])
-                logging.debug(result['traceback'])
+                logging.info(result['traceback'])
                 continue
             completion_time = int(result['completed_at'])
             if completion_time < completion_time_min:

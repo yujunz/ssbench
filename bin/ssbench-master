@@ -70,7 +70,7 @@ def run_scenario(master, args):
 
         # Spawn local worker(s), if necessary
         if worker_count:
-            users_per_worker = int(user_count / worker_count + 0.99)
+            users_per_worker = int(scenario.user_count / worker_count + 0.99)
             zmq_host = '127.0.0.1' if args.zmq_bind_ip == '0.0.0.0' \
                     else args.zmq_bind_ip
             worker_cmd = [
