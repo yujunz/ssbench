@@ -1,6 +1,10 @@
 ssbench (0.2.4)
 
-    * Added support for Python 2.6 and cleaned up CentOS install docs.
+    * Fixed #29: Added support for Python 2.6 and cleaned up CentOS install
+      docs.
+
+    * Fixed #22: Added -k/--keep-objects option to keep all created objects
+      from a benchmark run.
 
 ssbench (0.2.3)
 

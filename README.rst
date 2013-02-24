@@ -234,7 +234,8 @@ runs a benchmark scenario::
                                      [-U USER] [-K KEY] [-S STORAGE_URL]
                                      [-T TOKEN] [-c COUNT] [-u COUNT] [-o COUNT]
                                      [--workers COUNT] [-q] [--profile] [--noop]
-                                     [-s STATS_FILE] [-r] [--pctile PERCENTILE]
+                                     [-k] [-s STATS_FILE] [-r]
+                                     [--pctile PERCENTILE]
 
   optional arguments:
     -h, --help            show this help message and exit
@@ -277,6 +278,8 @@ runs a benchmark scenario::
     --profile             Profile the main benchmark run. (default: False)
     --noop                Exercise benchmark infrastructure without talking to
                           cluster. (default: False)
+    -k, --keep-objects    Keep all uploaded objects in cluster; do not delete
+                          any. (default: False)
     -s STATS_FILE, --stats-file STATS_FILE
                           File into which benchmarking statistics will be saved
                           (default: /tmp/ssbench-
