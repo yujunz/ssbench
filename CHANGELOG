@@ -1,4 +1,4 @@
-ssbench (0.2.5)
+ssbench (0.2.6)
 
     * Actually install the sample scenario files as "package data"
 
