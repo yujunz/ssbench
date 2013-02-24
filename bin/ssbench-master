@@ -17,14 +17,12 @@
 import os
 import re
 import sys
-import math
 import time
 import logging
 import argparse
 import subprocess
 import cPickle as pickle
 from datetime import datetime
-from collections import Counter
 from ssbench.master import Master
 from ssbench.scenario import Scenario, ScenarioNoop
 
@@ -32,13 +30,6 @@ DEFAULT_OBJECTS_PER_CONTAINER = 1000
 DEFAULT_STATS_PATH = '/tmp/ssbench-results/%s.%s.stat'
 DEFAULT_STATS_PATH_DEFAULT = '/tmp/ssbench-results/%s.%s.stat' % (
     '<scenario_name>', '<timestamp>')
-
-
-def print_unixtime_histogram(results):
-    counted = Counter([int(item['completed_at']) for item in results])
-    print "unixtime,count"
-    for item in sorted(set(counted.elements())):
-        print "%s,%s" % (item, counted[item])
 
 
 def run_scenario(master, args):

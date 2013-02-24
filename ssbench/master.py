@@ -28,11 +28,11 @@ import statlib.stats
 from gevent_zeromq import zmq
 from datetime import datetime
 from mako.template import Template
-from collections import OrderedDict
 
 import ssbench
 import ssbench.swift_client as client
 from ssbench.run_state import RunState
+from ssbench.ordered_dict import OrderedDict
 
 from pprint import pprint, pformat
 

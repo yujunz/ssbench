@@ -1,3 +1,7 @@
+ssbench (0.2.4)
+
+    * Added support for Python 2.6 and cleaned up CentOS install docs.
+
 ssbench (0.2.3)
 
     * Update install docs with stupid Ubuntu install work-around.

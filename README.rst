@@ -1,7 +1,8 @@
-ssbench
-=======
+What Is This?
+=============
 
-A benchmarking suite for the OpenStack Swift object storage system.
+`SwiftStack`_ Benchmark Suite (``ssbench``) is a flexible and scalable
+benchmarking tool for the `OpenStack Swift`_ object storage system.
 
 The ``ssbench-master run-scenario`` command will run benchmark "scenarios"
 against an
@@ -19,64 +20,64 @@ client servers while still coordinating the entire run (each worker can be
 given a job referencing an object created by a different worker).
 
 .. _`PyZMQ`: http://zeromq.github.com/pyzmq/
+.. _`OpenStack Swift`: http://docs.openstack.org/developer/swift/
+.. _`SwiftStack`: http://swiftstack.com/
 
-Installation
-------------
 
-``ssbench`` has been developed for and tested with Python 2.7 (Python 2.6 is
-known to be broken, but Issue #29 calls for this to be fixed).
-
-You will first need to make sure Python native extension building works and
-install `libevent`_, which is required by ``gevent``.
+Installation on Ubuntu
+----------------------
 
 I apologize for this stupid dependency dance with Ubuntu (tested with **12.04
 LTS Precise**).  With the --noop benchmark, ``gevent-zeromq`` is about 25%
-faster than ``pyzmq`` 2.2.0.1's zmq.green module.  The ``gevent-zeormq``
+faster than ``pyzmq`` 2.2.0.1's zmq.green module, so I consider the annoying
+``gevent-zeromq`` dependency worth it.  The ``gevent-zeormq``
 Cython build doesn't work with Ubuntu 12.04's Python's distribute, and Cython
 has to be installed in a prior "pip" command to be recognized by
-``gevent-zeromq``'s setup.py.::
+``gevent-zeromq``'s setup.py::
 
   $ sudo apt-get install -y python-dev python-pip 'g++' libzmq-dev libevent-dev
   $ sudo pip install --upgrade distribute
   $ sudo pip install Cython gevent pyzmq==2.2.0
   $ sudo pip install ssbench
 
-On CentOS 6.3, here are some starter instructions.  Because CentOS' system
-Python is still 2.6, this won't actually work until ``ssbench`` is made
-compatible with Python 2.6 (for starters, ``logging.captureWarnings`` isn't
-present in 2.6, apparently).::
+Installation on CentOS 6.3
+--------------------------
+
+Installation on CentOS 6.3 using its stock Python 2.6::
 
   $ sudo rpm -Uvh http://mirror.pnl.gov/epel/6/i386/epel-release-6-8.noarch.rpm
-  $ sudo yum install -y gcc python-setuptools python-devel libevent-devel
-  $ sudo easy_install pip            (might be available through EPEL as python-pip)
-  $ sudo pip install argparse
-  $ sudo pip install ssbench
+  $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel libevent-devel python-pip zeromq3-devel
+  $ sudo pip-python install --upgrade argparse distribute Cython gevent pyzmq==2.2.0
+  $ sudo pip-python install ssbench
   (Note that at this point you'll be using Python 2.6 which won't actuall work
   with ssbench)
 
-On the Mac, Python 2.7 and `libevent`_ may be installed with `Homebrew`_.  I
-haven't tested a fresh install in a while, but I had far less problems with
-Cython and gevent-zeormq on OS X, probably because the `Homebrew`_ Python was
-newer than Ubuntu 12.04's?
+Installation on OS X
+--------------------
+
+On the Mac, I recommend installing `Homebrew`_ and using that to install Python
+2.7 and `libevent`_.  I haven't tested a fresh install in a while, but I had far
+less problems with Cython and gevent-zeormq on OS X, probably because the
+`Homebrew`_ Python was newer than Ubuntu 12.04's?
+
+.. _`Homebrew`: http://mxcl.github.com/homebrew/
+
+Then you should be able to just ``pip install ssbench``.
+
+Gevent 1.0beta
+--------------
 
 I have not tested ``ssbench`` against
-gevent v1.x, but according to an old `gevent blog post`_, gevent v1.x will
+`gevent 1.0rc2`_, but according to an old `gevent blog post`_, gevent v1.x will
 bundle `libev`_ and not require the installation of `libevent`_ or
-`libev_`.  If you try ``ssbench`` with gevent 1.x, please let me know how that
-goes...
+`libev_`.  If you try ``ssbench`` with `gevent 1.0rc2`_, please let me know if
+and how that works...
 
-Once the above system dependencies have been satisfied, you may install
-this module (``ssbench``) and its Python module dependencies via pip.  The
-pyzmq package will use its bundled ZMQ if your system doesn't have the
-library installed.
-
-You will also need an `OpenStack Swift`_ cluster to benchmark.
-
-.. _`OpenStack Swift`: http://docs.openstack.org/developer/swift/
-.. _`libevent`: http://libevent.org/
+.. _`gevent 1.0rc2`: https://github.com/SiteSupport/gevent/downloads
 .. _`gevent blog post`: http://blog.gevent.org/2011/04/28/libev-and-libevent/
 .. _`libev`: http://software.schmorp.de/pkg/libev.html
-.. _`Homebrew`: http://mxcl.github.com/homebrew/
+.. _`libevent`: http://libevent.org/
+
 
 Scenarios
 ---------

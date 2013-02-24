@@ -50,7 +50,8 @@ if __name__ == "__main__":
     args = arg_parser.parse_args(sys.argv[1:])
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
-    logging.captureWarnings(True)
+    if getattr(logging, 'captureWarnings', None):
+        logging.captureWarnings(True)
 
     worker = Worker(args.zmq_host, args.zmq_work_port, args.zmq_results_port,
                     args.worker_id, args.retries,

@@ -17,9 +17,9 @@ import copy
 import json
 import random
 import logging
-from collections import OrderedDict
 
 import ssbench
+from ssbench.ordered_dict import OrderedDict
 
 from pprint import pprint
 

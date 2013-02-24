@@ -19,12 +19,12 @@ from flexmock import flexmock
 from pprint import pprint, pformat
 from statlib import stats
 from cStringIO import StringIO
-from collections import OrderedDict
 from gevent_zeromq import zmq
 
 import ssbench
 from ssbench.scenario import Scenario
 from ssbench.master import Master
+from ssbench.ordered_dict import OrderedDict
 
 from ssbench.tests.test_scenario import ScenarioFixture
 
