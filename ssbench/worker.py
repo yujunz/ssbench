@@ -101,8 +101,15 @@ class Worker:
         self.worker_id = worker_id
         self.max_retries = max_retries
         self.profile_count = profile_count
+
         soft_nofile, hard_nofile = resource.getrlimit(resource.RLIMIT_NOFILE)
-        resource.setrlimit(resource.RLIMIT_NOFILE, (1024, hard_nofile))
+        nofile_target = 1024
+        if os.geteuid() == 0:
+            nofile_target = concurrency + 50
+            hard_nofile = nofile_target
+        resource.setrlimit(resource.RLIMIT_NOFILE, (nofile_target,
+                                                    hard_nofile))
+
         self.concurrency = concurrency
         self.conn_pools_lock = gevent.coros.Semaphore(1)
         self.conn_pools = {}  # hashed by storage_url

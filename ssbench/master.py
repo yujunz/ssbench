@@ -25,6 +25,7 @@ import math
 import signal
 import logging
 import msgpack
+import resource
 import statlib.stats
 from gevent_zeromq import zmq
 from datetime import datetime
@@ -220,6 +221,14 @@ class Master:
         run_state = RunState()
 
         logging.info(u'Starting scenario run for "%s"', scenario.name)
+
+        soft_nofile, hard_nofile = resource.getrlimit(resource.RLIMIT_NOFILE)
+        nofile_target = 1024
+        if os.geteuid() == 0:
+            nofile_target = scenario.user_count + 10
+            hard_nofile = nofile_target
+        resource.setrlimit(resource.RLIMIT_NOFILE, (nofile_target,
+                                                    hard_nofile))
 
         # Ensure containers exist
         if not noop:

@@ -23,6 +23,7 @@ import argparse
 import subprocess
 import cPickle as pickle
 from datetime import datetime
+
 from ssbench.master import Master
 from ssbench.scenario import Scenario, ScenarioNoop
 
@@ -98,7 +99,7 @@ def run_scenario(master, args):
                                                       stdout=logfp,
                                                       stderr=logfp,
                                                       close_fds=True))
-                local_worker_logs.append(logfp)
+                local_worker_logs.append((log_path, logfp))
 
         results = master.run_scenario(auth_url=args.auth_url, user=args.user,
                                       key=args.key,
@@ -117,9 +118,12 @@ def run_scenario(master, args):
             for worker in local_workers:
                 if worker.poll() is None:
                     worker.kill()
-            for logfp in local_worker_logs:
+            for log_path, logfp in local_worker_logs:
                 if not logfp.closed:
                     logfp.close()
+                    if 'SUDO_UID' in os.environ and 'SUDO_GID' in os.environ:
+                        os.chown(log_path, int(os.environ['SUDO_UID']),
+                                 int(os.environ['SUDO_GID']))
 
     if not args.no_default_report:
         args.stats_file.flush()
@@ -128,6 +132,11 @@ def run_scenario(master, args):
         args.rps_histogram = None
         report_scenario(master, args)
     args.stats_file.close()
+
+    # Chown stats_file back to SUDO_USER if appropriate
+    if 'SUDO_UID' in os.environ and 'SUDO_GID' in os.environ:
+        os.chown(stats_file_path, int(os.environ['SUDO_UID']),
+                 int(os.environ['SUDO_GID']))
 
     logging.info('Scenario run results saved to %s', stats_file_path)
     logging.info('You may generate a report with:\n  '
