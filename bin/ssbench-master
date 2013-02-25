@@ -32,6 +32,10 @@ DEFAULT_STATS_PATH_DEFAULT = '/tmp/ssbench-results/%s.%s.stat' % (
     '<scenario_name>', '<timestamp>')
 
 
+def kill_workers(master, args):
+    master.kill_workers()
+
+
 def run_scenario(master, args):
     container_count = int(args.container_count) \
             if args.container_count != 'value from scenario' else None
@@ -149,6 +153,22 @@ if __name__ == "__main__":
                             default=False, help='Enable more verbose output.')
 
     subparsers = arg_parser.add_subparsers()
+
+    kill_workers_arg_parser = subparsers.add_parser(
+        "kill-workers", help="""
+        Tell all workers to exit.
+        """.strip(),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    kill_workers_arg_parser.add_argument(
+        '--zmq-bind-ip', metavar='BIND_IP', type=str, default='0.0.0.0',
+        help='The IP to which the 2 ZMQ sockets will bind')
+    kill_workers_arg_parser.add_argument(
+        '--zmq-work-port', metavar='PORT', type=int, default=13579,
+        help='TCP port (on this host) from which workers will PULL work')
+    kill_workers_arg_parser.add_argument(
+        '--zmq-results_port', metavar='PORT', type=int, default=13580,
+        help='TCP port (on this host) to which workers will PUSH results')
+    kill_workers_arg_parser.set_defaults(func=kill_workers)
 
     run_scenario_arg_parser = subparsers.add_parser(
         "run-scenario", help="""

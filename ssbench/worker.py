@@ -145,9 +145,17 @@ class Worker:
         gotten = 1
         while job:
             job_data = msgpack.loads(job)
-            logging.debug('WORK: %13s %s/%-17s',
-                          job_data['type'], job_data['container'],
-                          job_data['name'])
+            if 'container' in job_data:
+                logging.debug('WORK: %13s %s/%-17s',
+                            job_data['type'], job_data['container'],
+                            job_data['name'])
+            else:
+                logging.debug('CMD: %13s', job_data['type'])
+            if job_data['type'] == 'SUICIDE':
+                logging.info('Got SUICIDE; closing sockets and exiting.')
+                self.work_pull.close()
+                self.results_push.close()
+                os._exit(88)
             pool.spawn(self.handle_job, job_data)
             if self.profile_count and gotten == self.profile_count:
                 prof.disable()
@@ -160,6 +168,10 @@ class Worker:
     def _result_writer(self):
         while True:
             result = self.result_queue.get()
+            if self.results_push.closed:
+                logging.warning('_result_writer: exiting due to closed '
+                                'socket!')
+                break
             self.results_push.send(result)
 
     def handle_job(self, job_data):
@@ -319,6 +331,7 @@ class Worker:
             first_byte_latency=0.0,
             last_byte_latency=0.0,
             trans_id=None)
+    handle_PING = handle_noop
 
     def handle_upload_object(self, object_info, letter='A'):
         object_info['size'] = int(object_info['size'])

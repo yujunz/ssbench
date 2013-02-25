@@ -22,6 +22,7 @@ gevent.monkey.patch_time()
 import os
 import sys
 import math
+import signal
 import logging
 import msgpack
 import statlib.stats
@@ -171,6 +172,33 @@ class Master:
         if label and not self.quiet:
             sys.stderr.write('\n')
             sys.stderr.flush()
+
+    def kill_workers(self, timeout=5):
+        """
+        Send a suicide message to all workers, with some kind of timeout.
+        """
+        logging.info('Killing workers, taking up to %d seconds.', int(timeout))
+        poller = zmq.Poller()
+        poller.register(self.results_pull, zmq.POLLIN)
+
+        while True:
+            # Seems to get stuck gevent-blocking in the work_push.send() after
+            # all the workers have died.  Also, gevent.Timeout() doesn't seem
+            # to work here?!
+            signal.alarm(int(timeout))
+            self.work_push.send(msgpack.dumps({'type': 'PING'}))
+            socks = dict(poller.poll(timeout * 1500))
+            if self.results_pull in socks \
+                    and socks[self.results_pull] == zmq.POLLIN:
+                result_packed = self.results_pull.recv()
+                result = msgpack.loads(result_packed)
+                logging.info('Heard from worker id=%d; sending SUICIDE',
+                            result['worker_id'])
+                self.work_push.send(msgpack.dumps({'type': 'SUICIDE'}))
+                gevent.sleep(0.1)
+            else:
+                break
+            signal.alarm(0)
 
     def run_scenario(self, auth_url, user, key, storage_url, token, scenario,
                      noop=False, with_profiling=False, keep_objects=False):
