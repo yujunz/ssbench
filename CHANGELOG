@@ -1,3 +1,13 @@
+ssbench (0.2.9)
+
+    * Fixed #25: ssbench-worker will re-auth if necessary.
+
+    * Fixed #21; added ability to kill workers.
+
+    * Fixed #16: raise file descriptor limit if run as root.
+
+    * Fixed bug when using the scenario's user count.
+
 ssbench (0.2.8)
 
     * Actually install the sample scenario files, CHANGELOG, AUTHORS, and

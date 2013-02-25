@@ -207,12 +207,14 @@ Basic usage of ``ssbench-master`` (requires one sub-command of
 ``run-scenario`` to actually run a benchmark scenario, or
 ``report-scenario`` to report on an existing scenario result data file::
 
-  usage: ssbench-master [-h] [-v] {run-scenario,report-scenario} ...
+  usage: ssbench-master [-h] [-v]
+                        {kill-workers,run-scenario,report-scenario} ...
 
   Benchmark your Swift installation
 
   positional arguments:
-    {run-scenario,report-scenario}
+    {kill-workers,run-scenario,report-scenario}
+      kill-workers        Tell all workers to exit.
       run-scenario        Run CRUD scenario, saving statistics. You must supply
                           *either* the -A, -U, and -K options, or the -S and -T
                           options.
@@ -312,6 +314,25 @@ previously-run benchmark scenario::
                           Also write a CSV file with requests completed per
                           second histogram data (default: None)
 
+The ``kill-workers`` sub-command of ``ssbench-master`` will kill all
+``ssbench-worker`` processes which are pointed at the ``ssbench-master``
+ZMQ sockets::
+
+  $ ssbench-master kill-workers -h
+  usage: ssbench-master kill-workers [-h] [--zmq-bind-ip BIND_IP]
+                                     [--zmq-work-port PORT]
+                                     [--zmq-results_port PORT]
+
+  optional arguments:
+    -h, --help            show this help message and exit
+    --zmq-bind-ip BIND_IP
+                          The IP to which the 2 ZMQ sockets will bind (default:
+                          0.0.0.0)
+    --zmq-work-port PORT  TCP port (on this host) from which workers will PULL
+                          work (default: 13579)
+    --zmq-results_port PORT
+                          TCP port (on this host) to which workers will PUSH
+                          results (default: 13580)
 
 HTTPS on OS X
 -------------
