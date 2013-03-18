@@ -18,6 +18,7 @@ import os
 import re
 import sys
 import time
+import math
 import logging
 import argparse
 import subprocess
@@ -76,7 +77,8 @@ def run_scenario(master, args):
 
         # Spawn local worker(s), if necessary
         if worker_count:
-            users_per_worker = int(scenario.user_count / worker_count + 0.99)
+            users_per_worker = int(math.ceil(float(scenario.user_count) /
+                                             worker_count))
             zmq_host = '127.0.0.1' if args.zmq_bind_ip == '0.0.0.0' \
                     else args.zmq_bind_ip
             worker_cmd = [
@@ -87,7 +89,8 @@ def run_scenario(master, args):
             if args.profile:
                 worker_cmd = worker_cmd + [
                     '--profile-count',
-                    str(int(operation_count / worker_count * 0.8))]
+                    str(int(math.ceil(
+                        float(operation_count) / worker_count * 0.8)))]
             if args.verbose:
                 worker_cmd.append('-v')
             for i in xrange(getattr(args, 'workers', 0)):
@@ -385,22 +388,19 @@ if __name__ == "__main__":
         'region_name': args.os_region_name,
     }
 
-    if not args.auth_url or not args.user or not args.key:
-        exit('''
-Auth version 1.0 requires ST_AUTH, ST_USER, and ST_KEY environment variables
-to be set or overridden with -A, -U, or -K.
-
-Auth version 2.0 requires OS_AUTH_URL, OS_USERNAME, OS_PASSWORD, and
-OS_TENANT_NAME OS_TENANT_ID to be set or overridden with --os-auth-url,
---os-username, --os-password, --os-tenant-name or os-tenant-id.'''.strip('\n'))
-
     if args.func == run_scenario:
         if args.storage_url and args.token:
             args.auth_url = None
             args.user = None
             args.key = None
-        elif not (args.auth_url and args.user and args.key):
-            print >>sys.stderr, 'Must specifiy -A, -U, -K or -S and -T.'
+        elif not args.auth_url or not args.user or not args.key:
+            print >>sys.stderr, '''
+Auth version 1.0 requires ST_AUTH, ST_USER, and ST_KEY environment variables
+to be set or overridden with -A, -U, or -K.
+
+Auth version 2.0 requires OS_AUTH_URL, OS_USERNAME, OS_PASSWORD, and
+OS_TENANT_NAME OS_TENANT_ID to be set or overridden with --os-auth-url,
+--os-username, --os-password, --os-tenant-name or os-tenant-id.'''.strip('\n')
             run_scenario_arg_parser.print_help(file=sys.stderr)
             exit(1)
     os.environ.pop('ST_AUTH', None)

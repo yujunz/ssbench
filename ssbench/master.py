@@ -231,9 +231,13 @@ class Master:
                                                     hard_nofile))
 
         # Construct auth_kwargs appropriate for client.get_auth()
-        auth_kwargs = dict(
-            auth_url=auth_url, user=user, key=key, auth_version=auth_version,
-            os_options=os_options, cacert=cacert, insecure=insecure)
+        if not storage_url or not token:
+            auth_kwargs = dict(
+                auth_url=auth_url, user=user, key=key,
+                auth_version=auth_version, os_options=os_options,
+                cacert=cacert, insecure=insecure)
+        else:
+            auth_kwargs = dict(storage_url=storage_url, token=token)
 
         # Ensure containers exist
         if not noop:
