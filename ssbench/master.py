@@ -107,15 +107,7 @@ class Master:
         processor(result)
 
     def do_a_run(self, concurrency, job_generator, result_processor,
-                 auth_url=None, user=None, key=None, storage_url=None,
-                 token=None, mapper_fn=None, label='', noop=False):
-        if auth_url and user and key:
-            auth_kwargs = dict(auth_url=auth_url, user=user, key=key)
-        elif storage_url and token:
-            auth_kwargs = dict(storage_url=storage_url, token=token)
-        else:
-            raise ValueError('do_a_run() requires auth_url/user/key or '
-                             'storage_url/token!')
+                 auth_kwargs, mapper_fn=None, label='', noop=False):
         if label and not self.quiet:
             print >>sys.stderr, label + """
   X    work job raised an exception
@@ -143,7 +135,7 @@ class Master:
                         continue
                 else:
                     job = work_job
-            job.update(auth_kwargs)
+            job['auth_kwargs'] = auth_kwargs
 
             logging.debug('active: %d\tconcurrency: %d', active, concurrency)
             timeout = 0
@@ -201,21 +193,29 @@ class Master:
                 break
             signal.alarm(0)
 
-    def run_scenario(self, auth_url, user, key, storage_url, token, scenario,
+    def run_scenario(self, scenario, auth_url, user, key, auth_version,
+                     os_options, cacert, insecure, storage_url, token,
                      noop=False, with_profiling=False, keep_objects=False):
         """
         Runs a CRUD scenario, given cluster parameters and a Scenario object.
 
-        :auth_url: Authentication URL for the Swift cluster
-        :user: Account/Username to use (format is <account>:<username>)
-        :key: Password for the Account/Username
-        :storage_url: Optional user-specified x-storage-url
-        :token: Optional user-specified x-auth-token
-        :scenario: Scenario object describing the benchmark run
-        :noop: Run in no-op mode?
-        :with_profiing: Profile the run?
-        :keep_objects: Keep uploaded objects instead of deleting them?
-        :returns: Collected result records from workers
+        :param scenario: Scenario object describing the benchmark run
+        :param auth_url: Authentication URL for the Swift cluster
+        :param user: Account/Username to use (format is <account>:<username>)
+        :param key: Password for the Account/Username
+        :param auth_version: OpenStack auth version, default is 1.0
+        :param os_options: The OpenStack options which can have tenant_id,
+                           auth_token, service_type, endpoint_type,
+                           tenant_name, object_storage_url, region_name
+        :param insecure: Allow to access insecure keystone server.
+                         The keystone's certificate will not be verified.
+        :param cacert: Bundle file to use in verifying SSL.
+        :param storage_url: Optional user-specified x-storage-url
+        :param token: Optional user-specified x-auth-token
+        :param noop: Run in no-op mode?
+        :param with_profiing: Profile the run?
+        :param keep_objects: Keep uploaded objects instead of deleting them?
+        :param returns: Collected result records from workers
         """
 
         run_state = RunState()
@@ -230,12 +230,17 @@ class Master:
         resource.setrlimit(resource.RLIMIT_NOFILE, (nofile_target,
                                                     hard_nofile))
 
+        # Construct auth_kwargs appropriate for client.get_auth()
+        auth_kwargs = dict(
+            auth_url=auth_url, user=user, key=key, auth_version=auth_version,
+            os_options=os_options, cacert=cacert, insecure=insecure)
+
         # Ensure containers exist
         if not noop:
             if not storage_url or not token:
                 logging.debug('Authenticating to %s with %s/%s', auth_url,
                               user, key)
-                c_storage_url, c_token = client.get_auth(auth_url, user, key)
+                c_storage_url, c_token = client.get_auth(**auth_kwargs)
             else:
                 c_storage_url, c_token = storage_url, token
                 logging.debug('Using token %s at %s', c_token, c_storage_url)
@@ -256,8 +261,7 @@ class Master:
                          'concurrent workers)', scenario.user_count)
 
             self.do_a_run(scenario.user_count, scenario.initial_jobs(),
-                          run_state.handle_initialization_result,
-                          auth_url, user, key, storage_url, token)
+                          run_state.handle_initialization_result, auth_kwargs)
 
         logging.info('Starting benchmark run (up to %d concurrent '
                      'workers)', scenario.user_count)
@@ -269,8 +273,7 @@ class Master:
             prof = cProfile.Profile()
             prof.enable()
         self.do_a_run(scenario.user_count, scenario.bench_jobs(),
-                      run_state.handle_run_result, auth_url, user, key,
-                      storage_url, token,
+                      run_state.handle_run_result, auth_kwargs,
                       mapper_fn=run_state.fill_in_job,
                       label='Benchmark Run:', noop=noop)
         if with_profiling:
@@ -284,8 +287,7 @@ class Master:
             self.do_a_run(scenario.user_count,
                           run_state.cleanup_object_infos(),
                           lambda *_: None,
-                          auth_url, user, key,
-                          storage_url, token,
+                          auth_kwargs,
                           mapper_fn=_gen_cleanup_job)
         elif keep_objects:
             logging.info('NOT deleting any objects due to -k/--keep-objects')

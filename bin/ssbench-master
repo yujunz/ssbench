@@ -21,6 +21,7 @@ import time
 import logging
 import argparse
 import subprocess
+from os import environ
 import cPickle as pickle
 from datetime import datetime
 
@@ -101,11 +102,14 @@ def run_scenario(master, args):
                                                       close_fds=True))
                 local_worker_logs.append((log_path, logfp))
 
-        results = master.run_scenario(auth_url=args.auth_url, user=args.user,
-                                      key=args.key,
+        results = master.run_scenario(scenario, auth_url=args.auth_url,
+                                      user=args.user, key=args.key,
+                                      auth_version=args.auth_version,
+                                      os_options=args.os_options,
+                                      cacert=args.os_cacert,
+                                      insecure=args.insecure,
                                       storage_url=args.storage_url,
-                                      token=args.token, scenario=scenario,
-                                      noop=args.noop,
+                                      token=args.token, noop=args.noop,
                                       with_profiling=args.profile,
                                       keep_objects=args.keep_objects)
         pickle.dump([scenario, results], args.stats_file)
@@ -198,6 +202,11 @@ if __name__ == "__main__":
     run_scenario_arg_parser.add_argument(
         '--zmq-results_port', metavar='PORT', type=int, default=13580,
         help='TCP port (on this host) to which workers will PUSH results')
+    #
+    run_scenario_arg_parser.add_argument(
+        '-V', '--auth-version', dest='auth_version',
+        default=environ.get('ST_AUTH_VERSION', '1.0'),
+        type=str, help='Specify a version for authentication.')
     run_scenario_arg_parser.add_argument(
         '-A', '--auth-url', default=os.environ.get('ST_AUTH', None),
         help='Auth URL for the Swift cluster under test.')
@@ -207,6 +216,75 @@ if __name__ == "__main__":
     run_scenario_arg_parser.add_argument(
         '-K', '--key', default=os.environ.get('ST_KEY', None),
         help='The X-Auth-Key value to use for authentication.')
+    run_scenario_arg_parser.add_argument(
+        '--os-username', metavar='<auth-user-name>',
+        default=environ.get('OS_USERNAME'),
+        help='Openstack username (env[OS_USERNAME]).')
+    run_scenario_arg_parser.add_argument(
+        '--os_username', help=argparse.SUPPRESS)
+    run_scenario_arg_parser.add_argument(
+        '--os-password', metavar='<auth-password>',
+        default=environ.get('OS_PASSWORD'),
+        help='Openstack password (env[OS_PASSWORD]).')
+    run_scenario_arg_parser.add_argument(
+        '--os_password', help=argparse.SUPPRESS)
+    run_scenario_arg_parser.add_argument(
+        '--os-tenant-id', metavar='<auth-tenant-id>',
+        default=environ.get('OS_TENANT_ID'),
+        help='OpenStack tenant ID (env[OS_TENANT_ID]).')
+    run_scenario_arg_parser.add_argument(
+        '--os_tenant_id', help=argparse.SUPPRESS)
+    run_scenario_arg_parser.add_argument(
+        '--os-tenant-name', metavar='<auth-tenant-name>',
+        default=environ.get('OS_TENANT_NAME'),
+        help='Openstack tenant name (env[OS_TENANT_NAME]).')
+    run_scenario_arg_parser.add_argument(
+        '--os_tenant_name', help=argparse.SUPPRESS)
+    run_scenario_arg_parser.add_argument(
+        '--os-auth-url', metavar='<auth-url>',
+        default=environ.get('OS_AUTH_URL'),
+        help='Openstack auth URL (env[OS_AUTH_URL]).')
+    run_scenario_arg_parser.add_argument(
+        '--os_auth_url', help=argparse.SUPPRESS)
+    run_scenario_arg_parser.add_argument(
+        '--os-auth-token', metavar='<auth-token>',
+        default=environ.get('OS_AUTH_TOKEN'),
+        help='Openstack token (env[OS_AUTH_TOKEN]).')
+    run_scenario_arg_parser.add_argument(
+        '--os_auth_token', help=argparse.SUPPRESS)
+    run_scenario_arg_parser.add_argument(
+        '--os-storage-url', metavar='<storage-url>',
+        default=environ.get('OS_STORAGE_URL'),
+        help='Openstack storage URL (env[OS_STORAGE_URL]).')
+    run_scenario_arg_parser.add_argument(
+        '--os_storage_url', help=argparse.SUPPRESS)
+    run_scenario_arg_parser.add_argument(
+        '--os-region-name', metavar='<region-name>',
+        default=environ.get('OS_REGION_NAME'),
+        help='Openstack region name (env[OS_REGION_NAME]).')
+    run_scenario_arg_parser.add_argument(
+        '--os_region_name', help=argparse.SUPPRESS)
+    run_scenario_arg_parser.add_argument(
+        '--os-service-type', metavar='<service-type>',
+        default=environ.get('OS_SERVICE_TYPE'),
+        help='Openstack Service type (env[OS_SERVICE_TYPE]).')
+    run_scenario_arg_parser.add_argument(
+        '--os_service_type', help=argparse.SUPPRESS)
+    run_scenario_arg_parser.add_argument(
+        '--os-endpoint-type', metavar='<endpoint-type>',
+        default=environ.get('OS_ENDPOINT_TYPE'),
+        help='Openstack Endpoint type (env[OS_ENDPOINT_TYPE]).')
+    run_scenario_arg_parser.add_argument(
+        '--os-cacert', metavar='<ca-certificate>',
+        default=environ.get('OS_CACERT'),
+        help='Specify a CA bundle file to use in verifying a '
+        'TLS (https) server certificate (env[OS_CACERT]).')
+    run_scenario_arg_parser.add_argument(
+        '--insecure', action="store_true", dest="insecure",
+        default='',
+        help='Allow swiftclient to access insecure keystone server; '
+        'the keystone\'s certificate will not be verified.')
+    
     #
     run_scenario_arg_parser.add_argument(
         '-S', '--storage-url', help='A specific X-Storage-Url to use; mutually '
@@ -282,6 +360,39 @@ if __name__ == "__main__":
     report_scenario_arg_parser.set_defaults(func=report_scenario)
 
     args = arg_parser.parse_args(sys.argv[1:])
+
+    if not args.auth_url or not args.user or not args.key:
+        # Use 2.0 auth if any of the old args are missing
+        args.auth_version = '2.0'
+
+    # Use new-style args if old ones not present or if v2.0
+    is_v2 = args.auth_version.startswith('2')
+    if is_v2 or (not args.auth_url and args.os_auth_url):
+        args.auth_url = args.os_auth_url
+    if is_v2 or (not args.user and args.os_username):
+        args.user = args.os_username
+    if is_v2 or (not args.key and args.os_password):
+        args.key = args.os_password
+
+    # Specific OpenStack args
+    args.os_options = {
+        'tenant_id': args.os_tenant_id,
+        'tenant_name': args.os_tenant_name,
+        'service_type': args.os_service_type,
+        'endpoint_type': args.os_endpoint_type,
+        'auth_token': args.os_auth_token,
+        'object_storage_url': args.os_storage_url,
+        'region_name': args.os_region_name,
+    }
+
+    if not args.auth_url or not args.user or not args.key:
+        exit('''
+Auth version 1.0 requires ST_AUTH, ST_USER, and ST_KEY environment variables
+to be set or overridden with -A, -U, or -K.
+
+Auth version 2.0 requires OS_AUTH_URL, OS_USERNAME, OS_PASSWORD, and
+OS_TENANT_NAME OS_TENANT_ID to be set or overridden with --os-auth-url,
+--os-username, --os-password, --os-tenant-name or os-tenant-id.'''.strip('\n'))
 
     if args.func == run_scenario:
         if args.storage_url and args.token:

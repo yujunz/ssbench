@@ -27,6 +27,7 @@ gevent.monkey.patch_time()
 
 import os
 import re
+import sys
 import time
 import random
 import socket
@@ -209,6 +210,16 @@ class Worker:
         finally:
             self.conn_pools_lock.release()
 
+    def _token_key(self, auth_kwargs):
+        parts = []
+        for key in sorted(auth_kwargs.keys()):
+            value = auth_kwargs.get(key, '') or ''
+            if isinstance(value, dict):
+                parts.append(self._token_key(value))
+            else:
+                parts.append(value)
+        return '\x01'.join(parts)
+
     def ignoring_http_responses(self, statuses, fn, call_info, **extra_keys):
         if 401 not in statuses:
             statuses += (401,)
@@ -221,43 +232,31 @@ class Worker:
         tries = 0
         while True:
             # Make sure we've got a current storage_url/token
-            token_key = None
-            if 'auth_url' in call_info:
-                token_key = '\x01'.join((call_info['auth_url'],
-                                        call_info['user'],
-                                        call_info['key']))
-                if token_key not in self.token_data:
-                    self.token_data_lock.acquire()
-                    collided = False
-                    try:
-                        if token_key not in self.token_data:
-                            logging.debug('Authenticating to %s with %s/%s',
-                                          call_info['auth_url'],
-                                          call_info['user'], call_info['key'])
-                            storage_url, token = client.get_auth(
-                                call_info['auth_url'], call_info['user'],
-                                call_info['key'])
-                            logging.debug('Using token %s at %s', token,
-                                            storage_url)
-                            self.token_data[token_key] = (storage_url, token)
-                        else:
-                            collided = True
-                    finally:
-                        self.token_data_lock.release()
-                    if collided:
-                        # Wait just a little bit if we just collided with
-                        # another greenthread's re-auth
-                        logging.debug('Collided on re-auth; sleeping 0.005')
-                        gevent.sleep(0.005)
-                args['url'], args['token'] = self.token_data[token_key]
-            elif 'storage_url' in call_info:
-                # If the benchmark invoker specified a storage URL/token,
-                # there is no way we can re-auth, so we just run with it...
-                args['url'] = call_info['storage_url']
-                args['token'] = call_info['token']
-            else:
-                raise ValueError('ignoring_http_responses call_info needs '
-                                 'one of "auth_url" or "storage_url"')
+            token_key = self._token_key(call_info['auth_kwargs'])
+            if token_key not in self.token_data:
+                self.token_data_lock.acquire()
+                collided = False
+                try:
+                    if token_key not in self.token_data:
+                        logging.debug('Authenticating with %r',
+                                      call_info['auth_kwargs'])
+                        storage_url, token = client.get_auth(
+                            **call_info['auth_kwargs'])
+                        if 'storage_url' in call_info:
+                            storage_url = call_info['storage_url']
+                        logging.debug('Using token %s at %s',
+                                      token, storage_url)
+                        self.token_data[token_key] = (storage_url, token)
+                    else:
+                        collided = True
+                finally:
+                    self.token_data_lock.release()
+                if collided:
+                    # Wait just a little bit if we just collided with
+                    # another greenthread's re-auth
+                    logging.debug('Collided on re-auth; sleeping 0.005')
+                    gevent.sleep(0.005)
+            args['url'], args['token'] = self.token_data[token_key]
 
             # Check for connection pool initialization (protected by a
             # semaphore)
