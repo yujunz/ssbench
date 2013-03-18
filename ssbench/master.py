@@ -225,7 +225,7 @@ class Master:
         soft_nofile, hard_nofile = resource.getrlimit(resource.RLIMIT_NOFILE)
         nofile_target = 1024
         if os.geteuid() == 0:
-            nofile_target = scenario.user_count + 10
+            nofile_target = max(nofile_target, scenario.user_count + 20)
             hard_nofile = nofile_target
         resource.setrlimit(resource.RLIMIT_NOFILE, (nofile_target,
                                                     hard_nofile))
