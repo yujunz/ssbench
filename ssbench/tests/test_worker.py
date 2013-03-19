@@ -114,8 +114,10 @@ class TestWorker(object):
         call_info = {
             'container': 'someContainer',
             'name': 'someName',
-            'storage_url': 'someUrl',
-            'token': 'someToken',
+            'auth_kwargs': {
+                'storage_url': 'someUrl',
+                'token': 'someToken',
+            },
         }
         self.mock_token_data_lock.should_receive('acquire').never
         self.mock_token_data_lock.should_receive('release').never
@@ -162,14 +164,16 @@ class TestWorker(object):
         call_info = {
             'container': 'someContainer',
             'name': 'someName',
-            'auth_url': 'http://someAuthUrl',
-            'user': 'someUser',
-            'key': 'someKey',
+            'auth_kwargs': {
+                'auth_url': 'http://someAuthUrl',
+                'user': 'someUser',
+                'key': 'someKey',
+            },
         }
         self.mock_token_data_lock.should_receive('acquire').ordered.once
         self.mock_token_data_lock.should_receive('release').ordered.once
         self.mock_client.should_receive('get_auth').with_args(
-            'http://someAuthUrl', 'someUser', 'someKey',
+            **call_info['auth_kwargs']
         ).and_return(('someStorageUrl', 'someStorageToken')).once
         mock_pool = flexmock()
         def _insert_mock_pool(url):
@@ -199,11 +203,13 @@ class TestWorker(object):
         call_info = {
             'container': 'someContainer',
             'name': 'someName',
-            'auth_url': 'http://someAuthUrl',
-            'user': 'someUser',
-            'key': 'someKey',
+            'auth_kwargs': {
+                'auth_url': 'http://someAuthUrl',
+                'user': 'someUser',
+                'key': 'someKey',
+            },
         }
-        token_key = '\x01'.join(['http://someAuthUrl', 'someUser', 'someKey'])
+        token_key = self.worker._token_key(call_info['auth_kwargs'])
         def _insert_auth():
             self.worker.token_data[token_key] = ('otherUrl', 'otherToken')
         self.mock_token_data_lock.should_receive('acquire').replace_with(

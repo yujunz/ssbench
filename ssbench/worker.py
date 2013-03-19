@@ -229,6 +229,9 @@ class Worker:
         )
         args.update(extra_keys)
 
+        if 'auth_kwargs' not in call_info:
+            raise ValueError('Got benchmark job without "auth_kwargs" key!')
+
         tries = 0
         while True:
             # Make sure we've got a current storage_url/token
