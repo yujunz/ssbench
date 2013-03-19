@@ -24,6 +24,7 @@ import argparse
 import subprocess
 from os import environ
 import cPickle as pickle
+from gzip import GzipFile
 from datetime import datetime
 
 from ssbench.master import Master
@@ -62,19 +63,14 @@ def run_scenario(master, args):
         args.stats_file = DEFAULT_STATS_PATH % (munged_name, timestamp)
         if not os.path.exists(os.path.dirname(args.stats_file)):
             os.makedirs(os.path.dirname(args.stats_file))
-    stats_file_path = args.stats_file
+    stats_file_path = args.stats_file + '.gz'
 
     # Attempt open prior to benchmark run so we get errors earlier
     # if there's a problem.
-    args.stats_file = open(stats_file_path, 'wb+')
+    args.stats_file = GzipFile(stats_file_path, 'wb+')
     worker_count = getattr(args, 'workers', 0)
     local_workers, local_worker_logs = [], []
     try:
-        # TODO -- local worker spawning/cleanup will probably need to move up
-        # "higher" once the run-as-root-then-drop-privs feature is added,
-        # because, you'd want to spawn workers as root so they can bump up file
-        # descriptor limits as well before dropping privs.
-
         # Spawn local worker(s), if necessary
         if worker_count:
             users_per_worker = int(math.ceil(float(scenario.user_count) /
@@ -133,12 +129,13 @@ def run_scenario(master, args):
                                  int(os.environ['SUDO_GID']))
 
     if not args.no_default_report:
-        args.stats_file.flush()
-        args.stats_file.seek(0)
+        args.stats_file.close()
+        args.stats_file = stats_file_path
         args.report_file = sys.stdout
         args.rps_histogram = None
         report_scenario(master, args)
-    args.stats_file.close()
+    else:
+        args.stats_file.close()
 
     # Chown stats_file back to SUDO_USER if appropriate
     if 'SUDO_UID' in os.environ and 'SUDO_GID' in os.environ:
@@ -151,6 +148,10 @@ def run_scenario(master, args):
 
 
 def report_scenario(master, args):
+    if args.stats_file.endswith('.gz'):
+        args.stats_file = GzipFile(args.stats_file, 'rb')
+    else:
+        args.stats_file = open(args.stats_file, 'rb')
     scenario, results = pickle.load(args.stats_file)
     stats = master.calculate_scenario_stats(scenario, results,
                                             nth_pctile=args.pctile)
@@ -347,7 +348,7 @@ if __name__ == "__main__":
         help="Generate a report from saved scenario statistics",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     report_scenario_arg_parser.add_argument(
-        '-s', '--stats-file', type=argparse.FileType('rb'), required=True,
+        '-s', '--stats-file', type=str, required=True,
         help='An existing stats file from a previous '
         '--run-scenario invocation')
     report_scenario_arg_parser.add_argument(
@@ -364,31 +365,31 @@ if __name__ == "__main__":
 
     args = arg_parser.parse_args(sys.argv[1:])
 
-    if not args.auth_url or not args.user or not args.key:
-        # Use 2.0 auth if any of the old args are missing
-        args.auth_version = '2.0'
-
-    # Use new-style args if old ones not present or if v2.0
-    is_v2 = args.auth_version.startswith('2')
-    if is_v2 or (not args.auth_url and args.os_auth_url):
-        args.auth_url = args.os_auth_url
-    if is_v2 or (not args.user and args.os_username):
-        args.user = args.os_username
-    if is_v2 or (not args.key and args.os_password):
-        args.key = args.os_password
-
-    # Specific OpenStack args
-    args.os_options = {
-        'tenant_id': args.os_tenant_id,
-        'tenant_name': args.os_tenant_name,
-        'service_type': args.os_service_type,
-        'endpoint_type': args.os_endpoint_type,
-        'auth_token': args.os_auth_token,
-        'object_storage_url': args.os_storage_url,
-        'region_name': args.os_region_name,
-    }
-
     if args.func == run_scenario:
+        if not args.auth_url or not args.user or not args.key:
+            # Use 2.0 auth if any of the old args are missing
+            args.auth_version = '2.0'
+
+        # Use new-style args if old ones not present or if v2.0
+        is_v2 = args.auth_version.startswith('2')
+        if is_v2 or (not args.auth_url and args.os_auth_url):
+            args.auth_url = args.os_auth_url
+        if is_v2 or (not args.user and args.os_username):
+            args.user = args.os_username
+        if is_v2 or (not args.key and args.os_password):
+            args.key = args.os_password
+
+        # Specific OpenStack args
+        args.os_options = {
+            'tenant_id': args.os_tenant_id,
+            'tenant_name': args.os_tenant_name,
+            'service_type': args.os_service_type,
+            'endpoint_type': args.os_endpoint_type,
+            'auth_token': args.os_auth_token,
+            'object_storage_url': args.os_storage_url,
+            'region_name': args.os_region_name,
+        }
+
         if args.storage_url and args.token:
             args.auth_url = None
             args.user = None
