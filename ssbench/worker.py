@@ -246,10 +246,15 @@ class Worker:
                                         call_info['auth_kwargs'])
                             storage_url, token = client.get_auth(
                                 **call_info['auth_kwargs'])
-                            if 'storage_url' in call_info:
-                                storage_url = call_info['storage_url']
+                            if 'storage_url' in call_info['auth_kwargs']:
+                                logging.debug(
+                                    'Overriding auth storage url %s with %s',
+                                    storage_url,
+                                    call_info['auth_kwargs']['storage_url'])
+                                storage_url = \
+                                        call_info['auth_kwargs']['storage_url']
                             logging.debug('Using token %s at %s',
-                                        token, storage_url)
+                                          token, storage_url)
                             self.token_data[token_key] = (storage_url, token)
                         else:
                             collided = True

@@ -231,20 +231,24 @@ class Master:
                                                     hard_nofile))
 
         # Construct auth_kwargs appropriate for client.get_auth()
-        if not storage_url or not token:
+        if not token:
             auth_kwargs = dict(
                 auth_url=auth_url, user=user, key=key,
                 auth_version=auth_version, os_options=os_options,
-                cacert=cacert, insecure=insecure)
+                cacert=cacert, insecure=insecure, storage_url=storage_url)
         else:
             auth_kwargs = dict(storage_url=storage_url, token=token)
 
         # Ensure containers exist
         if not noop:
-            if not storage_url or not token:
+            if not token:
                 logging.debug('Authenticating to %s with %s/%s', auth_url,
                               user, key)
                 c_storage_url, c_token = client.get_auth(**auth_kwargs)
+                if storage_url:
+                    logging.debug('Overriding auth storage url %s with %s',
+                                  c_storage_url, storage_url)
+                    c_storage_url = storage_url
             else:
                 c_storage_url, c_token = storage_url, token
                 logging.debug('Using token %s at %s', c_token, c_storage_url)
