@@ -191,8 +191,8 @@ if __name__ == "__main__":
         "run-scenario", help="""
         Run CRUD scenario, saving statistics.
 
-        You must supply *either* the -A, -U, and -K options, or the -S and -T
-        options.
+        You must supply a valid set of v1.0 or v2.0 auth credentials.  See usage
+        message for run-scenario for more details.
         """.strip(),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     run_scenario_arg_parser.add_argument(

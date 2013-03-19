@@ -113,7 +113,7 @@ defining a benchmark run.  Specifically, it defines:
 - A ``user_count`` which determines the maxiumum client concurrency during the
   benchmark run.  The user is responsible for ensuring there are enough workers
   running to support the scenario's defined ``user_count``.  (Each
-  ``ssbench-worker`` process uses gevent_ to achive very efficeint
+  ``ssbench-worker`` process uses `gevent`_ to achive very efficeint
   concurrency for the benchmark client requests.)  This value may be overridden
   for any given run with the ``-u COUNT`` flag to ``ssbench-master
   run-scenario``.
@@ -137,7 +137,7 @@ of the benchmark run will be a weighted average between the values in the "%
 Ops" column and the CRUD profile of each size category.  This weighted average
 CRUD profile is included in the report on the "CRUD weighted average" line.
 
-.. _gevent: http://www.gevent.org/
+.. _`gevent`: http://www.gevent.org/
 
 ``ssbench`` comes with a few canned scenarios, but users are encouraged to
 experiment and define their own.
@@ -170,7 +170,7 @@ commas, in particular.
 Usage
 -----
 
-The ``ssbench-worker`` script::
+The ``ssbench-worker`` script's usage message may be generated with::
 
   $ ssbench-worker -h
   usage: ssbench-worker [-h] [--zmq-host ZMQ_HOST]
@@ -179,34 +179,15 @@ The ``ssbench-worker`` script::
                         [--retries RETRIES] [-p COUNT] [-v]
                         worker_id
 
-  Benchmark your Swift installation
+  ...
 
-  positional arguments:
-    worker_id             An integer ID number; must be unique among all workers
+The ``ssbench-master`` command requires one sub-command, which is currently
+either ``run-scenario`` to actually run a benchmark scenario,
+``report-scenario`` to report on an existing scenario result data file, or
+``kill-workers`` to tell connected ``ssbench-worker`` processes not started
+with ``--workers`` to kill themselves::
 
-  optional arguments:
-    -h, --help            show this help message and exit
-    --zmq-host ZMQ_HOST   Hostname or IP where ssbench-master may be reached
-                          (default: 127.0.0.1)
-    --zmq-work-port ZMQ_WORK_PORT
-                          Must match the value given to ssbench-master (default:
-                          13579)
-    --zmq-results-port ZMQ_RESULTS_PORT
-                          Must match the value given to ssbench-master (default:
-                          13580)
-    -c CONCURRENCY, --concurrency CONCURRENCY
-                          Maximum concurrency this worker will provide.
-                          (default: 256)
-    --retries RETRIES     Maximum number of times to retry a job. (default: 10)
-    -p COUNT, --profile-count COUNT
-                          Profile COUNT work jobs, starting with the first.
-                          (default: 0)
-    -v, --verbose         Enable more verbose output. (default: False)
-
-Basic usage of ``ssbench-master`` (requires one sub-command of
-``run-scenario`` to actually run a benchmark scenario, or
-``report-scenario`` to report on an existing scenario result data file::
-
+  $ ssbench-master -h
   usage: ssbench-master [-h] [-v]
                         {kill-workers,run-scenario,report-scenario} ...
 
@@ -216,140 +197,93 @@ Basic usage of ``ssbench-master`` (requires one sub-command of
     {kill-workers,run-scenario,report-scenario}
       kill-workers        Tell all workers to exit.
       run-scenario        Run CRUD scenario, saving statistics. You must supply
-                          *either* the -A, -U, and -K options, or the -S and -T
-                          options.
+                          a valid set of v1.0 or v2.0 auth credentials. See
+                          usage message for run-scenario for more details.
       report-scenario     Generate a report from saved scenario statistics
 
   optional arguments:
     -h, --help            show this help message and exit
     -v, --verbose         Enable more verbose output. (default: False)
 
-The ``run-scenario`` sub-command of ``ssbench-master`` which actually
+    usage: ssbench-master [-h] [-v]
+                          {kill-workers,run-scenario,report-scenario} ...
+
+    Benchmark your Swift installation
+
+The ``run-scenario`` sub-command of ``ssbench-master`` actually
 runs a benchmark scenario::
 
   $ ssbench-master run-scenario -h
   usage: ssbench-master run-scenario [-h] -f SCENARIO_FILE
                                      [--zmq-bind-ip BIND_IP]
                                      [--zmq-work-port PORT]
-                                     [--zmq-results_port PORT] [-A AUTH_URL]
-                                     [-U USER] [-K KEY] [-S STORAGE_URL]
-                                     [-T TOKEN] [-c COUNT] [-u COUNT] [-o COUNT]
-                                     [--workers COUNT] [-q] [--profile] [--noop]
-                                     [-k] [-s STATS_FILE] [-r]
-                                     [--pctile PERCENTILE]
+                                     [--zmq-results_port PORT] [-V AUTH_VERSION]
+                                     [-A AUTH_URL] [-U USER] [-K KEY]
+                                     [--os-username <auth-user-name>]
+                                     [--os-password <auth-password>]
+                                     [--os-tenant-id <auth-tenant-id>]
+                                     [--os-tenant-name <auth-tenant-name>]
+                                     [--os-auth-url <auth-url>]
+                                     [--os-auth-token <auth-token>]
+                                     [--os-storage-url <storage-url>]
+                                     [--os-region-name <region-name>]
+                                     [--os-service-type <service-type>]
+                                     [--os-endpoint-type <endpoint-type>]
+                                     [--os-cacert <ca-certificate>] [--insecure]
+                                     [-S STORAGE_URL] [-T TOKEN] [-c COUNT]
+                                     [-u COUNT] [-o COUNT] [--workers COUNT]
+                                     [-q] [--profile] [--noop] [-k]
+                                     [-s STATS_FILE] [-r] [--pctile PERCENTILE]
 
-  optional arguments:
-    -h, --help            show this help message and exit
-    -f SCENARIO_FILE, --scenario-file SCENARIO_FILE
-    --zmq-bind-ip BIND_IP
-                          The IP to which the 2 ZMQ sockets will bind (default:
-                          0.0.0.0)
-    --zmq-work-port PORT  TCP port (on this host) from which workers will PULL
-                          work (default: 13579)
-    --zmq-results_port PORT
-                          TCP port (on this host) to which workers will PUSH
-                          results (default: 13580)
-    -A AUTH_URL, --auth-url AUTH_URL
-                          Auth URL for the Swift cluster under test. (default:
-                          http://192.168.22.100/auth/v1.0)
-    -U USER, --user USER  The X-Auth-User value to use for authentication.
-                          (default: dev:admin)
-    -K KEY, --key KEY     The X-Auth-Key value to use for authentication.
-                          (default: admin)
-    -S STORAGE_URL, --storage-url STORAGE_URL
-                          A specific X-Storage-Url to use; mutually exclusive
-                          with -A, -U, and -K; requires -T (default: None)
-    -T TOKEN, --token TOKEN
-                          A specific X-Storage-Token to use; mutually exclusive
-                          with -A, -U, and -K; requires -S (default: None)
-    -c COUNT, --container-count COUNT
-                          Override the container count specified in the scenario
-                          file. (default: value from scenario)
-    -u COUNT, --user-count COUNT
-                          Override the user count (concurrency) specified in the
-                          scenario file. (default: value from scenario)
-    -o COUNT, --op-count COUNT
-                          Override the operation count specified in the scenario
-                          file. (default: value from scenario)
-    --workers COUNT       Spawn COUNT local ssbench-worker processes just for
-                          this run. To workers on other hosts, they must be
-                          started manually. (default: None)
-    -q, --quiet           Suppress most output (including progress characters
-                          during run). (default: False)
-    --profile             Profile the main benchmark run. (default: False)
-    --noop                Exercise benchmark infrastructure without talking to
-                          cluster. (default: False)
-    -k, --keep-objects    Keep all uploaded objects in cluster; do not delete
-                          any. (default: False)
-    -s STATS_FILE, --stats-file STATS_FILE
-                          File into which benchmarking statistics will be saved
-                          (default: /tmp/ssbench-
-                          results/<scenario_name>.<timestamp>.stat)
-    -r, --no-default-report
-                          Suppress the default immediate generation of a
-                          benchmark report to STDOUT after saving stats-file
-                          (default: False)
-    --pctile PERCENTILE   Report on the N-th percentile, if generating a report.
-                          (default: 95)
+  ...
 
 
-The ``report-scenario`` sub-command of ``ssbench-master`` which can report on a
+The ``report-scenario`` sub-command of ``ssbench-master`` reports on a
 previously-run benchmark scenario::
 
   $ ssbench-master report-scenario -h
   usage: ssbench-master report-scenario [-h] -s STATS_FILE [-f REPORT_FILE]
                                         [--pctile PERCENTILE] [-r RPS_HISTOGRAM]
 
-  optional arguments:
-    -h, --help            show this help message and exit
-    -s STATS_FILE, --stats-file STATS_FILE
-                          An existing stats file from a previous --run-scenario
-                          invocation (default: None)
-    -f REPORT_FILE, --report-file REPORT_FILE
-                          The file to which the report should be written
-                          (default: <open file '<stdout>', mode 'w' at
-                          0x1002511e0>)
-    --pctile PERCENTILE   Report on the N-th percentile. (default: 95)
-    -r RPS_HISTOGRAM, --rps-histogram RPS_HISTOGRAM
-                          Also write a CSV file with requests completed per
-                          second histogram data (default: None)
+  ...
 
-The ``kill-workers`` sub-command of ``ssbench-master`` will kill all
+The ``kill-workers`` sub-command of ``ssbench-master`` kills all
 ``ssbench-worker`` processes which are pointed at the ``ssbench-master``
-ZMQ sockets::
+ZMQ sockets (this is useful for multi-server benchmark runs where the workers
+were not started with ``ssbench-master``'s ``--workers`` option)::
 
   $ ssbench-master kill-workers -h
   usage: ssbench-master kill-workers [-h] [--zmq-bind-ip BIND_IP]
                                      [--zmq-work-port PORT]
                                      [--zmq-results_port PORT]
 
-  optional arguments:
-    -h, --help            show this help message and exit
-    --zmq-bind-ip BIND_IP
-                          The IP to which the 2 ZMQ sockets will bind (default:
-                          0.0.0.0)
-    --zmq-work-port PORT  TCP port (on this host) from which workers will PULL
-                          work (default: 13579)
-    --zmq-results_port PORT
-                          TCP port (on this host) to which workers will PUSH
-                          results (default: 13580)
+  ...
 
-HTTPS on OS X
--------------
+Authentication
+--------------
 
-On a Mac, using HTTPS, I got a significant speed-up when setting
-``OPENSSL_X509_TEA_DISABLE=1`` in the environment of my ``ssbench-worker``
-processes.  I found this tip via a `curl blog post`_ after noticing a
-process named ``trustevaluationagent`` chewing up a lot of CPU during a
-benchmark run against a cluster using HTTPS.
+``ssbench-master`` supports all the same authentication arguments, with similar
+semantics, as `python-swiftclient`_'s command-line tool, ``swift``.
 
-.. _`curl blog post`: http://daniel.haxx.se/blog/2011/11/05/apples-modified-ca-cert-handling-and-curl/
+For v1.0 authentication, you just need ``ST_AUTH``, ``ST_USER``, and ``ST_KEY``
+defined in the environment or overridden/set on the command-line with ``-A``,
+``-U``, and ``-K``, respectively.
+
+For v2.0 authentication (Keystone), it's more complicated and you should refer
+to Keystone and/or `python-swiftclient`_ documentation for more help.
+
+Regardless of which version of authentication is used, you may specify ``-S
+<storage_url>`` on the command-line to override the Storage URL returned from
+the authentication system.
+
+.. _`python-swiftclient`: https://github.com/openstack/python-swiftclient
+
 
 Example Multi-Server Run
 ------------------------
 
 Start one or more ``ssbench-worker`` processes on each server (each
-``ssbench-worker`` process defaults to a maximum gevent-based concurrency
+``ssbench-worker`` process defaults to a maximum `gevent`_-based concurrency
 of 256, but the ``-c`` option can override that default).  Use the
 ``--zmq-host`` command-line parameter to specify the host on which you will run
 ``ssbench-master``.::
@@ -368,7 +302,8 @@ the multi-server benchmark run::
 The above example would involve a total client concurrency of 2000, spread
 evenly among the four workers on two hosts (``bench-host-01`` and
 ``bench-host-02``).  The four workers, as started in the above example,
-could support a client concurrency up to 4000.
+could support a maximum total client concurrency (``-u`` option to
+``ssbench-master``) up to 4000.
 
 
 Example Simple Single-Server Run
@@ -468,6 +403,17 @@ command.  Simply use the ``--workers COUNT`` option to ``ssbench-master``::
   INFO:root:You may generate a report with:
     ssbench-master report-scenario -s /tmp/ssbench-results/Small_test_scenario.2013-02-20.091016.stat
 
+
+HTTPS on OS X
+-------------
+
+When running ``ssbench-worker`` on a Mac, using HTTPS, I got a significant
+speed-up when setting ``OPENSSL_X509_TEA_DISABLE=1`` in the environment of my
+``ssbench-worker`` processes.  I found this tip via a `curl blog post`_ after
+noticing a process named ``trustevaluationagent`` chewing up a lot of CPU
+during a benchmark run against a cluster using HTTPS.
+
+.. _`curl blog post`: http://daniel.haxx.se/blog/2011/11/05/apples-modified-ca-cert-handling-and-curl/
 
 The No-op Mode
 --------------
