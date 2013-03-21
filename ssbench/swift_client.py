@@ -38,6 +38,12 @@ from gevent import sleep
 logger = logging.getLogger("swiftclient")
 
 
+# Timeout, in seconds, for individual read/write (not a timeout for the entire
+# get_object or put_object or whatever).
+DEFAULT_CONNECT_TIMEOUT = 10.0
+DEFAULT_NETWORK_TIMEOUT = 20.0
+
+
 def http_log(args, kwargs, resp, body):
     if not logger.isEnabledFor(logging.DEBUG):
         return
@@ -149,7 +155,7 @@ class ClientException(Exception):
         return b and '%s: %s' % (a, b) or a
 
 
-def http_connection(url, proxy=None):
+def http_connection(url, proxy=None, connect_timeout=DEFAULT_CONNECT_TIMEOUT):
     """
     Make an HTTPConnection or HTTPSConnection
 
@@ -163,9 +169,13 @@ def http_connection(url, proxy=None):
     parsed = urlparse(url)
     proxy_parsed = urlparse(proxy) if proxy else None
     if parsed.scheme == 'http':
-        conn = HTTPConnection((proxy_parsed if proxy else parsed).netloc)
+        conn = HTTPConnection(
+            (proxy_parsed if proxy else parsed).netloc,
+            timeout=connect_timeout)
     elif parsed.scheme == 'https':
-        conn = HTTPSConnection((proxy_parsed if proxy else parsed).netloc)
+        conn = HTTPSConnection(
+            (proxy_parsed if proxy else parsed).netloc,
+            timeout=connect_timeout)
     else:
         raise ClientException('Cannot handle protocol scheme %s for url %s' %
                               (parsed.scheme, repr(url)))
@@ -660,9 +670,10 @@ def delete_container(url, token, container, http_conn=None):
 
 
 def get_object(url, token, container, name, http_conn=None,
-               resp_chunk_size=None, toss_body=False):
+               resp_chunk_size=65536):
     """
-    Get an object
+    Modified for benchmarking to GET an object in "chunk sizes" of
+    resp_chunk_size, throwing away the actual contents.
 
     :param url: storage URL
     :param token: auth token
@@ -670,12 +681,8 @@ def get_object(url, token, container, name, http_conn=None,
     :param name: object name to get
     :param http_conn: HTTP connection object (If None, it will create the
                       conn object)
-    :param resp_chunk_size: if defined, chunk size of data to read. NOTE: If
-                            you specify a resp_chunk_size you must fully read
-                            the object's contents before making another
-                            request.
-    :returns: a tuple of (response headers, the object's contents) The response
-              headers will be a dict and all header names will be lowercase.
+    :param resp_chunk_size: chunk size of data to read; defaults to 65536.
+    :returns: benchmarking-decorated response headers.
     :raises ClientException: HTTP GET request failed
     """
     if http_conn:
@@ -699,28 +706,16 @@ def get_object(url, token, container, name, http_conn=None,
                               http_reason=resp.reason,
                               http_response_content=body)
     last_byte_latency = None
-    if resp_chunk_size:
-        def _object_body():
-            buf = resp.read(resp_chunk_size)
-            while buf:
-                yield buf
-                buf = resp.read(resp_chunk_size)
-        if toss_body:
-            for _ in _object_body():
-                pass
-            object_body = ''
-            last_byte_latency = time() - start
-        else:
-            object_body = _object_body()
-    else:
-        object_body = resp.read()
-        last_byte_latency = time() - start
+    buf = True
+    while buf:
+        buf = resp.read(resp_chunk_size)
+    last_byte_latency = time() - start
     resp_headers = _decorated_response_headers(
         resp, first_byte_latency=first_byte_latency,
         last_byte_latency=last_byte_latency)
     http_log(('%s%s' % (url.replace(parsed.path, ''), path), method,),
              {'headers': headers}, resp, None)
-    return resp_headers, object_body
+    return resp_headers
 
 
 def _decorated_response_headers(resp, first_byte_latency=None,
@@ -774,10 +769,15 @@ def head_object(url, token, container, name, http_conn=None):
 
 
 def put_object(url, token=None, container=None, name=None, contents=None,
-               content_length=None, etag=None, chunk_size=65536,
+               content_length=None, chunk_size=65536,
                content_type=None, headers=None, http_conn=None, proxy=None):
     """
-    Put an object
+    Modified for benchmarking to take a constant string in "contents" and write
+    out the first "chunk_size" bytes of "contents" until "content_length" bytes
+    have been sent.  A "contents" value of None will still do a zero-byte PUT.
+
+    If the length of contents is less than chunk_size, the length of contents
+    will be the de facto chunk size.
 
     :param url: storage URL
     :param token: auth token; if None, no token will be sent
@@ -785,13 +785,10 @@ def put_object(url, token=None, container=None, name=None, contents=None,
                       container name is expected to be part of the url
     :param name: object name to put; if None, the object name is expected to be
                  part of the url
-    :param contents: a string or a file like object to read object data from;
-                     if None, a zero-byte put will be done
+    :param contents: a static string; if None, a zero-byte put will be done
     :param content_length: value to send as content-length header; also limits
-                           the amount read from contents; if None, it will be
-                           computed via the contents or chunked transfer
-                           encoding will be used
-    :param etag: etag of contents; if None, no etag will be sent
+                           the amount of bytes from "contents" sent.  Cannot be
+                           None.
     :param chunk_size: chunk size of data to write; default 65536
     :param content_type: value to send as content-type header; if None, no
                          content-type will be set (remote end will likely try
@@ -819,8 +816,6 @@ def put_object(url, token=None, container=None, name=None, contents=None,
         headers = {}
     if token:
         headers['X-Auth-Token'] = token
-    if etag:
-        headers['ETag'] = etag.strip('"')
     if content_length is not None:
         headers['Content-Length'] = str(content_length)
     else:
@@ -832,30 +827,18 @@ def put_object(url, token=None, container=None, name=None, contents=None,
     if not contents:
         headers['Content-Length'] = '0'
     request_start = time()
-    if hasattr(contents, 'read'):
-        conn.putrequest('PUT', path)
-        for header, value in headers.iteritems():
-            conn.putheader(header, value)
-        if content_length is None:
-            conn.putheader('Transfer-Encoding', 'chunked')
-            conn.endheaders()
-            chunk = contents.read(chunk_size)
-            while chunk:
-                conn.send('%x\r\n%s\r\n' % (len(chunk), chunk))
-                chunk = contents.read(chunk_size)
-            conn.send('0\r\n\r\n')
-        else:
-            conn.endheaders()
-            left = content_length
-            while left > 0:
-                size = chunk_size
-                if size > left:
-                    size = left
-                chunk = contents.read(size)
-                conn.send(chunk)
-                left -= len(chunk)
-    else:
-        conn.request('PUT', path, contents, headers)
+    conn.putrequest('PUT', path)
+    for header, value in headers.iteritems():
+        conn.putheader(header, value)
+    conn.endheaders()
+    left = content_length
+    while left > 0:
+        size = chunk_size
+        if size > left:
+            size = left
+        chunk = contents[:size]
+        conn.send(chunk)
+        left -= len(chunk)
     resp = conn.getresponse()
     body = resp.read()
     headers = {'X-Auth-Token': token}
@@ -1092,13 +1075,13 @@ class Connection(object):
         """Wrapper for :func:`head_object`"""
         return self._retry(None, head_object, container, obj)
 
-    def get_object(self, container, obj, resp_chunk_size=None):
+    def get_object(self, container, obj, resp_chunk_size=65536):
         """Wrapper for :func:`get_object`"""
         return self._retry(None, get_object, container, obj,
                            resp_chunk_size=resp_chunk_size)
 
     def put_object(self, container, obj, contents, content_length=None,
-                   etag=None, chunk_size=65536, content_type=None,
+                   chunk_size=65536, content_type=None,
                    headers=None):
         """Wrapper for :func:`put_object`"""
 
@@ -1117,7 +1100,7 @@ class Connection(object):
             reset_func = lambda *a, **k: None
 
         return self._retry(reset_func, put_object, container, obj, contents,
-                           content_length=content_length, etag=etag,
+                           content_length=content_length,
                            chunk_size=chunk_size, content_type=content_type,
                            headers=headers)
 

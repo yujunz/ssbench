@@ -62,7 +62,8 @@ def _gen_cleanup_job(object_info):
 
 class Master:
     def __init__(self, zmq_bind_ip=None, zmq_work_port=None,
-                 zmq_results_port=11300, quiet=False):
+                 zmq_results_port=11300, quiet=False, connect_timeout=None,
+                 network_timeout=None):
         if zmq_bind_ip is not None and zmq_work_port is not None:
             work_endpoint = 'tcp://%s:%d' % (zmq_bind_ip, zmq_work_port)
             results_endpoint = 'tcp://%s:%d' % (zmq_bind_ip, zmq_results_port)
@@ -71,6 +72,8 @@ class Master:
             self.work_push.bind(work_endpoint)
             self.results_pull = self.context.socket(zmq.PULL)
             self.results_pull.bind(results_endpoint)
+        self.connect_timeout = connect_timeout
+        self.network_timeout = network_timeout
         self.quiet = quiet
 
     def process_result_to(self, job, processor, label=''):
@@ -136,6 +139,8 @@ class Master:
                 else:
                     job = work_job
             job['auth_kwargs'] = auth_kwargs
+            job['connect_timeout'] = self.connect_timeout
+            job['network_timeout'] = self.network_timeout
 
             logging.debug('active: %d\tconcurrency: %d', active, concurrency)
             timeout = 0

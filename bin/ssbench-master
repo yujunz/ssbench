@@ -27,8 +27,10 @@ import cPickle as pickle
 from gzip import GzipFile
 from datetime import datetime
 
+import ssbench.swift_client as client
 from ssbench.master import Master
 from ssbench.scenario import Scenario, ScenarioNoop
+
 
 DEFAULT_OBJECTS_PER_CONTAINER = 1000
 DEFAULT_STATS_PATH = '/tmp/ssbench-results/%s.%s.stat'
@@ -288,7 +290,6 @@ if __name__ == "__main__":
         default='',
         help='Allow swiftclient to access insecure keystone server; '
         'the keystone\'s certificate will not be verified.')
-    
     #
     run_scenario_arg_parser.add_argument(
         '-S', '--storage-url', help='A specific X-Storage-Url to use; mutually '
@@ -328,6 +329,14 @@ if __name__ == "__main__":
     run_scenario_arg_parser.add_argument(
         '-k', '--keep-objects', action='store_true', default=False,
         help='Keep all uploaded objects in cluster; do not delete any.')
+    run_scenario_arg_parser.add_argument(
+        '--connect-timeout', type=float,
+        default=client.DEFAULT_CONNECT_TIMEOUT,
+        help='Timeout for socket connections.')
+    run_scenario_arg_parser.add_argument(
+        '--network-timeout', type=float,
+        default=client.DEFAULT_NETWORK_TIMEOUT,
+        help='Timeout for socket operations after connecting.')
     #
     run_scenario_arg_parser.add_argument(
         '-s', '--stats-file', type=str,
@@ -419,6 +428,8 @@ OS_TENANT_NAME OS_TENANT_ID to be set or overridden with --os-auth-url,
     master = Master(getattr(args, 'zmq_bind_ip', None),
                     getattr(args, 'zmq_work_port', None),
                     getattr(args, 'zmq_results_port', None),
-                    quiet=args.func == run_scenario and args.quiet)
+                    quiet=args.func == run_scenario and args.quiet,
+                    connect_timeout=getattr(args, 'connect_timeout', None),
+                    network_timeout=getattr(args, 'network_timeout', None))
 
     args.func(master, args)

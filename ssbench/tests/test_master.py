@@ -84,7 +84,9 @@ class TestMaster(ScenarioFixture, TestCase):
         ).once
 
         self.master = Master(self.zmq_host, self.zmq_work_port,
-                             self.zmq_results_port)
+                             self.zmq_results_port,
+                             connect_timeout=3.14159,
+                             network_timeout=2.71828)
 
         self.result_index = 1  # for self.gen_result()
 

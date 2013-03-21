@@ -92,12 +92,14 @@ class TestWorker(object):
         self.mock_conn_pools_lock.should_receive('acquire').ordered.once
         mock_conn = flexmock()
         flexmock(worker.ConnectionPool).new_instances(mock_conn).with_args(
-            worker.ConnectionPool, client.http_connection, (stub_url,),
-            self.worker.concurrency
+            worker.ConnectionPool, client.http_connection,
+            dict(url=stub_url, connect_timeout=3.142),
+            self.worker.concurrency, network_timeout=2.718,
         ).ordered.once
         self.mock_conn_pools_lock.should_receive('release').ordered.once
 
-        self.worker._create_connection_pool(stub_url)
+        self.worker._create_connection_pool(stub_url, connect_timeout=3.142,
+                                            network_timeout=2.718)
 
         assert_equal(mock_conn, self.worker.conn_pools[stub_url])
 
@@ -118,15 +120,17 @@ class TestWorker(object):
                 'storage_url': 'someUrl',
                 'token': 'someToken',
             },
+            'connect_timeout': 3.142,
+            'network_timeout': 2.718,
         }
         self.mock_token_data_lock.should_receive('acquire').never
         self.mock_token_data_lock.should_receive('release').never
         self.mock_client.should_receive('get_auth').never
         mock_pool = flexmock()
-        def _insert_mock_pool(url):
+        def _insert_mock_pool(url, ignored1, ignored2):
             self.worker.conn_pools[url] = mock_pool
         self.mock_worker.should_receive('_create_connection_pool').with_args(
-            'someUrl',
+            'someUrl', 3.142, 2.718,
         ).replace_with(_insert_mock_pool).once
         mock_conn = flexmock()
         mock_pool.should_receive('get').and_return(mock_conn).ordered.once
@@ -169,6 +173,8 @@ class TestWorker(object):
                 'user': 'someUser',
                 'key': 'someKey',
             },
+            'connect_timeout': 3.142,
+            'network_timeout': 2.718,
         }
         self.mock_token_data_lock.should_receive('acquire').ordered.once
         self.mock_token_data_lock.should_receive('release').ordered.once
@@ -176,10 +182,10 @@ class TestWorker(object):
             **call_info['auth_kwargs']
         ).and_return(('someStorageUrl', 'someStorageToken')).once
         mock_pool = flexmock()
-        def _insert_mock_pool(url):
+        def _insert_mock_pool(url, ignored1, ignored2):
             self.worker.conn_pools[url] = mock_pool
         self.mock_worker.should_receive('_create_connection_pool').with_args(
-            'someStorageUrl',
+            'someStorageUrl', 3.142, 2.718,
         ).replace_with(_insert_mock_pool).once
         mock_conn = flexmock()
         mock_pool.should_receive('get').and_return(mock_conn).ordered.once
@@ -208,6 +214,8 @@ class TestWorker(object):
                 'user': 'someUser',
                 'key': 'someKey',
             },
+            'connect_timeout': 3.142,
+            'network_timeout': 2.718,
         }
         token_key = self.worker._token_key(call_info['auth_kwargs'])
         def _insert_auth():
@@ -218,10 +226,10 @@ class TestWorker(object):
         self.mock_token_data_lock.should_receive('release').ordered.once
         self.mock_client.should_receive('get_auth').never
         mock_pool = flexmock()
-        def _insert_mock_pool(url):
+        def _insert_mock_pool(url, ignored1, ignored2):
             self.worker.conn_pools[url] = mock_pool
         self.mock_worker.should_receive('_create_connection_pool').with_args(
-            'otherUrl',
+            'otherUrl', 3.142, 2.718,
         ).replace_with(_insert_mock_pool).once
         mock_conn = flexmock()
         mock_pool.should_receive('get').and_return(mock_conn).ordered.once
@@ -266,7 +274,7 @@ class TestWorker(object):
         ).with_args(
             (503,), client.put_object, object_info,
             content_length=99000,
-            contents=worker.ChunkedReader('A', 99000),
+            chunk_size=worker.BLOCK_SIZE, contents='A' * worker.BLOCK_SIZE,
         ).and_return({
             'x-swiftstack-first-byte-latency': 0.492393,
             'x-swiftstack-last-byte-latency': 8.23283,
@@ -316,7 +324,7 @@ class TestWorker(object):
         ).with_args(
             (503,), client.put_object, object_info,
             content_length=483213,
-            contents=worker.ChunkedReader('B', 483213),
+            chunk_size=worker.BLOCK_SIZE, contents='B' * worker.BLOCK_SIZE,
         ).and_return({
             'x-swiftstack-first-byte-latency': 4.45,
             'x-swiftstack-last-byte-latency': 23.283,
@@ -342,12 +350,12 @@ class TestWorker(object):
             'ignoring_http_responses',
         ).with_args(
             (404, 503), client.get_object, object_info,
-            resp_chunk_size=65536, toss_body=True,
-        ).and_return(({
+            resp_chunk_size=worker.BLOCK_SIZE,
+        ).and_return({
             'x-swiftstack-first-byte-latency': 5.33,
             'x-swiftstack-last-byte-latency': 9.99,
             'x-trans-id': 'bies',
-        }, ['object_data'])).once
+        }).once
         self.result_queue.should_receive('put').with_args(
             msgpack.dumps(worker.add_dicts(
                 object_info, worker_id=self.worker_id,

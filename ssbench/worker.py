@@ -46,8 +46,6 @@ import ssbench.swift_client as client
 
 
 BLOCK_SIZE = 2 ** 16  # 65536
-CONNECTION_TIMEOUT = 10.0
-NETWORK_TIMEOUT = 30.0
 
 
 def add_dicts(*args, **kwargs):
@@ -63,35 +61,41 @@ def add_dicts(*args, **kwargs):
     return result
 
 
-class ChunkedReader(object):
-    def __init__(self, letter, size):
-        self.size = size
-        self.letter = letter
-        chunk_size = 2 ** 21
-        self.chunk = letter * chunk_size
-
-    def __eq__(self, other_reader):
-        if isinstance(other_reader, ChunkedReader):
-            return self.size == other_reader.size and \
-                self.letter == other_reader.letter
-
-    def read(self, chunk_size):
-        return self.chunk[:chunk_size]
-
-
 class ConnectionPool(gevent.queue.Queue):
-    def __init__(self, factory, factory_args, maxsize=1):
-        def _connection_logger():
-            logging.info('ConnectionPool: re-creating connection...')
-            return factory(*factory_args)
+    def __init__(self, factory, factory_kwargs, maxsize=1,
+                 network_timeout=client.DEFAULT_NETWORK_TIMEOUT):
+        self.factory = factory
+        self.factory_kwargs = factory_kwargs
+        self.network_timeout = network_timeout
 
-        self.create = _connection_logger
         gevent.queue.Queue.__init__(self, maxsize)
+
         logging.info('Initializing ConnectionPool with %d connections...',
                      maxsize)
         for _ in xrange(maxsize):
-            # We don't want to log the initial connections
-            self.put(factory(*factory_args))
+            self.put(self.create(is_initial=True))
+
+    def create(self, is_initial=False):
+        if not is_initial:
+            logging.info('ConnectionPool: re-creating connection...')
+        conn = None
+        try:
+            conn = self.factory(**self.factory_kwargs)
+            conn[1].connect()
+        except socket.error, socket.timeout:
+            # Give the server a little time, then try one more time...
+            gevent.sleep(0.01)
+            conn = self.factory(**self.factory_kwargs)
+            conn[1].connect()
+        if not conn:
+            if is_initial:
+                connect_type = 'connect'
+            else:
+                connect_type = 'reconnect'
+            raise Exception('ConnectionPool failed to %s!' % connect_type)
+        conn[1].sock.settimeout(self.network_timeout)
+        assert conn[1].sock.timeout == self.network_timeout
+        return conn
 
 
 class Worker:
@@ -131,10 +135,11 @@ class Worker:
             hc = self.conn_pools[storage_url].get()
             try:
                 yield hc
-            except (CannotSendRequest, HTTPConnectionClosed) as e:
+            except (CannotSendRequest, HTTPConnectionClosed,
+                    socket.timeout) as e:
                 logging.debug("@connection hit %r...", e)
                 try:
-                    hc.close()
+                    hc[1].close()
                 except Exception:
                     pass
                 hc = self.conn_pools[storage_url].create()
@@ -201,12 +206,18 @@ class Worker:
         else:
             raise NameError("Unknown job type %r" % job_data['type'])
 
-    def _create_connection_pool(self, storage_url):
+    def _create_connection_pool(
+            self, storage_url,
+            connect_timeout=client.DEFAULT_CONNECT_TIMEOUT,
+            network_timeout=client.DEFAULT_NETWORK_TIMEOUT):
         self.conn_pools_lock.acquire()
         try:
             if storage_url not in self.conn_pools:
                 self.conn_pools[storage_url] = ConnectionPool(
-                    client.http_connection, (storage_url,), self.concurrency)
+                    client.http_connection,
+                    dict(url=storage_url, connect_timeout=connect_timeout),
+                    self.concurrency,
+                    network_timeout=network_timeout)
         finally:
             self.conn_pools_lock.release()
 
@@ -235,7 +246,7 @@ class Worker:
         tries = 0
         while True:
             # Make sure we've got a current storage_url/token
-            if 'token' in call_info['auth_kwargs']:
+            if call_info['auth_kwargs'].get('token', None):
                 args['url'] = call_info['auth_kwargs']['storage_url']
                 args['token'] = call_info['auth_kwargs']['token']
             else:
@@ -249,13 +260,13 @@ class Worker:
                                         call_info['auth_kwargs'])
                             storage_url, token = client.get_auth(
                                 **call_info['auth_kwargs'])
-                            if 'storage_url' in call_info['auth_kwargs']:
+                            override_url = call_info['auth_kwargs'].get(
+                                'storage_url', None)
+                            if override_url:
                                 logging.debug(
                                     'Overriding auth storage url %s with %s',
-                                    storage_url,
-                                    call_info['auth_kwargs']['storage_url'])
-                                storage_url = \
-                                        call_info['auth_kwargs']['storage_url']
+                                    storage_url, override_url)
+                                storage_url = override_url
                             logging.debug('Using token %s at %s',
                                           token, storage_url)
                             self.token_data[token_key] = (storage_url, token)
@@ -273,7 +284,12 @@ class Worker:
             # Check for connection pool initialization (protected by a
             # semaphore)
             if args['url'] not in self.conn_pools:
-                self._create_connection_pool(args['url'])
+                self._create_connection_pool(
+                    args['url'],
+                    call_info.get('connect_timeout',
+                                  client.DEFAULT_CONNECT_TIMEOUT),
+                    call_info.get('network_timeout',
+                                  client.DEFAULT_NETWORK_TIMEOUT))
 
             try:
                 fn_results = None
@@ -293,6 +309,12 @@ class Worker:
             # sometimes Swift refuses connections (probably when it's
             # way overloaded and the listen socket's connection queue
             # (in the kernel) is full, so the kernel just says RST).
+            # 
+            # UPDATE: connections should be handled by the ConnectionPool
+            # (which will trap socket.error and retry after a slight delay), so
+            # socket.error should NOT get raised here for connection failures.
+            # So hopefully this socket.error trapping code path will not get
+            # hit.
             except socket.error:
                 tries += 1
                 if tries > self.max_retries:
@@ -353,14 +375,16 @@ class Worker:
 
     def handle_upload_object(self, object_info, letter='A'):
         object_info['size'] = int(object_info['size'])
+        contents = letter * BLOCK_SIZE
         headers = self.ignoring_http_responses(
             (503,), client.put_object, object_info,
             content_length=object_info['size'],
-            contents=ChunkedReader(letter, object_info['size']))
+            chunk_size=BLOCK_SIZE, contents=contents)
         self._put_results_from_response(object_info, headers)
 
     # By the time a job gets to the worker, an object create and update look
-    # the same: it's just a PUT.
+    # the same: it's just a PUT.  We use a different letter for the contents
+    # for testability.
     def handle_update_object(self, object_info):
         return self.handle_upload_object(object_info, letter='B')
 
@@ -370,10 +394,7 @@ class Worker:
         self._put_results_from_response(object_info, headers)
 
     def handle_get_object(self, object_info):
-        headers, body_iter = self.ignoring_http_responses(
+        headers = self.ignoring_http_responses(
             (404, 503), client.get_object, object_info,
-            resp_chunk_size=2 ** 16, toss_body=True)
-        # Having passed in toss_body=True, we don't need to "read" body_iter
-        # (which will actually just be an empty-string), and we'll have an
-        # accurate last_byte_latency in the headers.
+            resp_chunk_size=BLOCK_SIZE)
         self._put_results_from_response(object_info, headers)
