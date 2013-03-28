@@ -100,12 +100,13 @@ class ConnectionPool(gevent.queue.Queue):
 
 class Worker:
     def __init__(self, zmq_host, zmq_work_port, zmq_results_port, worker_id,
-                 max_retries, profile_count=0, concurrency=256):
+                 max_retries, profile_count=0, concurrency=256, batch_size=1):
         work_endpoint = 'tcp://%s:%d' % (zmq_host, zmq_work_port)
         results_endpoint = 'tcp://%s:%d' % (zmq_host, zmq_results_port)
         self.worker_id = worker_id
         self.max_retries = max_retries
         self.profile_count = profile_count
+        self.batch_size = batch_size
 
         soft_nofile, hard_nofile = resource.getrlimit(resource.RLIMIT_NOFILE)
         nofile_target = 1024
@@ -150,42 +151,57 @@ class Worker:
         logging.debug('Worker %s starting...', self.worker_id)
         gevent.spawn(self._result_writer)
         pool = gevent.pool.Pool(self.concurrency)
-        job = self.work_pull.recv()
+        jobs = self.work_pull.recv()
         if self.profile_count:
             import cProfile
             prof = cProfile.Profile()
             prof.enable()
         gotten = 1
-        while job:
-            job_data = msgpack.loads(job)
-            if 'container' in job_data:
-                logging.debug('WORK: %13s %s/%-17s',
-                            job_data['type'], job_data['container'],
-                            job_data['name'])
-            else:
-                logging.debug('CMD: %13s', job_data['type'])
-            if job_data['type'] == 'SUICIDE':
-                logging.info('Got SUICIDE; closing sockets and exiting.')
-                self.work_pull.close()
-                self.results_push.close()
-                os._exit(88)
-            pool.spawn(self.handle_job, job_data)
-            if self.profile_count and gotten == self.profile_count:
-                prof.disable()
-                prof_output_path = '/tmp/worker_go.%d.prof' % os.getpid()
-                prof.dump_stats(prof_output_path)
-                logging.info('PROFILED worker go() to %s', prof_output_path)
-            job = self.work_pull.recv()
-            gotten += 1
+        self.spawned = 0
+        while jobs:
+            job_data = msgpack.loads(jobs)
+            for job_datum in job_data:
+                if 'container' in job_datum:
+                    logging.debug('WORK: %13s %s/%-17s',
+                                job_datum['type'], job_datum['container'],
+                                job_datum['name'])
+                else:
+                    logging.debug('CMD: %13s', job_datum['type'])
+                if job_datum['type'] == 'SUICIDE':
+                    logging.info('Got SUICIDE; closing sockets and exiting.')
+                    self.work_pull.close()
+                    self.results_push.close()
+                    os._exit(88)
+                pool.spawn(self.handle_job, job_datum)
+                self.spawned += 1
+                if self.profile_count and gotten >= self.profile_count:
+                    prof.disable()
+                    prof_output_path = '/tmp/worker_go.%d.prof' % os.getpid()
+                    prof.dump_stats(prof_output_path)
+                    logging.info('PROFILED worker go() to %s', prof_output_path)
+                    self.profile_count = None
+                gotten += 1
+            jobs = self.work_pull.recv()
 
     def _result_writer(self):
         while True:
             result = self.result_queue.get()
+
+            result_q = [result]
+            while len(result_q) < self.batch_size:
+                try:
+                    result = self.result_queue.get(timeout=1)
+                    result_q.append(result)
+                except gevent.queue.Empty:
+                    # timed out, go ahead and send
+                    break
+
             if self.results_push.closed:
                 logging.warning('_result_writer: exiting due to closed '
                                 'socket!')
                 break
-            self.results_push.send(result)
+            self.spawned -= len(result_q)
+            self.results_push.send(msgpack.dumps(result_q))
 
     def handle_job(self, job_data):
         # Dispatch type to a handler, if possible
@@ -352,9 +368,10 @@ class Worker:
                    add_dicts())
         :returns: (nothing)
         """
-        self.result_queue.put(
-            msgpack.dumps(add_dicts(*args, completed_at=time.time(),
-                                    worker_id=self.worker_id, **kwargs)))
+        self.result_queue.put(add_dicts(*args,
+                                        completed_at=time.time(),
+                                        worker_id=self.worker_id,
+                                        **kwargs))
 
     def _put_results_from_response(self, object_info, resp_headers):
         self.put_results(

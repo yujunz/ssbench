@@ -232,9 +232,11 @@ runs a benchmark scenario::
                                      [--os-cacert <ca-certificate>] [--insecure]
                                      [-S STORAGE_URL] [-T TOKEN] [-c COUNT]
                                      [-u COUNT] [-o COUNT] [--workers COUNT]
-                                     [-q] [--profile] [--noop] [-k]
+                                     [--batch-size COUNT] [-q] [--profile]
+                                     [--noop] [-k]
+                                     [--connect-timeout CONNECT_TIMEOUT]
+                                     [--network-timeout NETWORK_TIMEOUT]
                                      [-s STATS_FILE] [-r] [--pctile PERCENTILE]
-
   ...
 
 
@@ -244,6 +246,7 @@ previously-run benchmark scenario::
   $ ssbench-master report-scenario -h
   usage: ssbench-master report-scenario [-h] -s STATS_FILE [-f REPORT_FILE]
                                         [--pctile PERCENTILE] [-r RPS_HISTOGRAM]
+                                        [--profile]
 
   ...
 
@@ -402,6 +405,35 @@ command.  Simply use the ``--workers COUNT`` option to ``ssbench-master``::
   INFO:root:Scenario run results saved to /tmp/ssbench-results/Small_test_scenario.2013-02-20.091016.stat
   INFO:root:You may generate a report with:
     ssbench-master report-scenario -s /tmp/ssbench-results/Small_test_scenario.2013-02-20.091016.stat
+
+
+Scalability and Throughput
+--------------------------
+
+Assuming the Swift cluster being benchmarked is not the bottleneck, the
+scalability of ssbench may be increased by
+
+- Running up to one ``ssbench-worker`` process per CPU core on any number of
+  benchmarking servers.
+- Increasing the default ``--batch-size`` parameter (defaults to 1) on both the
+  ``ssbench-master`` and ``ssbench-worker`` command-lines.  Note that if you
+  are running everything on one server and using the ``--workers`` argument to
+  ``ssbench-master``, the ``--batch-size`` parameter passed to
+  ``ssbench-master`` will be passed on to the automatically-started
+  ``ssbench-worker`` processes.
+- For optimal scalability, the user-count (concurrency) should be greater than
+  and also an even multiple of both the batch-size and number of
+  ``ssbench-worker`` processes.
+
+As a simple example, on my quad-core MacBook Pro, I get around **9,800** requests
+per second with ``--noop`` (see below) with this command-line (a
+``--batch-size`` of 1)::
+
+  $ ssbench-master run-scenario ... -u 24 -o 30000 --workers 3 --noop
+
+But with a ``--batch-size`` of 8, I can get around **19,500** requests per second::
+
+  $ ssbench-master run-scenario ... -u 24 -o 30000 --workers 3 --noop --batch-size 8
 
 
 HTTPS on OS X

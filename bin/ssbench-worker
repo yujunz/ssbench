@@ -40,6 +40,12 @@ if __name__ == "__main__":
                             'provide.')
     arg_parser.add_argument('--retries', default=10, type=int,
                             help='Maximum number of times to retry a job.')
+    arg_parser.add_argument(
+        '--batch-size', metavar='COUNT', type=int, default=1,
+        help='Send back bench results in batches of this size to '
+        'increase benchmarking throughput; for best results, '
+        'this should match the --batch-size specified in the ssbench-master '
+        'command-line.')
     arg_parser.add_argument('-p', '--profile-count', type=int, metavar='COUNT',
                             default=0,
                             help='Profile %(metavar)s work jobs, starting '
@@ -56,5 +62,5 @@ if __name__ == "__main__":
     worker = Worker(args.zmq_host, args.zmq_work_port, args.zmq_results_port,
                     args.worker_id, args.retries,
                     profile_count=args.profile_count,
-                    concurrency=args.concurrency)
+                    concurrency=args.concurrency, batch_size=args.batch_size)
     worker.go()

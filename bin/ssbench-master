@@ -49,6 +49,14 @@ def run_scenario(master, args):
             if args.user_count != 'value from scenario' else None
     operation_count = int(args.op_count) \
             if args.op_count != 'value from scenario' else None
+
+    # Sanity-check batch_size
+    if args.batch_size > user_count:
+        logger.warning('--batch-size %d was > --user-count %d; using ',
+                       '--batch-size %d', args.batch_size, user_count,
+                       user_count)
+        args.batch_size = user_count
+
     if args.noop:
         scenario_class = ScenarioNoop
         logging.info('NOTE: --noop was specified; not testing Swift.')
@@ -83,7 +91,8 @@ def run_scenario(master, args):
                 'ssbench-worker', '--zmq-host', zmq_host,
                 '--zmq-work-port', str(args.zmq_work_port),
                 '--zmq-results-port', str(args.zmq_results_port),
-                '--concurrency', str(users_per_worker)]
+                '--concurrency', str(users_per_worker),
+                '--batch-size', str(args.batch_size)]
             if args.profile:
                 worker_cmd = worker_cmd + [
                     '--profile-count',
@@ -112,8 +121,13 @@ def run_scenario(master, args):
                                       storage_url=args.storage_url,
                                       token=args.token, noop=args.noop,
                                       with_profiling=args.profile,
-                                      keep_objects=args.keep_objects)
+                                      keep_objects=args.keep_objects,
+                                      batch_size=args.batch_size)
+        logging.debug('  dumping %d results to %r', len(results), args.stats_file)
+        dump_start = time.time()
         pickle.dump([scenario, results], args.stats_file)
+        logging.debug('  done dumping results (took %.2fs)',
+                      time.time() - dump_start)
     finally:
         # Make sure any local spawned workers get killed
         if worker_count:
@@ -131,11 +145,14 @@ def run_scenario(master, args):
                                  int(os.environ['SUDO_GID']))
 
     if not args.no_default_report:
+        report_start = time.time()
         args.stats_file.close()
         args.stats_file = stats_file_path
         args.report_file = sys.stdout
         args.rps_histogram = None
         report_scenario(master, args)
+        logging.debug('  scenario report took %.2fs',
+                      time.time() - report_start)
     else:
         args.stats_file.close()
 
@@ -150,6 +167,11 @@ def run_scenario(master, args):
 
 
 def report_scenario(master, args):
+    if args.profile:
+        import cProfile
+        prof = cProfile.Profile()
+        prof.enable()
+
     if args.stats_file.endswith('.gz'):
         args.stats_file = GzipFile(args.stats_file, 'rb')
     else:
@@ -162,6 +184,12 @@ def report_scenario(master, args):
         master.write_rps_histogram(stats, args.rps_histogram)
         # Note: not explicitly closing here in case it's redirected to STDOUT
         # (i.e. "-")
+
+    if args.profile:
+        prof.disable()
+        prof_output_path = '/tmp/report_scenario.%d.prof' % os.getpid()
+        prof.dump_stats(prof_output_path)
+        logging.info('PROFILED report_scenario to %s', prof_output_path)
 
 
 if __name__ == "__main__":
@@ -317,6 +345,13 @@ if __name__ == "__main__":
         help='Spawn COUNT local ssbench-worker processes just for this '
         'run. To workers on other hosts, they must be started manually.')
     run_scenario_arg_parser.add_argument(
+        '--batch-size', metavar='COUNT', type=int,
+        default=1,
+        help='Send bench jobs to workers in batches of this size to '
+        'increase benchmarking throughput; for best results, '
+        'user-count should be greater than and an even multiple of '
+        'both batch-size and worker count.')
+    run_scenario_arg_parser.add_argument(
         '-q', '--quiet', action='store_true', default=False,
         help='Suppress most output (including progress characters during '
         'run).')
@@ -370,6 +405,9 @@ if __name__ == "__main__":
         '-r', '--rps-histogram', type=argparse.FileType('w'),
         help='Also write a CSV file with requests completed per second '
         'histogram data')
+    report_scenario_arg_parser.add_argument(
+        '--profile', action='store_true', default=False,
+        help='Profile the report generation.')
     report_scenario_arg_parser.set_defaults(func=report_scenario)
 
     args = arg_parser.parse_args(sys.argv[1:])

@@ -76,41 +76,42 @@ class Master:
         self.network_timeout = network_timeout
         self.quiet = quiet
 
-    def process_result_to(self, job, processor, label=''):
-        result = msgpack.loads(job)
-        logging.debug('RESULT: %13s %s/%-17s %s/%s %s',
-                      result['type'], result['container'], result['name'],
-                      '%7.4f' % result.get('first_byte_latency')
-                      if result.get('first_byte_latency', None) else ' (none)',
-                      '%7.4f' % result.get('last_byte_latency')
-                      if result.get('last_byte_latency', None) else '(none) ',
-                      result.get('trans_id', ''))
-        if label and not self.quiet:
-            if 'exception' in result:
-                sys.stderr.write('X')
-            elif result.get('first_byte_latency', None) is not None:
-                if result['first_byte_latency'] < 1:
-                    sys.stderr.write('.')
-                elif result['first_byte_latency'] < 3:
-                    sys.stderr.write('o')
-                elif result['first_byte_latency'] < 10:
-                    sys.stderr.write('O')
+    def process_results_to(self, results, processor, label=''):
+        for result in results:
+            logging.debug('RESULT: %13s %s/%-17s %s/%s %s',
+                        result['type'], result['container'], result['name'],
+                        '%7.4f' % result.get('first_byte_latency')
+                        if result.get('first_byte_latency', None) else ' (none)',
+                        '%7.4f' % result.get('last_byte_latency')
+                        if result.get('last_byte_latency', None) else '(none) ',
+                        result.get('trans_id', ''))
+            if label and not self.quiet:
+                if 'exception' in result:
+                    sys.stderr.write('X')
+                elif result.get('first_byte_latency', None) is not None:
+                    if result['first_byte_latency'] < 1:
+                        sys.stderr.write('.')
+                    elif result['first_byte_latency'] < 3:
+                        sys.stderr.write('o')
+                    elif result['first_byte_latency'] < 10:
+                        sys.stderr.write('O')
+                    else:
+                        sys.stderr.write('*')
                 else:
-                    sys.stderr.write('*')
-            else:
-                if result['last_byte_latency'] < 1:
-                    sys.stderr.write('_')
-                elif result['last_byte_latency'] < 3:
-                    sys.stderr.write('|')
-                elif result['last_byte_latency'] < 10:
-                    sys.stderr.write('^')
-                else:
-                    sys.stderr.write('@')
-            sys.stderr.flush()
-        processor(result)
+                    if result['last_byte_latency'] < 1:
+                        sys.stderr.write('_')
+                    elif result['last_byte_latency'] < 3:
+                        sys.stderr.write('|')
+                    elif result['last_byte_latency'] < 10:
+                        sys.stderr.write('^')
+                    else:
+                        sys.stderr.write('@')
+                sys.stderr.flush()
+            processor(result)
 
     def do_a_run(self, concurrency, job_generator, result_processor,
-                 auth_kwargs, mapper_fn=None, label='', noop=False):
+                 auth_kwargs, mapper_fn=None, label='', noop=False,
+                 batch_size=1):
         if label and not self.quiet:
             print >>sys.stderr, label + """
   X    work job raised an exception
@@ -123,50 +124,62 @@ class Master:
   ^  < 10s last-byte-latency  (CREATE or UPDATE)
   @ >= 10s last-byte-latency  (CREATE or UPDATE)
             """.rstrip()
-        poller = zmq.Poller()
-        poller.register(self.results_pull, zmq.POLLIN)
-        active = 0
-        for job in job_generator:
+
+        def _job_decorator(raw_job):
             if mapper_fn is not None:
-                work_job = mapper_fn(job)
+                work_job = mapper_fn(raw_job)
                 if not work_job:
                     if noop:
-                        job['container'] = 'who_cares'
-                        job['name'] = 'who_cares'
+                        work_job = raw_job
+                        work_job['container'] = 'who_cares'
+                        work_job['name'] = 'who_cares'
                     else:
-                        logging.warning('Unable to fill in job %r', job)
-                        continue
-                else:
-                    job = work_job
-            job['auth_kwargs'] = auth_kwargs
-            job['connect_timeout'] = self.connect_timeout
-            job['network_timeout'] = self.network_timeout
+                        logging.warning('Unable to fill in job %r', raw_job)
+                        return None
+            else:
+                work_job = raw_job
+            work_job['auth_kwargs'] = auth_kwargs
+            work_job['connect_timeout'] = self.connect_timeout
+            work_job['network_timeout'] = self.network_timeout
+            return work_job
+
+        active = 0
+        for raw_job in job_generator:
+            work_job = _job_decorator(raw_job)
+            if not work_job:
+                logging.warning('Unable to fill in job %r', raw_job)
+                continue
+
+            send_q = [work_job]
 
             logging.debug('active: %d\tconcurrency: %d', active, concurrency)
-            timeout = 0
             if active >= concurrency:
-                timeout = None
-            socks = dict(poller.poll(timeout))
-            if self.results_pull in socks \
-                    and socks[self.results_pull] == zmq.POLLIN:
-                result_job = self.results_pull.recv()
-                self.process_result_to(result_job, result_processor,
-                                       label=label)
-                active -= 1
-            self.work_push.send(msgpack.dumps(job))
-            active += 1
+                result_jobs_raw = self.results_pull.recv()
+                result_jobs = msgpack.loads(result_jobs_raw)
+                self.process_results_to(result_jobs, result_processor,
+                                        label=label)
+                active -= len(result_jobs)
+
+            while len(send_q) < min(batch_size, concurrency - active):
+                try:
+                    work_job = _job_decorator(job_generator.next())
+                    send_q.append(work_job)
+                except StopIteration:
+                    break
+
+            logging.debug('len(send_q): %d', len(send_q))
+            self.work_push.send(msgpack.dumps(send_q))
+            active += len(send_q)
 
         # Drain the results
         logging.debug('All jobs sent; awaiting results...')
         while active > 0:
             logging.debug('Draining results: active = %d', active)
-            socks = dict(poller.poll())
-            if self.results_pull in socks \
-                    and socks[self.results_pull] == zmq.POLLIN:
-                result_job = self.results_pull.recv()
-                self.process_result_to(result_job, result_processor,
-                                       label=label)
-                active -= 1
+            result_jobs_raw = self.results_pull.recv()
+            result_jobs = msgpack.loads(result_jobs_raw)
+            self.process_results_to(result_jobs, result_processor,
+                                    label=label)
+            active -= len(result_jobs)
         if label and not self.quiet:
             sys.stderr.write('\n')
             sys.stderr.flush()
@@ -184,7 +197,7 @@ class Master:
             # all the workers have died.  Also, gevent.Timeout() doesn't seem
             # to work here?!
             signal.alarm(int(timeout))
-            self.work_push.send(msgpack.dumps({'type': 'PING'}))
+            self.work_push.send(msgpack.dumps([{'type': 'PING'}]))
             socks = dict(poller.poll(timeout * 1500))
             if self.results_pull in socks \
                     and socks[self.results_pull] == zmq.POLLIN:
@@ -192,7 +205,7 @@ class Master:
                 result = msgpack.loads(result_packed)
                 logging.info('Heard from worker id=%d; sending SUICIDE',
                             result['worker_id'])
-                self.work_push.send(msgpack.dumps({'type': 'SUICIDE'}))
+                self.work_push.send(msgpack.dumps([{'type': 'SUICIDE'}]))
                 gevent.sleep(0.1)
             else:
                 break
@@ -200,7 +213,8 @@ class Master:
 
     def run_scenario(self, scenario, auth_url, user, key, auth_version,
                      os_options, cacert, insecure, storage_url, token,
-                     noop=False, with_profiling=False, keep_objects=False):
+                     noop=False, with_profiling=False, keep_objects=False,
+                     batch_size=1):
         """
         Runs a CRUD scenario, given cluster parameters and a Scenario object.
 
@@ -220,6 +234,7 @@ class Master:
         :param noop: Run in no-op mode?
         :param with_profiing: Profile the run?
         :param keep_objects: Keep uploaded objects instead of deleting them?
+        :param batch_size: Send this many bench jobs per packet to workers
         :param returns: Collected result records from workers
         """
 
@@ -274,7 +289,8 @@ class Master:
                          'concurrent workers)', scenario.user_count)
 
             self.do_a_run(scenario.user_count, scenario.initial_jobs(),
-                          run_state.handle_initialization_result, auth_kwargs)
+                          run_state.handle_initialization_result, auth_kwargs,
+                          batch_size=batch_size)
 
         logging.info('Starting benchmark run (up to %d concurrent '
                      'workers)', scenario.user_count)
@@ -288,7 +304,7 @@ class Master:
         self.do_a_run(scenario.user_count, scenario.bench_jobs(),
                       run_state.handle_run_result, auth_kwargs,
                       mapper_fn=run_state.fill_in_job,
-                      label='Benchmark Run:', noop=noop)
+                      label='Benchmark Run:', noop=noop, batch_size=batch_size)
         if with_profiling:
             prof.disable()
             prof_output_path = '/tmp/do_a_run.%d.prof' % os.getpid()
@@ -300,8 +316,8 @@ class Master:
             self.do_a_run(scenario.user_count,
                           run_state.cleanup_object_infos(),
                           lambda *_: None,
-                          auth_kwargs,
-                          mapper_fn=_gen_cleanup_job)
+                          auth_kwargs, mapper_fn=_gen_cleanup_job,
+                          batch_size=batch_size)
         elif keep_objects:
             logging.info('NOT deleting any objects due to -k/--keep-objects')
 

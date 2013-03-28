@@ -282,10 +282,10 @@ class TestWorker(object):
         }).once
         self.time_expectation.once
         self.result_queue.should_receive('put').with_args(
-            msgpack.dumps(worker.add_dicts(
+            worker.add_dicts(
                 object_info, worker_id=self.worker_id,
                 first_byte_latency=0.492393, last_byte_latency=8.23283,
-                trans_id='abcdef', completed_at=self.stub_time)),
+                trans_id='abcdef', completed_at=self.stub_time),
         ).once
         self.mock_worker.handle_upload_object(object_info)
 
@@ -305,10 +305,10 @@ class TestWorker(object):
             'x-trans-id': '9bjkk',
         }).once
         self.result_queue.should_receive('put').with_args(
-            msgpack.dumps(worker.add_dicts(
+            worker.add_dicts(
                 object_info, worker_id=self.worker_id,
                 first_byte_latency=0.94932, last_byte_latency=8.3273,
-                trans_id='9bjkk', completed_at=self.stub_time)),
+                trans_id='9bjkk', completed_at=self.stub_time),
         ).once
         self.mock_worker.handle_delete_object(object_info)
 
@@ -331,10 +331,10 @@ class TestWorker(object):
             'x-trans-id': 'biejs',
         }).once
         self.result_queue.should_receive('put').with_args(
-            msgpack.dumps(worker.add_dicts(
+            worker.add_dicts(
                 object_info, worker_id=self.worker_id,
                 completed_at=self.stub_time, trans_id='biejs',
-                first_byte_latency=4.45, last_byte_latency=23.283)),
+                first_byte_latency=4.45, last_byte_latency=23.283),
         ).once
 
         self.mock_worker.handle_update_object(object_info)
@@ -357,10 +357,10 @@ class TestWorker(object):
             'x-trans-id': 'bies',
         }).once
         self.result_queue.should_receive('put').with_args(
-            msgpack.dumps(worker.add_dicts(
+            worker.add_dicts(
                 object_info, worker_id=self.worker_id,
                 completed_at=self.stub_time, trans_id='bies',
-                first_byte_latency=5.33, last_byte_latency=9.99)),
+                first_byte_latency=5.33, last_byte_latency=9.99),
         ).once
 
         self.mock_worker.handle_get_object(object_info)
@@ -376,7 +376,7 @@ class TestWorker(object):
         ).once
         got = []
         self.result_queue.should_receive('put').replace_with(
-            lambda value: got.append(msgpack.loads(value))).once
+            lambda value: got.append(value)).once
 
         self.mock_worker.handle_job(info)
         assert_equal(1, len(got), repr(got))
@@ -396,7 +396,7 @@ class TestWorker(object):
         ).once
         got = []
         self.result_queue.should_receive('put').replace_with(
-            lambda value: got.append(msgpack.loads(value))).once
+            lambda value: got.append(value)).once
 
         self.mock_worker.handle_job(info)
         assert_equal(1, len(got), repr(got))
@@ -416,7 +416,7 @@ class TestWorker(object):
         ).once
         got = []
         self.result_queue.should_receive('put').replace_with(
-            lambda value: got.append(msgpack.loads(value))).once
+            lambda value: got.append(value)).once
 
         self.mock_worker.handle_job(info)
         assert_equal(1, len(got), repr(got))
