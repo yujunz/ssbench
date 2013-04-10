@@ -113,7 +113,7 @@ defining a benchmark run.  Specifically, it defines:
 - A ``user_count`` which determines the maxiumum client concurrency during the
   benchmark run.  The user is responsible for ensuring there are enough workers
   running to support the scenario's defined ``user_count``.  (Each
-  ``ssbench-worker`` process uses `gevent`_ to achive very efficeint
+  ``ssbench-worker`` process uses `gevent`_ to achive very efficient
   concurrency for the benchmark client requests.)  This value may be overridden
   for any given run with the ``-u COUNT`` flag to ``ssbench-master
   run-scenario``.
