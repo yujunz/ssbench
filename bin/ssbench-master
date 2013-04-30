@@ -50,13 +50,6 @@ def run_scenario(master, args):
     operation_count = int(args.op_count) \
             if args.op_count != 'value from scenario' else None
 
-    # Sanity-check batch_size
-    if args.batch_size > user_count:
-        logging.warning('--batch-size %d was > --user-count %d; using ',
-                        '--batch-size %d', args.batch_size, user_count,
-                       user_count)
-        args.batch_size = user_count
-
     if args.noop:
         scenario_class = ScenarioNoop
         logging.info('NOTE: --noop was specified; not testing Swift.')
@@ -66,6 +59,13 @@ def run_scenario(master, args):
                               container_count=container_count,
                               user_count=user_count,
                               operation_count=operation_count)
+
+    # Sanity-check batch_size
+    if args.batch_size > scenario.user_count:
+        logging.warning('--batch-size %d was > --user-count %d; using '
+                        '--batch-size %d', args.batch_size, scenario.user_count,
+                        scenario.user_count)
+        args.batch_size = scenario.user_count
 
     if args.stats_file == DEFAULT_STATS_PATH_DEFAULT:
         munged_name = re.sub('[%s\s]+' % os.path.sep, '_', scenario.name)
