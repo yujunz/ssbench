@@ -52,8 +52,8 @@ def run_scenario(master, args):
 
     # Sanity-check batch_size
     if args.batch_size > user_count:
-        logger.warning('--batch-size %d was > --user-count %d; using ',
-                       '--batch-size %d', args.batch_size, user_count,
+        logging.warning('--batch-size %d was > --user-count %d; using ',
+                        '--batch-size %d', args.batch_size, user_count,
                        user_count)
         args.batch_size = user_count
 
