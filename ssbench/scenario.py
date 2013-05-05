@@ -16,6 +16,7 @@
 import copy
 import json
 import random
+import signal
 import logging
 import msgpack
 
@@ -28,8 +29,12 @@ from pprint import pprint
 class Scenario(object):
     """Encapsulation of a benchmark "CRUD" scenario."""
 
+    class StopGeneratingException(Exception):
+        pass
+
     def __init__(self, scenario_filename=None, container_count=None,
-                 user_count=None, operation_count=None, _scenario_data=None):
+                 user_count=None, operation_count=None, run_seconds=None,
+                 _scenario_data=None):
         """Initializes the object from a scenario file on disk.
 
         :scenario_filename: path to a scenario file
@@ -59,10 +64,24 @@ class Scenario(object):
         if self.user_count < 1:
             raise ValueError('user_count must be > 1')
 
-        if operation_count is not None:
+        # Command-line-specified values trump values in the scenario, and
+        # within each of those levels, run_seconds trumps operation_count.
+        if run_seconds is not None:
+            self.run_seconds = run_seconds
+            self.operation_count = None
+        elif operation_count is not None:
+            self.run_seconds = None
             self.operation_count = operation_count
         else:
-            self.operation_count = self._scenario_data['operation_count']
+            self.run_seconds = self._scenario_data.get('run_seconds', None)
+            if self.run_seconds is None:
+                self.operation_count = self._scenario_data['operation_count']
+            else:
+                self.operation_count = None
+
+        if self.run_seconds is None and self.operation_count is None:
+            raise ValueError('A scenario requires run_seconds or '
+                             'operation_count')
 
         self.name = self._scenario_data['name']
         self.container_base = self._scenario_data.get('container_base',
@@ -108,6 +127,7 @@ class Scenario(object):
             'name': self.name,
             'user_count': self.user_count,
             'operation_count': self.operation_count,
+            'run_seconds': self.run_seconds,
             'container_base': self.container_base,
             'container_count': self.container_count,
             'container_concurrency': self.container_concurrency,
@@ -122,6 +142,7 @@ class Scenario(object):
         scenario = cls(container_count=data['container_count'],
                        user_count=data['user_count'],
                        operation_count=data['operation_count'],
+                       run_seconds=data['run_seconds'],
                        _scenario_data=data['_scenario_data'])
         return scenario
 
@@ -206,12 +227,29 @@ class Scenario(object):
         """
         Generator for the worker jobs necessary to actually run the scenario.
 
+        If self.run_seconds is set, jobs will be for about that many seconds,
+        regardless of any value for self.operation_count.
+
+        If self.run_seconds is not set, exactly self.operation_count jobs will
+        be yielded.
+
         :returns: A generator which yields job objects (dicts)
         """
 
         max_index_size = max(self._scenario_data['initial_files'].itervalues())
-        for index in xrange(max_index_size + 1,
-                            max_index_size + self.operation_count + 1):
+
+        keep_running = [True]
+        prev_alarm = None
+        if self.run_seconds:
+            def _stop_running(signal, frame):
+                keep_running[0] = False
+            prev_alarm = signal.signal(signal.SIGALRM, _stop_running)
+            signal.alarm(self.run_seconds)
+
+        index = max_index_size + 1
+        yielded = 0
+        while (self.run_seconds and keep_running[0]) or \
+                yielded < self.operation_count:
             r = random.random()  # uniform on [0, 1)
             for size_str, prob in self.bench_size_thresholds.iteritems():
                 if r < prob:
@@ -224,7 +262,17 @@ class Scenario(object):
                 if r < prob:
                     this_crud_index = crud_index
                     break
+
             yield self.bench_job(this_size_str, this_crud_index, index)
+
+            index += 1
+            yielded += 1
+
+        if prev_alarm:
+            # Deliberately avoiding the complexity of tyring to handle a
+            # pre-existing alarm timer value, since that shouldn't be
+            # necessary for all known applications of Scenario.
+            signal.signal(signal.SIGALRM, prev_alarm)
 
 
 class ScenarioNoop(Scenario):

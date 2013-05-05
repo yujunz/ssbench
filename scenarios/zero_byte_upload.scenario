@@ -10,5 +10,8 @@
   },
   "operation_count": 500,
   "crud_profile": [1, 0, 0, 0],
-  "user_count": 1
+  "user_count": 1,
+  "container_base": "ssbench",
+  "container_count": 100,
+  "container_concurrency": 10
 }

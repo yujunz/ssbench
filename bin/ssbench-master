@@ -34,9 +34,11 @@ from ssbench.scenario import Scenario, ScenarioNoop
 
 
 DEFAULT_OBJECTS_PER_CONTAINER = 1000
-DEFAULT_STATS_PATH = '/tmp/ssbench-results/%s.u%d.o%d.%s.stat'
-DEFAULT_STATS_PATH_DEFAULT = '/tmp/ssbench-results/%s.u%s.o%s.%s.stat' % (
-    '<scenario_name>', '<user_count>', '<op_count>', '<timestamp>')
+DEFAULT_STATS_PATH = '/tmp/ssbench-results/%s.u%d.o%s.r%s.%s.stat'
+DEFAULT_STATS_PATH_DEFAULT = '/tmp/ssbench-results/%s.u%s.o%s.r%s.%s.stat' % (
+    '<scenario_name>', '<user_count>', '<op_count>', '<run_seconds>',
+    '<timestamp>')
+DEFAULT_FROM_SCENARIO = 'value from scenario'
 
 
 def kill_workers(master, args):
@@ -45,11 +47,13 @@ def kill_workers(master, args):
 
 def run_scenario(master, args):
     container_count = int(args.container_count) \
-            if args.container_count != 'value from scenario' else None
+            if args.container_count != DEFAULT_FROM_SCENARIO else None
     user_count = int(args.user_count) \
-            if args.user_count != 'value from scenario' else None
+            if args.user_count != DEFAULT_FROM_SCENARIO else None
     operation_count = int(args.op_count) \
-            if args.op_count != 'value from scenario' else None
+            if args.op_count != DEFAULT_FROM_SCENARIO else None
+    run_seconds = int(args.run_seconds) \
+            if args.run_seconds != DEFAULT_FROM_SCENARIO else None
 
     if args.noop:
         scenario_class = ScenarioNoop
@@ -59,7 +63,8 @@ def run_scenario(master, args):
     scenario = scenario_class(args.scenario_file,
                               container_count=container_count,
                               user_count=user_count,
-                              operation_count=operation_count)
+                              operation_count=operation_count,
+                              run_seconds=run_seconds)
 
     # Sanity-check batch_size
     if args.batch_size > scenario.user_count:
@@ -71,10 +76,11 @@ def run_scenario(master, args):
     if args.stats_file == DEFAULT_STATS_PATH_DEFAULT:
         munged_name = re.sub('[%s\s]+' % os.path.sep, '_', scenario.name)
         timestamp = datetime.now().strftime('%F.%H%M%S')
-        args.stats_file = DEFAULT_STATS_PATH % (munged_name,
-                                                scenario.user_count,
-                                                scenario.operation_count,
-                                                timestamp)
+        args.stats_file = DEFAULT_STATS_PATH % (
+            munged_name, scenario.user_count,
+            scenario.operation_count if scenario.operation_count else '-',
+            scenario.run_seconds if scenario.run_seconds else '-',
+            timestamp)
         if not os.path.exists(os.path.dirname(args.stats_file)):
             os.makedirs(os.path.dirname(args.stats_file))
 
@@ -99,10 +105,12 @@ def run_scenario(master, args):
                 '--concurrency', str(users_per_worker),
                 '--batch-size', str(args.batch_size)]
             if args.profile:
-                worker_cmd = worker_cmd + [
-                    '--profile-count',
-                    str(int(math.ceil(
-                        float(operation_count) / worker_count * 0.8)))]
+                if operation_count:
+                    profile_count = int(math.ceil(
+                        float(operation_count) / worker_count * 0.8))
+                else:
+                    profile_count = 10
+                worker_cmd += ['--profile-count', str(profile_count)]
             if args.verbose:
                 worker_cmd.append('-v')
             for i in xrange(getattr(args, 'workers', 0)):
@@ -363,19 +371,24 @@ if __name__ == "__main__":
         'exclusive with -A, -U, and -K; requires -S')
     #
     run_scenario_arg_parser.add_argument(
-        '-c', '--container-count', default='value from scenario',
+        '-c', '--container-count', default=DEFAULT_FROM_SCENARIO,
         metavar='COUNT',
         help='Override the container count specified in the scenario file.')
     run_scenario_arg_parser.add_argument(
-        '-u', '--user-count', default='value from scenario',
+        '-u', '--user-count', default=DEFAULT_FROM_SCENARIO,
         metavar='COUNT',
         help='Override the user count (concurrency) specified in the '
         'scenario file.')
     run_scenario_arg_parser.add_argument(
-        '-o', '--op-count', default='value from scenario',
+        '-o', '--op-count', default=DEFAULT_FROM_SCENARIO,
         metavar='COUNT',
         help='Override the operation count specified in the '
         'scenario file.')
+    run_scenario_arg_parser.add_argument(
+        '-r', '--run-seconds', default=DEFAULT_FROM_SCENARIO,
+        metavar='SECONDS',
+        help='Override the run time specified in the '
+        'scenario file; if specified, --op-count is ignored.')
     run_scenario_arg_parser.add_argument(
         '--workers', metavar='COUNT', type=int,
         help='Spawn COUNT local ssbench-worker processes just for this '
@@ -414,7 +427,7 @@ if __name__ == "__main__":
         help='File into which benchmarking statistics will be saved',
         default=DEFAULT_STATS_PATH_DEFAULT)
     run_scenario_arg_parser.add_argument(
-        '-r', '--no-default-report', action='store_true', default=False,
+        '-R', '--no-default-report', action='store_true', default=False,
         help="Suppress the default immediate generation of a benchmark "
         "report to STDOUT after saving stats-file")
     run_scenario_arg_parser.add_argument(

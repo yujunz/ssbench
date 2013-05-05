@@ -15,6 +15,7 @@
 
 import os
 import json
+import time
 import msgpack
 from cStringIO import StringIO
 from nose.tools import *
@@ -98,10 +99,40 @@ class TestScenario(ScenarioFixture):
         unpacked = Scenario.unpackb(packed)
         assert_is_instance(unpacked, Scenario)
         for attr in ['name', '_scenario_data', 'user_count', 'operation_count',
-                     'container_base', 'container_count', 'containers',
-                     'container_concurrency', 'sizes_by_name',
+                     'run_seconds', 'container_base', 'container_count',
+                     'containers', 'container_concurrency', 'sizes_by_name',
                      'bench_size_thresholds']:
             assert_equal(getattr(unpacked, attr), getattr(self.scenario, attr))
+
+    def test_packb_unpackb_with_run_seconds(self):
+        self.scenario_dict['run_seconds'] = 27
+        self.write_scenario_file()
+        scenario = Scenario(self.stub_scenario_file)
+        assert_equal(27, scenario.run_seconds)
+        assert_equal(None, scenario.operation_count)
+        packed = scenario.packb()
+        assert_is_instance(packed, bytes)
+        unpacked = Scenario.unpackb(packed)
+        assert_is_instance(unpacked, Scenario)
+        for attr in ['name', '_scenario_data', 'user_count', 'operation_count',
+                     'run_seconds', 'container_base', 'container_count',
+                     'containers', 'container_concurrency', 'sizes_by_name',
+                     'bench_size_thresholds']:
+            assert_equal(getattr(unpacked, attr), getattr(scenario, attr))
+
+        scenario = Scenario(self.stub_scenario_file, run_seconds=88,
+                            operation_count=99)
+        assert_equal(88, scenario.run_seconds)
+        assert_equal(None, scenario.operation_count)
+        packed = scenario.packb()
+        assert_is_instance(packed, bytes)
+        unpacked = Scenario.unpackb(packed)
+        assert_is_instance(unpacked, Scenario)
+        for attr in ['name', '_scenario_data', 'user_count', 'operation_count',
+                     'run_seconds', 'container_base', 'container_count',
+                     'containers', 'container_concurrency', 'sizes_by_name',
+                     'bench_size_thresholds']:
+            assert_equal(getattr(unpacked, attr), getattr(scenario, attr))
 
     def test_unpackb_given_unpacker(self):
         packed = self.scenario.packb()
@@ -111,8 +142,8 @@ class TestScenario(ScenarioFixture):
         unpacked = Scenario.unpackb(unpacker)
         assert_is_instance(unpacked, Scenario)
         for attr in ['name', '_scenario_data', 'user_count', 'operation_count',
-                     'container_base', 'container_count', 'containers',
-                     'container_concurrency', 'sizes_by_name',
+                     'run_seconds', 'container_base', 'container_count',
+                     'containers', 'container_concurrency', 'sizes_by_name',
                      'bench_size_thresholds']:
             assert_equal(getattr(unpacked, attr), getattr(self.scenario, attr))
 
@@ -261,6 +292,21 @@ class TestScenario(ScenarioFixture):
 
         for job in jobs:
             assert_true(job['noop'])
+
+    def test_bench_jobs_with_run_seconds(self):
+        self.scenario_dict['operation_count'] = 1
+        self.scenario_dict['run_seconds'] = 1
+        self.write_scenario_file()
+        scenario = Scenario(self.stub_scenario_file)
+
+        start_time = time.time()
+        jobs = list(scenario.bench_jobs())
+        delta_t = time.time() - start_time
+
+        # Count should be greater than 1, for sure...
+        assert_greater(len(jobs), 1)
+        # +/- 10ms seems good:
+        assert_almost_equal(delta_t, scenario.run_seconds, delta=0.01)
 
     def test_bench_job_0(self):
         bench_job = self.scenario.bench_job('small', 0, 31)
