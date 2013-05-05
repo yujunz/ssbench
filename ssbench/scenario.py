@@ -17,6 +17,7 @@ import copy
 import json
 import random
 import logging
+import msgpack
 
 import ssbench
 from ssbench.ordered_dict import OrderedDict
@@ -27,20 +28,28 @@ from pprint import pprint
 class Scenario(object):
     """Encapsulation of a benchmark "CRUD" scenario."""
 
-    def __init__(self, scenario_filename, container_count=None,
-                 user_count=None, operation_count=None):
+    def __init__(self, scenario_filename=None, container_count=None,
+                 user_count=None, operation_count=None, _scenario_data=None):
         """Initializes the object from a scenario file on disk.
 
         :scenario_filename: path to a scenario file
         """
 
-        try:
-            fp = open(scenario_filename)
-            self._scenario_data = json.load(fp)
-        except:
-            logging.exception('Error loading scenario file %r',
-                              scenario_filename)
-            raise
+        if _scenario_data is not None:
+            # This is a "private" way to construct a Scenario object from the
+            # raw JSON without a file lying around.
+            self._scenario_data = _scenario_data
+        elif scenario_filename is not None:
+            try:
+                fp = open(scenario_filename)
+                self._scenario_data = json.load(fp)
+            except:
+                logging.exception('Error loading scenario file %r',
+                                scenario_filename)
+                raise
+        else:
+            raise ValueError('Scenario() must get one of scenario_filename '
+                             'or _scenario_data')
 
         # Sanity-check user_count
         if user_count is not None:
@@ -92,6 +101,29 @@ class Scenario(object):
             filter(lambda n: n in self._scenario_data['initial_files'],
                    self.sizes_by_name.keys()),
             self._scenario_data['initial_files'])
+
+    def packb(self):
+        return msgpack.packb({
+            '_scenario_data': self._scenario_data,
+            'name': self.name,
+            'user_count': self.user_count,
+            'operation_count': self.operation_count,
+            'container_base': self.container_base,
+            'container_count': self.container_count,
+            'container_concurrency': self.container_concurrency,
+        })
+
+    @classmethod
+    def unpackb(cls, packed_or_unpacker):
+        if isinstance(packed_or_unpacker, msgpack.Unpacker):
+            data = packed_or_unpacker.next()
+        else:
+            data = msgpack.unpackb(packed_or_unpacker)
+        scenario = cls(container_count=data['container_count'],
+                       user_count=data['user_count'],
+                       operation_count=data['operation_count'],
+                       _scenario_data=data['_scenario_data'])
+        return scenario
 
     @property
     def crud_pcts(self):

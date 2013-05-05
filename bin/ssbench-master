@@ -19,6 +19,7 @@ import re
 import sys
 import time
 import math
+import msgpack
 import logging
 import argparse
 import subprocess
@@ -33,9 +34,9 @@ from ssbench.scenario import Scenario, ScenarioNoop
 
 
 DEFAULT_OBJECTS_PER_CONTAINER = 1000
-DEFAULT_STATS_PATH = '/tmp/ssbench-results/%s.%s.stat'
-DEFAULT_STATS_PATH_DEFAULT = '/tmp/ssbench-results/%s.%s.stat' % (
-    '<scenario_name>', '<timestamp>')
+DEFAULT_STATS_PATH = '/tmp/ssbench-results/%s.u%d.o%d.%s.stat'
+DEFAULT_STATS_PATH_DEFAULT = '/tmp/ssbench-results/%s.u%s.o%s.%s.stat' % (
+    '<scenario_name>', '<user_count>', '<op_count>', '<timestamp>')
 
 
 def kill_workers(master, args):
@@ -70,14 +71,18 @@ def run_scenario(master, args):
     if args.stats_file == DEFAULT_STATS_PATH_DEFAULT:
         munged_name = re.sub('[%s\s]+' % os.path.sep, '_', scenario.name)
         timestamp = datetime.now().strftime('%F.%H%M%S')
-        args.stats_file = DEFAULT_STATS_PATH % (munged_name, timestamp)
+        args.stats_file = DEFAULT_STATS_PATH % (munged_name,
+                                                scenario.user_count,
+                                                scenario.operation_count,
+                                                timestamp)
         if not os.path.exists(os.path.dirname(args.stats_file)):
             os.makedirs(os.path.dirname(args.stats_file))
-    stats_file_path = args.stats_file + '.gz'
+
+    stats_file_path = args.stats_file
 
     # Attempt open prior to benchmark run so we get errors earlier
     # if there's a problem.
-    args.stats_file = GzipFile(stats_file_path, 'wb+')
+    args.stats_file = open(stats_file_path, 'wb+')
     worker_count = getattr(args, 'workers', 0)
     local_workers, local_worker_logs = [], []
     try:
@@ -122,12 +127,8 @@ def run_scenario(master, args):
                                       token=args.token, noop=args.noop,
                                       with_profiling=args.profile,
                                       keep_objects=args.keep_objects,
-                                      batch_size=args.batch_size)
-        logging.debug('  dumping %d results to %r', len(results), args.stats_file)
-        dump_start = time.time()
-        pickle.dump([scenario, results], args.stats_file)
-        logging.debug('  done dumping results (took %.2fs)',
-                      time.time() - dump_start)
+                                      batch_size=args.batch_size,
+                                      stats_file=args.stats_file)
     finally:
         # Make sure any local spawned workers get killed
         if worker_count:
@@ -144,26 +145,57 @@ def run_scenario(master, args):
                         os.chown(log_path, int(os.environ['SUDO_UID']),
                                  int(os.environ['SUDO_GID']))
 
+    os.fsync(args.stats_file.fileno())
+    args.stats_file.close()
+
+    # Spawn off a background worker to gzip the results file, getting some
+    # concurrency against the default report generation (if it wasn't
+    # suppressed).
+    report_compress_start = time.time()
+    gzip_cmd = "gzip -5 -q -c '{0}' > '{0}.gz'".format(stats_file_path)
+    gzipper = subprocess.Popen(gzip_cmd,
+                               shell=True, cwd=os.path.dirname(stats_file_path),
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
     if not args.no_default_report:
-        report_start = time.time()
-        args.stats_file.close()
         args.stats_file = stats_file_path
         args.report_file = sys.stdout
         args.rps_histogram = None
         report_scenario(master, args)
-        logging.debug('  scenario report took %.2fs',
-                      time.time() - report_start)
+
+    # Wait for gzipping to finish
+    stdout_err, _ = gzipper.communicate()
+
+    logging.debug(
+        '  results file compression%s took %.2fs',
+        ' and report generation' if not args.no_default_report else '',
+        time.time() - report_compress_start)
+
+    gzip_path = stats_file_path + '.gz'
+    if gzipper.returncode == 0 and os.path.exists(gzip_path):
+        os.unlink(stats_file_path)
+        maybe_fix_sudo_perms(gzip_path)
+        logging.info('Scenario run results saved to %s', gzip_path)
+        stats_file_path = gzip_path
     else:
-        args.stats_file.close()
+        if gzipper.returncode != 0:
+            logging.warning('%s: rc=%d; %s', ' '.join(gzip_cmd), gzipper.returncode,
+                            stdout_err)
+        else:
+            logging.error("Expected to find %s but didn't...", gzip_path)
+        maybe_fix_sudo_perms(stats_file_path)
+        logging.info('Scenario run results saved to %s', stats_file_path)
 
-    # Chown stats_file back to SUDO_USER if appropriate
-    if 'SUDO_UID' in os.environ and 'SUDO_GID' in os.environ:
-        os.chown(stats_file_path, int(os.environ['SUDO_UID']),
-                 int(os.environ['SUDO_GID']))
-
-    logging.info('Scenario run results saved to %s', stats_file_path)
     logging.info('You may generate a report with:\n  '
                  '%s report-scenario -s %s', sys.argv[0], stats_file_path)
+
+
+def maybe_fix_sudo_perms(path):
+    # Chown stats_file back to SUDO_USER if appropriate
+    if 'SUDO_UID' in os.environ and 'SUDO_GID' in os.environ:
+        os.chown(path,
+                 int(os.environ['SUDO_UID']),
+                 int(os.environ['SUDO_GID']))
 
 
 def report_scenario(master, args):
@@ -176,8 +208,12 @@ def report_scenario(master, args):
         args.stats_file = GzipFile(args.stats_file, 'rb')
     else:
         args.stats_file = open(args.stats_file, 'rb')
-    scenario, results = pickle.load(args.stats_file)
-    stats = master.calculate_scenario_stats(scenario, results,
+    unpacker = msgpack.Unpacker(file_like=args.stats_file)
+
+    # First object should be the scenario's packed representation
+    scenario = Scenario.unpackb(unpacker)
+
+    stats = master.calculate_scenario_stats(scenario, unpacker,
                                             nth_pctile=args.pctile)
     args.report_file.write(master.generate_scenario_report(scenario, stats))
     if args.rps_histogram:

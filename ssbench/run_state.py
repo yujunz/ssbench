@@ -41,8 +41,8 @@ class RunState(object):
         # A READ or UPDATE request is serviced with [0], then the deque is
         # rotated to the left (the serviced item goes to the back).
         #
-        # A result for an object CREATE is added (to the right of the deque)
-        # with append().
+        # A result for a successful object CREATE is added (to the right of the
+        # deque) with append().
         # A result for READ, UPDATE, DELETE does nothing with the deque.
         self.objs_by_size = defaultdict(deque)
 

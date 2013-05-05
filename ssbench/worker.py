@@ -159,7 +159,7 @@ class Worker:
         gotten = 1
         self.spawned = 0
         while jobs:
-            job_data = msgpack.loads(jobs)
+            job_data = msgpack.loads(jobs, use_list=False)
             for job_datum in job_data:
                 if 'container' in job_datum:
                     logging.debug('WORK: %13s %s/%-17s',
@@ -374,6 +374,10 @@ class Worker:
                                         **kwargs))
 
     def _put_results_from_response(self, object_info, resp_headers):
+        # Strip some keys the job had that results don't need:
+        object_info.pop('network_timeout', None)
+        object_info.pop('connect_timeout', None)
+        object_info.pop('auth_kwargs', None)
         self.put_results(
             object_info,
             first_byte_latency=resp_headers.get(

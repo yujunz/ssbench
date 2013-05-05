@@ -26,9 +26,12 @@ import signal
 import logging
 import msgpack
 import resource
+import threading
 import statlib.stats
-from gevent_zeromq import zmq
+from Queue import Queue
 from datetime import datetime
+from cStringIO import StringIO
+from gevent_zeromq import zmq
 from mako.template import Template
 
 import ssbench
@@ -40,6 +43,17 @@ from pprint import pprint, pformat
 
 
 REPORT_TIME_FORMAT = '%F %T UTC'
+
+
+def _thread_writer(queue, target_file):
+    """
+    Read blobs off the given queue, writing them to target_file.
+    If an empty blob is read, that indicates we're done, and we exit.
+    """
+    blob = queue.get()
+    while blob:
+        target_file.write(blob)
+        blob = queue.get()
 
 
 def _container_creator(storage_url, token, container):
@@ -76,8 +90,11 @@ class Master:
         self.network_timeout = network_timeout
         self.quiet = quiet
 
-    def process_results_to(self, results, processor, label=''):
+    def process_results_to(self, results_raw, processor, label=''):
+        results = msgpack.loads(results_raw, use_list=False)
+        result_count = 0
         for result in results:
+            result_count += 1
             logging.debug('RESULT: %13s %s/%-17s %s/%s %s',
                         result['type'], result['container'], result['name'],
                         '%7.4f' % result.get('first_byte_latency')
@@ -109,9 +126,19 @@ class Master:
                 sys.stderr.flush()
             processor(result)
 
+        if self.raw_results_buffer:
+            self.raw_results_buffer.write(results_raw)
+            # only call write() in our thread in chunks at least 1 MB
+            if self.raw_results_buffer.tell() > 1000000:
+                self.raw_results_q.put(self.raw_results_buffer.getvalue(True))
+                self.raw_results_buffer.seek(0)
+
+        return result_count
+
     def do_a_run(self, concurrency, job_generator, result_processor,
                  auth_kwargs, mapper_fn=None, label='', noop=False,
-                 batch_size=1):
+                 batch_size=1, raw_results_file=None):
+
         if label and not self.quiet:
             print >>sys.stderr, label + """
   X    work job raised an exception
@@ -143,6 +170,17 @@ class Master:
             work_job['network_timeout'] = self.network_timeout
             return work_job
 
+        if raw_results_file:
+            self.raw_results_buffer = StringIO()
+            self.raw_results_q = Queue()
+            self.raw_results_write_thread = threading.Thread(
+                target=_thread_writer, args=(self.raw_results_q,
+                                             raw_results_file))
+            self.raw_results_write_thread.daemon = True
+            self.raw_results_write_thread.start()
+        else:
+            self.raw_results_buffer = None
+
         active = 0
         for raw_job in job_generator:
             work_job = _job_decorator(raw_job)
@@ -155,10 +193,9 @@ class Master:
             logging.debug('active: %d\tconcurrency: %d', active, concurrency)
             if active >= concurrency:
                 result_jobs_raw = self.results_pull.recv()
-                result_jobs = msgpack.loads(result_jobs_raw)
-                self.process_results_to(result_jobs, result_processor,
-                                        label=label)
-                active -= len(result_jobs)
+                result_count = self.process_results_to(
+                    result_jobs_raw, result_processor, label=label)
+                active -= result_count
 
             while len(send_q) < min(batch_size, concurrency - active):
                 try:
@@ -176,13 +213,21 @@ class Master:
         while active > 0:
             logging.debug('Draining results: active = %d', active)
             result_jobs_raw = self.results_pull.recv()
-            result_jobs = msgpack.loads(result_jobs_raw)
-            self.process_results_to(result_jobs, result_processor,
-                                    label=label)
-            active -= len(result_jobs)
+            result_count = self.process_results_to(
+                result_jobs_raw, result_processor, label=label)
+            active -= result_count
         if label and not self.quiet:
             sys.stderr.write('\n')
             sys.stderr.flush()
+        if raw_results_file:
+            logging.debug('Waiting on results file flushing thread...')
+            self.raw_results_q.put(self.raw_results_buffer.getvalue(True))
+            self.raw_results_q.put('')
+            self.raw_results_write_thread.join()
+            self.raw_results_buffer.close()
+            self.raw_results_buffer = None
+            self.raw_results_q = None
+            self.raw_results_write_thread = None
 
     def kill_workers(self, timeout=5):
         """
@@ -202,7 +247,7 @@ class Master:
             if self.results_pull in socks \
                     and socks[self.results_pull] == zmq.POLLIN:
                 result_packed = self.results_pull.recv()
-                result = msgpack.loads(result_packed)
+                result = msgpack.loads(result_packed, use_list=False)
                 logging.info('Heard from worker id=%d; sending SUICIDE',
                             result['worker_id'])
                 self.work_push.send(msgpack.dumps([{'type': 'SUICIDE'}]))
@@ -213,8 +258,8 @@ class Master:
 
     def run_scenario(self, scenario, auth_url, user, key, auth_version,
                      os_options, cacert, insecure, storage_url, token,
-                     noop=False, with_profiling=False, keep_objects=False,
-                     batch_size=1):
+                     stats_file, noop=False, with_profiling=False,
+                     keep_objects=False, batch_size=1):
         """
         Runs a CRUD scenario, given cluster parameters and a Scenario object.
 
@@ -231,6 +276,7 @@ class Master:
         :param cacert: Bundle file to use in verifying SSL.
         :param storage_url: Optional user-specified x-storage-url
         :param token: Optional user-specified x-auth-token
+        :param stats_file: File object to which run results will be streamed.
         :param noop: Run in no-op mode?
         :param with_profiing: Profile the run?
         :param keep_objects: Keep uploaded objects instead of deleting them?
@@ -241,6 +287,9 @@ class Master:
         run_state = RunState()
 
         logging.info(u'Starting scenario run for "%s"', scenario.name)
+
+        # Write out scenario data to results file
+        stats_file.write(scenario.packb())
 
         soft_nofile, hard_nofile = resource.getrlimit(resource.RLIMIT_NOFILE)
         nofile_target = 1024
@@ -304,7 +353,8 @@ class Master:
         self.do_a_run(scenario.user_count, scenario.bench_jobs(),
                       run_state.handle_run_result, auth_kwargs,
                       mapper_fn=run_state.fill_in_job,
-                      label='Benchmark Run:', noop=noop, batch_size=batch_size)
+                      label='Benchmark Run:', noop=noop, batch_size=batch_size,
+                      raw_results_file=stats_file)
         if with_profiling:
             prof.disable()
             prof_output_path = '/tmp/do_a_run.%d.prof' % os.getpid()
@@ -427,10 +477,11 @@ ${label}
             i += 1
         return '%3.0f %s' % (round(byte_count), units[i])
 
-    def calculate_scenario_stats(self, scenario, results, nth_pctile=95):
+    def calculate_scenario_stats(self, scenario, result_unpacker,
+                                 nth_pctile=95):
         """Given a list of worker job result dicts, compute various statistics.
 
-        :results: A list of worker job result dicts
+        :results_unpacker: An iterator which will yield results
         :returns: A stats python dict which looks like:
             SERIES_STATS = {
                 'min': 1.1,
@@ -512,8 +563,7 @@ ${label}
         #   'completed_at': 1324372892.360802,
         #   'exception': '...',
         # }
-        logging.info('Calculating statistics for %d result items...',
-                     len(results))
+        logging.info('Calculating statistics...')
         agg_stats = dict(start=2 ** 32, stop=0, req_count=0)
         op_stats = {}
         for crud_type in [ssbench.CREATE_OBJECT, ssbench.READ_OBJECT,
@@ -532,46 +582,49 @@ ${label}
             worker_stats={},
             op_stats=op_stats,
             size_stats=OrderedDict.fromkeys(scenario.sizes_by_name.keys()))
-        for result in results:
-            if 'exception' in result:
-                # skip but log exceptions
-                logging.warn('calculate_scenario_stats: exception from '
-                             'worker %d: %s',
-                             result['worker_id'], result['exception'])
-                logging.info(result['traceback'])
-                continue
-            completion_time = int(result['completed_at'])
-            if completion_time < completion_time_min:
-                completion_time_min = completion_time
-                start_time = completion_time - result['last_byte_latency']
-            if completion_time > completion_time_max:
-                completion_time_max = completion_time
-            req_completion_seconds[completion_time] = \
-                1 + req_completion_seconds.get(completion_time, 0)
-            result['start'] = (
-                result['completed_at'] - result['last_byte_latency'])
+        for results in result_unpacker:
+            for result in results:
+                if 'exception' in result:
+                    # skip but log exceptions
+                    logging.warn('calculate_scenario_stats: exception from '
+                                'worker %d: %s',
+                                result['worker_id'], result['exception'])
+                    logging.info(result['traceback'])
+                    continue
+                completion_time = int(result['completed_at'])
+                if completion_time < completion_time_min:
+                    completion_time_min = completion_time
+                    start_time = completion_time - result['last_byte_latency']
+                if completion_time > completion_time_max:
+                    completion_time_max = completion_time
+                req_completion_seconds[completion_time] = \
+                    1 + req_completion_seconds.get(completion_time, 0)
+                result['start'] = (
+                    result['completed_at'] - result['last_byte_latency'])
 
-            # Stats per-worker
-            if result['worker_id'] not in stats['worker_stats']:
-                stats['worker_stats'][result['worker_id']] = {}
-            self._add_result_to(stats['worker_stats'][result['worker_id']],
-                                result)
+                # Stats per-worker
+                if result['worker_id'] not in stats['worker_stats']:
+                    stats['worker_stats'][result['worker_id']] = {}
+                self._add_result_to(stats['worker_stats'][result['worker_id']],
+                                    result)
 
-            # Stats per-file-size
-            if not stats['size_stats'][result['size_str']]:
-                stats['size_stats'][result['size_str']] = {}
-            self._add_result_to(stats['size_stats'][result['size_str']],
-                                result)
+                # Stats per-file-size
+                if not stats['size_stats'][result['size_str']]:
+                    stats['size_stats'][result['size_str']] = {}
+                self._add_result_to(stats['size_stats'][result['size_str']],
+                                    result)
 
-            self._add_result_to(agg_stats, result)
-            self._add_result_to(op_stats[result['type']], result)
+                self._add_result_to(agg_stats, result)
+                self._add_result_to(op_stats[result['type']], result)
 
-            # Stats per-operation-per-file-size
-            if not op_stats[result['type']]['size_stats'][result['size_str']]:
-                op_stats[result['type']]['size_stats'][result['size_str']] = {}
-            self._add_result_to(
-                op_stats[result['type']]['size_stats'][result['size_str']],
-                result)
+                # Stats per-operation-per-file-size
+                if not op_stats[result['type']]\
+                        ['size_stats'][result['size_str']]:
+                    op_stats[result['type']]\
+                            ['size_stats'][result['size_str']] = {}
+                self._add_result_to(
+                    op_stats[result['type']]['size_stats'][result['size_str']],
+                    result)
         agg_stats['worker_count'] = len(stats['worker_stats'].keys())
         self._compute_req_per_sec(agg_stats)
         self._compute_latency_stats(agg_stats, nth_pctile)

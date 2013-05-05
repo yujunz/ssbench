@@ -15,9 +15,11 @@
 
 import os
 import json
+import msgpack
+from cStringIO import StringIO
+from nose.tools import *
 from exceptions import OSError
 from collections import Counter
-from nose.tools import *
 
 import ssbench
 from ssbench.scenario import Scenario, ScenarioNoop
@@ -89,6 +91,30 @@ class TestScenario(ScenarioFixture):
     def test_basic_instantiation(self):
         # very whitebox:
         assert_dict_equal(self.scenario_dict, self.scenario._scenario_data)
+
+    def test_packb_unpackb(self):
+        packed = self.scenario.packb()
+        assert_is_instance(packed, bytes)
+        unpacked = Scenario.unpackb(packed)
+        assert_is_instance(unpacked, Scenario)
+        for attr in ['name', '_scenario_data', 'user_count', 'operation_count',
+                     'container_base', 'container_count', 'containers',
+                     'container_concurrency', 'sizes_by_name',
+                     'bench_size_thresholds']:
+            assert_equal(getattr(unpacked, attr), getattr(self.scenario, attr))
+
+    def test_unpackb_given_unpacker(self):
+        packed = self.scenario.packb()
+        assert_is_instance(packed, bytes)
+        file_like = StringIO(packed + msgpack.packb({'red': 'herring'}))
+        unpacker = msgpack.Unpacker(file_like=file_like)
+        unpacked = Scenario.unpackb(unpacker)
+        assert_is_instance(unpacked, Scenario)
+        for attr in ['name', '_scenario_data', 'user_count', 'operation_count',
+                     'container_base', 'container_count', 'containers',
+                     'container_concurrency', 'sizes_by_name',
+                     'bench_size_thresholds']:
+            assert_equal(getattr(unpacked, attr), getattr(self.scenario, attr))
 
     def test_open_fails(self):
         with assert_raises(IOError):
