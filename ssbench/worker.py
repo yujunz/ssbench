@@ -161,12 +161,19 @@ class Worker:
         while jobs:
             job_data = msgpack.loads(jobs, use_list=False)
             for job_datum in job_data:
-                if 'container' in job_datum:
-                    logging.debug('WORK: %13s %s/%-17s',
-                                job_datum['type'], job_datum['container'],
-                                job_datum['name'])
-                else:
-                    logging.debug('CMD: %13s', job_datum['type'])
+                try:
+                    if 'container' in job_datum:
+                        logging.debug('WORK: %13s %s/%-17s',
+                                    job_datum['type'], job_datum['container'],
+                                    job_datum['name'])
+                    else:
+                        logging.debug('CMD: %13s', job_datum['type'])
+                except Exception as e:
+                    # Under heavy load with VMs on my laptop, I saw job_datum
+                    # apparently somehow equal to None.
+                    self.put_exception_results({'job_datum': job_datum}, e)
+                    continue
+
                 if job_datum['type'] == 'SUICIDE':
                     logging.info('Got SUICIDE; closing sockets and exiting.')
                     self.work_pull.close()
@@ -216,9 +223,7 @@ class Worker:
                 # If the handler threw an exception, we need to put a "result"
                 # anyway so the master can finish by reading the requisite
                 # number of results without having to timeout.
-                self.put_results(job_data,
-                                 exception=repr(e),
-                                 traceback=traceback.format_exc())
+                self.put_exception_results(job_data, e)
         else:
             raise NameError("Unknown job type %r" % job_data['type'])
 
@@ -372,6 +377,11 @@ class Worker:
                                         completed_at=time.time(),
                                         worker_id=self.worker_id,
                                         **kwargs))
+
+    def put_exception_results(self, job_data, e):
+        self.put_results(job_data,
+                         exception=repr(e),
+                         traceback=traceback.format_exc())
 
     def _put_results_from_response(self, object_info, resp_headers):
         # Strip some keys the job had that results don't need:

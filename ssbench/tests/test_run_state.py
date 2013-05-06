@@ -25,7 +25,7 @@ class TestRunState(object):
         self.run_state = RunState()
 
     def _fill_initial_results(self):
-        self.initial_results = [{
+        initial_results = [{
             'type': ssbench.CREATE_OBJECT,
             'size_str': 'obtuse',
             'container': 'bucket0',
@@ -35,13 +35,13 @@ class TestRunState(object):
         # non-CREATE_OBJECT results are saved but not added to the deque
         for t in [ssbench.READ_OBJECT, ssbench.UPDATE_OBJECT,
                   ssbench.DELETE_OBJECT]:
-            self.initial_results.append({
+            initial_results.append({
                 'type': t,
                 'size_str': 'obtuse',
                 'container': 'bucket0',
                 'name': 'obj1',
             })
-        self.initial_results.append({
+        initial_results.append({
             'type': ssbench.CREATE_OBJECT,
             'size_str': 'obtuse',
             'container': 'bucket1',
@@ -49,25 +49,25 @@ class TestRunState(object):
             'size': 89,
         })
         # exception results are saved but not added to the deque
-        self.initial_results.append({
+        initial_results.append({
             'type': ssbench.CREATE_OBJECT,
             'size_str': 'obtuse',
             'container': 'bucket0',
             'name': 'obj1',
             'exception': 'oh noes!',
         })
-        self.initial_results.append({
+        initial_results.append({
             'type': ssbench.CREATE_OBJECT,
             'size_str': 'round',
             'container': 'bucket0',
             'name': 'obj2',
             'size': 90,
         })
-        for r in self.initial_results:
+        for r in initial_results:
             self.run_state.handle_initialization_result(r)
 
     def _fill_run_results(self):
-        self.run_results = [{
+        run_results = [{
             'type': ssbench.CREATE_OBJECT,
             'size_str': 'round',
             'container': 'bucket0',
@@ -77,13 +77,13 @@ class TestRunState(object):
         # non-CREATE_OBJECT results are saved but not added to the deque
         for t in [ssbench.READ_OBJECT, ssbench.UPDATE_OBJECT,
                   ssbench.DELETE_OBJECT]:
-            self.run_results.append({
+            run_results.append({
                 'type': t,
                 'size_str': 'obtuse',
                 'container': 'bucket0',
                 'name': 'obj8',
             })
-        self.run_results.append({
+        run_results.append({
             'type': ssbench.CREATE_OBJECT,
             'size_str': 'obtuse',
             'container': 'bucket3',
@@ -91,27 +91,25 @@ class TestRunState(object):
             'size': 89,
         })
         # exception results are saved but not added to the deque
-        self.run_results.append({
+        run_results.append({
             'type': ssbench.CREATE_OBJECT,
             'size_str': 'obtuse',
             'container': 'bucket3',
             'name': 'obj5',
             'exception': 'oh noes!',
         })
-        self.run_results.append({
+        run_results.append({
             'type': ssbench.CREATE_OBJECT,
             'size_str': 'round',
             'container': 'bucket1',
             'name': 'obj6',
             'size': 90,
         })
-        for r in self.run_results:
+        for r in run_results:
             self.run_state.handle_run_result(r)
 
     def test_handle_initialization_result(self):
         self._fill_initial_results()
-        assert_equal(self.run_state.initialization_results,
-                     self.initial_results)
         assert_equal(self.run_state.objs_by_size, {
             'obtuse': deque([
                 ('bucket0', 'obj1', True),
@@ -122,8 +120,6 @@ class TestRunState(object):
     def test_handle_run_result(self):
         self._fill_initial_results()
         self._fill_run_results()
-        assert_equal(self.run_state.run_results,
-                     self.run_results)
         assert_equal(self.run_state.objs_by_size, {
             'obtuse': deque([
                 ('bucket0', 'obj1', True),
@@ -149,6 +145,19 @@ class TestRunState(object):
                 ('bucket1', 'obj1', True)]),  # not "initial"
             'round': deque([
                 ('bucket0', 'obj2', True)]),
+        })
+
+    def test_cleanup_object_infos_with_no_initials(self):
+        self._fill_run_results()
+        cleanups = set(self.run_state.cleanup_object_infos())
+
+        assert_set_equal(cleanups, set([('bucket3', 'obj4', False),
+                                        ('bucket0', 'obj3', False),
+                                        ('bucket1', 'obj6', False)]))
+        # There were no initials, so there's nothing left:
+        assert_equal(self.run_state.objs_by_size, {
+            'obtuse': deque(),
+            'round': deque(),
         })
 
     def test_fill_in_job_for_create_object(self):

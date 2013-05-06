@@ -16,6 +16,7 @@
 import os
 import json
 import time
+import signal
 import msgpack
 from cStringIO import StringIO
 from nose.tools import *
@@ -31,7 +32,9 @@ class ScenarioFixture(object):
         superclass = super(ScenarioFixture, self)
         if hasattr(superclass, 'setUp'):
             superclass.setUp()
-        self.stub_scenario_file = '/tmp/.430gjf.test_scenario.py'
+
+        if not hasattr(self, 'stub_scenario_file'):
+            self.stub_scenario_file = '/tmp/.430gjf.test_scenario.py'
 
         if not getattr(self, 'scenario_dict', None):
             self.scenario_dict = dict(
@@ -92,6 +95,7 @@ class TestScenario(ScenarioFixture):
     def test_basic_instantiation(self):
         # very whitebox:
         assert_dict_equal(self.scenario_dict, self.scenario._scenario_data)
+        assert_equal(ssbench.version, self.scenario.version)
 
     def test_packb_unpackb(self):
         packed = self.scenario.packb()
@@ -101,13 +105,13 @@ class TestScenario(ScenarioFixture):
         for attr in ['name', '_scenario_data', 'user_count', 'operation_count',
                      'run_seconds', 'container_base', 'container_count',
                      'containers', 'container_concurrency', 'sizes_by_name',
-                     'bench_size_thresholds']:
+                     'version', 'bench_size_thresholds']:
             assert_equal(getattr(unpacked, attr), getattr(self.scenario, attr))
 
     def test_packb_unpackb_with_run_seconds(self):
         self.scenario_dict['run_seconds'] = 27
         self.write_scenario_file()
-        scenario = Scenario(self.stub_scenario_file)
+        scenario = Scenario(self.stub_scenario_file, version='0.1.1')
         assert_equal(27, scenario.run_seconds)
         assert_equal(None, scenario.operation_count)
         packed = scenario.packb()
@@ -117,7 +121,7 @@ class TestScenario(ScenarioFixture):
         for attr in ['name', '_scenario_data', 'user_count', 'operation_count',
                      'run_seconds', 'container_base', 'container_count',
                      'containers', 'container_concurrency', 'sizes_by_name',
-                     'bench_size_thresholds']:
+                     'version', 'bench_size_thresholds']:
             assert_equal(getattr(unpacked, attr), getattr(scenario, attr))
 
         scenario = Scenario(self.stub_scenario_file, run_seconds=88,
@@ -131,7 +135,7 @@ class TestScenario(ScenarioFixture):
         for attr in ['name', '_scenario_data', 'user_count', 'operation_count',
                      'run_seconds', 'container_base', 'container_count',
                      'containers', 'container_concurrency', 'sizes_by_name',
-                     'bench_size_thresholds']:
+                     'version', 'bench_size_thresholds']:
             assert_equal(getattr(unpacked, attr), getattr(scenario, attr))
 
     def test_unpackb_given_unpacker(self):
@@ -144,13 +148,25 @@ class TestScenario(ScenarioFixture):
         for attr in ['name', '_scenario_data', 'user_count', 'operation_count',
                      'run_seconds', 'container_base', 'container_count',
                      'containers', 'container_concurrency', 'sizes_by_name',
-                     'bench_size_thresholds']:
+                     'version', 'bench_size_thresholds']:
             assert_equal(getattr(unpacked, attr), getattr(self.scenario, attr))
 
     def test_open_fails(self):
         with assert_raises(IOError):
             # It also logs, but I'm too lazy to test that
             Scenario('some file which will not be present!')
+
+    def test_no_filename_or__scenario_data(self):
+        with assert_raises(ValueError):
+            self.write_scenario_file()
+            scenario = Scenario()
+
+    def test_no_op_count_or_run_seconds(self):
+        with assert_raises(ValueError):
+            self.scenario_dict.pop('run_seconds', None)
+            self.scenario_dict.pop('operation_count', None)
+            self.write_scenario_file()
+            scenario = Scenario(self.stub_scenario_file)
 
     def test_constructor_overrides(self):
         scenario = Scenario(self.stub_scenario_file, container_count=21,
@@ -294,6 +310,9 @@ class TestScenario(ScenarioFixture):
             assert_true(job['noop'])
 
     def test_bench_jobs_with_run_seconds(self):
+        initial_handler = lambda s, f: 17
+        signal.signal(signal.SIGALRM, initial_handler)
+
         self.scenario_dict['operation_count'] = 1
         self.scenario_dict['run_seconds'] = 1
         self.write_scenario_file()
@@ -307,6 +326,9 @@ class TestScenario(ScenarioFixture):
         assert_greater(len(jobs), 1)
         # +/- 10ms seems good:
         assert_almost_equal(delta_t, scenario.run_seconds, delta=0.01)
+
+        restored_handler = signal.signal(signal.SIGALRM, signal.SIG_DFL)
+        assert_equal(restored_handler, initial_handler)
 
     def test_bench_job_0(self):
         bench_job = self.scenario.bench_job('small', 0, 31)

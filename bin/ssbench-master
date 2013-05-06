@@ -28,8 +28,10 @@ import cPickle as pickle
 from gzip import GzipFile
 from datetime import datetime
 
+import ssbench
 import ssbench.swift_client as client
 from ssbench.master import Master
+from ssbench.run_results import RunResults
 from ssbench.scenario import Scenario, ScenarioNoop
 
 
@@ -88,7 +90,9 @@ def run_scenario(master, args):
 
     # Attempt open prior to benchmark run so we get errors earlier
     # if there's a problem.
-    args.stats_file = open(stats_file_path, 'wb+')
+    run_results = RunResults(stats_file_path)
+    run_results.start_run(scenario)
+
     worker_count = getattr(args, 'workers', 0)
     local_workers, local_worker_logs = [], []
     try:
@@ -125,18 +129,15 @@ def run_scenario(master, args):
                                                       close_fds=True))
                 local_worker_logs.append((log_path, logfp))
 
-        results = master.run_scenario(scenario, auth_url=args.auth_url,
-                                      user=args.user, key=args.key,
-                                      auth_version=args.auth_version,
-                                      os_options=args.os_options,
-                                      cacert=args.os_cacert,
-                                      insecure=args.insecure,
-                                      storage_url=args.storage_url,
-                                      token=args.token, noop=args.noop,
-                                      with_profiling=args.profile,
-                                      keep_objects=args.keep_objects,
-                                      batch_size=args.batch_size,
-                                      stats_file=args.stats_file)
+        master.run_scenario(scenario, auth_url=args.auth_url, user=args.user,
+                            key=args.key, auth_version=args.auth_version,
+                            os_options=args.os_options, cacert=args.os_cacert,
+                            insecure=args.insecure,
+                            storage_url=args.storage_url, token=args.token,
+                            noop=args.noop, with_profiling=args.profile,
+                            keep_objects=args.keep_objects,
+                            batch_size=args.batch_size,
+                            run_results=run_results)
     finally:
         # Make sure any local spawned workers get killed
         if worker_count:
@@ -153,8 +154,7 @@ def run_scenario(master, args):
                         os.chown(log_path, int(os.environ['SUDO_UID']),
                                  int(os.environ['SUDO_GID']))
 
-    os.fsync(args.stats_file.fileno())
-    args.stats_file.close()
+    run_results.finalize()
 
     # Spawn off a background worker to gzip the results file, getting some
     # concurrency against the default report generation (if it wasn't
@@ -212,14 +212,8 @@ def report_scenario(master, args):
         prof = cProfile.Profile()
         prof.enable()
 
-    if args.stats_file.endswith('.gz'):
-        args.stats_file = GzipFile(args.stats_file, 'rb')
-    else:
-        args.stats_file = open(args.stats_file, 'rb')
-    unpacker = msgpack.Unpacker(file_like=args.stats_file)
-
-    # First object should be the scenario's packed representation
-    scenario = Scenario.unpackb(unpacker)
+    run_results = RunResults(args.stats_file)
+    scenario, unpacker = run_results.read_results()
 
     stats = master.calculate_scenario_stats(scenario, unpacker,
                                             nth_pctile=args.pctile)
@@ -239,7 +233,8 @@ def report_scenario(master, args):
 if __name__ == "__main__":
     arg_parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description='Benchmark your Swift installation')
+        description='SwiftStack Benchmark (ssbench) version %s' % (
+            ssbench.version,))
     arg_parser.add_argument('-v', '--verbose', action='store_true',
                             default=False, help='Enable more verbose output.')
 
@@ -518,5 +513,6 @@ OS_TENANT_NAME OS_TENANT_ID to be set or overridden with --os-auth-url,
                     quiet=args.func == run_scenario and args.quiet,
                     connect_timeout=getattr(args, 'connect_timeout', None),
                     network_timeout=getattr(args, 'network_timeout', None))
+    logging.info('SwiftStack Benchmark (ssbench) version %s', ssbench.version)
 
     args.func(master, args)

@@ -791,11 +791,12 @@ class TestMaster(ScenarioFixture, TestCase):
 
     def test_generate_scenario_report(self):
         # Time series (reqs completed each second
+        self.scenario.version = '0.2.14'
         scen_stats = self.master.calculate_scenario_stats(self.scenario,
                                                           self.stub_results,
                                                           nth_pctile=50)
         self.assertListEqual(u"""
-Master Test Scenario - ablkei
+Master Test Scenario - ablkei  (generated with ssbench version 0.2.14)
 Worker count:   3   Concurrency:   2  Ran 1970-01-01 00:01:39 UTC to 1970-01-01 00:01:46 UTC (7s)
 
 % Ops    C   R   U   D       Size Range       Size Name

@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+_version = (0, 2, 14)
+version = '.'.join(map(str, _version))
+
 # Constant names (which happen to need to match methods called
 # handle_<OPERATION> in worker.py)
 CREATE_OBJECT = 'upload_object'

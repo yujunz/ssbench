@@ -29,9 +29,6 @@ class RunState(object):
     """
 
     def __init__(self):
-        self.initialization_results = []
-        self.run_results = []
-
         # Stores one deque of (container_name, obj_name) tuples per size_str.
         # This stores the contents of the cluster during the benchmark run.
         # Objects are always accessed in the context of a "size_str".
@@ -54,11 +51,9 @@ class RunState(object):
                 (result['container'], result['name'], initial))
 
     def handle_initialization_result(self, result):
-        self.initialization_results.append(result)
         self._handle_result(result, initial=True)
 
     def handle_run_result(self, result):
-        self.run_results.append(result)
         self._handle_result(result)
 
     def fill_in_job(self, job):

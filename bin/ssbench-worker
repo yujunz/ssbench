@@ -18,12 +18,14 @@ import sys
 import argparse
 import logging
 
+import ssbench
 from ssbench.worker import Worker
 
 if __name__ == "__main__":
     arg_parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description='Benchmark your Swift installation')
+        description='SwiftStack Benchmark (ssbench) version %s' % (
+            ssbench.version,))
     arg_parser.add_argument('worker_id', type=int, help='An integer ID '
                             'number; must be unique among all workers')
     arg_parser.add_argument(

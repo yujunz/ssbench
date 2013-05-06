@@ -34,12 +34,13 @@ class Scenario(object):
 
     def __init__(self, scenario_filename=None, container_count=None,
                  user_count=None, operation_count=None, run_seconds=None,
-                 _scenario_data=None):
+                 _scenario_data=None, version=ssbench.version):
         """Initializes the object from a scenario file on disk.
 
         :scenario_filename: path to a scenario file
         """
 
+        self.version = version
         if _scenario_data is not None:
             # This is a "private" way to construct a Scenario object from the
             # raw JSON without a file lying around.
@@ -75,7 +76,8 @@ class Scenario(object):
         else:
             self.run_seconds = self._scenario_data.get('run_seconds', None)
             if self.run_seconds is None:
-                self.operation_count = self._scenario_data['operation_count']
+                self.operation_count = self._scenario_data.get(
+                    'operation_count', None)
             else:
                 self.operation_count = None
 
@@ -125,6 +127,7 @@ class Scenario(object):
         return msgpack.packb({
             '_scenario_data': self._scenario_data,
             'name': self.name,
+            'version': self.version,
             'user_count': self.user_count,
             'operation_count': self.operation_count,
             'run_seconds': self.run_seconds,
@@ -143,6 +146,7 @@ class Scenario(object):
                        user_count=data['user_count'],
                        operation_count=data['operation_count'],
                        run_seconds=data['run_seconds'],
+                       version=data['version'],
                        _scenario_data=data['_scenario_data'])
         return scenario
 

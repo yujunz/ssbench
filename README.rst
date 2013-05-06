@@ -450,8 +450,8 @@ during a benchmark run against a cluster using HTTPS.
 The No-op Mode
 --------------
 
-To test the maximum throughput of the ``ssbench-master`` ==> ``beantalkd``
-==> ``ssbench-worker`` infrastructure, you can add ``--noop`` to a
+To test the maximum throughput of the ``ssbench-master`` <==>
+``ssbench-worker`` infrastructure, you can add ``--noop`` to a
 ``ssbench-master run-scenario`` command and the scenario will be "run" but
 the ``ssbench-worker`` processes will not actually talk to the Swift cluster.
 

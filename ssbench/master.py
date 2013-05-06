@@ -90,7 +90,8 @@ class Master:
         self.network_timeout = network_timeout
         self.quiet = quiet
 
-    def process_results_to(self, results_raw, processor, label=''):
+    def process_results_to(self, results_raw, processor, label='',
+                           run_results=None):
         results = msgpack.loads(results_raw, use_list=False)
         result_count = 0
         for result in results:
@@ -126,18 +127,14 @@ class Master:
                 sys.stderr.flush()
             processor(result)
 
-        if self.raw_results_buffer:
-            self.raw_results_buffer.write(results_raw)
-            # only call write() in our thread in chunks at least 1 MB
-            if self.raw_results_buffer.tell() > 1000000:
-                self.raw_results_q.put(self.raw_results_buffer.getvalue(True))
-                self.raw_results_buffer.seek(0)
+        if run_results:
+            run_results.process_raw_results(results_raw)
 
         return result_count
 
     def do_a_run(self, concurrency, job_generator, result_processor,
                  auth_kwargs, mapper_fn=None, label='', noop=False,
-                 batch_size=1, raw_results_file=None):
+                 batch_size=1, run_results=None):
 
         if label and not self.quiet:
             print >>sys.stderr, label + """
@@ -170,17 +167,6 @@ class Master:
             work_job['network_timeout'] = self.network_timeout
             return work_job
 
-        if raw_results_file:
-            self.raw_results_buffer = StringIO()
-            self.raw_results_q = Queue()
-            self.raw_results_write_thread = threading.Thread(
-                target=_thread_writer, args=(self.raw_results_q,
-                                             raw_results_file))
-            self.raw_results_write_thread.daemon = True
-            self.raw_results_write_thread.start()
-        else:
-            self.raw_results_buffer = None
-
         active = 0
         for raw_job in job_generator:
             work_job = _job_decorator(raw_job)
@@ -194,7 +180,8 @@ class Master:
             if active >= concurrency:
                 result_jobs_raw = self.results_pull.recv()
                 result_count = self.process_results_to(
-                    result_jobs_raw, result_processor, label=label)
+                    result_jobs_raw, result_processor, label=label,
+                    run_results=run_results)
                 active -= result_count
 
             while len(send_q) < min(batch_size, concurrency - active):
@@ -214,20 +201,12 @@ class Master:
             logging.debug('Draining results: active = %d', active)
             result_jobs_raw = self.results_pull.recv()
             result_count = self.process_results_to(
-                result_jobs_raw, result_processor, label=label)
+                result_jobs_raw, result_processor, label=label,
+                run_results=run_results)
             active -= result_count
         if label and not self.quiet:
             sys.stderr.write('\n')
             sys.stderr.flush()
-        if raw_results_file:
-            logging.debug('Waiting on results file flushing thread...')
-            self.raw_results_q.put(self.raw_results_buffer.getvalue(True))
-            self.raw_results_q.put('')
-            self.raw_results_write_thread.join()
-            self.raw_results_buffer.close()
-            self.raw_results_buffer = None
-            self.raw_results_q = None
-            self.raw_results_write_thread = None
 
     def kill_workers(self, timeout=5):
         """
@@ -258,7 +237,7 @@ class Master:
 
     def run_scenario(self, scenario, auth_url, user, key, auth_version,
                      os_options, cacert, insecure, storage_url, token,
-                     stats_file, noop=False, with_profiling=False,
+                     run_results, noop=False, with_profiling=False,
                      keep_objects=False, batch_size=1):
         """
         Runs a CRUD scenario, given cluster parameters and a Scenario object.
@@ -276,7 +255,7 @@ class Master:
         :param cacert: Bundle file to use in verifying SSL.
         :param storage_url: Optional user-specified x-storage-url
         :param token: Optional user-specified x-auth-token
-        :param stats_file: File object to which run results will be streamed.
+        :param run_results: RunResults objects for the run
         :param noop: Run in no-op mode?
         :param with_profiing: Profile the run?
         :param keep_objects: Keep uploaded objects instead of deleting them?
@@ -287,9 +266,6 @@ class Master:
         run_state = RunState()
 
         logging.info(u'Starting scenario run for "%s"', scenario.name)
-
-        # Write out scenario data to results file
-        stats_file.write(scenario.packb())
 
         soft_nofile, hard_nofile = resource.getrlimit(resource.RLIMIT_NOFILE)
         nofile_target = 1024
@@ -354,7 +330,7 @@ class Master:
                       run_state.handle_run_result, auth_kwargs,
                       mapper_fn=run_state.fill_in_job,
                       label='Benchmark Run:', noop=noop, batch_size=batch_size,
-                      raw_results_file=stats_file)
+                      run_results=run_results)
         if with_profiling:
             prof.disable()
             prof_output_path = '/tmp/do_a_run.%d.prof' % os.getpid()
@@ -371,8 +347,6 @@ class Master:
         elif keep_objects:
             logging.info('NOT deleting any objects due to -k/--keep-objects')
 
-        return run_state.run_results
-
     def write_rps_histogram(self, stats, csv_file):
         csv_file.write('"Seconds Since Start","Requests Completed"\n')
         for i, req_count in enumerate(stats['time_series']['data'], 1):
@@ -380,7 +354,7 @@ class Master:
 
     def scenario_template(self):
         return """
-${scenario.name}
+${scenario.name}  (generated with ssbench version ${scenario.version})
 Worker count: ${'%3d' % agg_stats['worker_count']}   Concurrency: ${'%3d' % scenario.user_count}  Ran ${start_time} to ${stop_time} (${'%.0f' % round(duration)}s)
 
 %% Ops    C   R   U   D       Size Range       Size Name
@@ -563,7 +537,8 @@ ${label}
         #   'completed_at': 1324372892.360802,
         #   'exception': '...',
         # }
-        logging.info('Calculating statistics...')
+        logging.info('Calculating statistics (ssbench version %s)...',
+                     ssbench.version)
         agg_stats = dict(start=2 ** 32, stop=0, req_count=0)
         op_stats = {}
         for crud_type in [ssbench.CREATE_OBJECT, ssbench.READ_OBJECT,
