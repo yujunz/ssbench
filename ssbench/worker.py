@@ -23,6 +23,7 @@ import gevent.local
 import gevent.coros
 import gevent.monkey
 gevent.monkey.patch_socket()
+gevent.monkey.patch_ssl()
 gevent.monkey.patch_time()
 
 import os
