@@ -93,7 +93,6 @@ class ConnectionPool(gevent.queue.Queue):
         assert conn[1].sock.timeout == self.network_timeout
         return conn
 
-
 class Worker:
     def __init__(self, zmq_host, zmq_work_port, zmq_results_port, worker_id,
                  max_retries, profile_count=0, concurrency=256, batch_size=1):
@@ -259,7 +258,7 @@ class Worker:
         args.update(extra_keys)
 
         if 'auth_kwargs' not in call_info:
-            raise ValueError('Got benchmark job without "auth_kwargs" key!')
+            raise ValueError('Got benchmark job without "auth_kwargs" key!', 0)
 
         tries = 0
         while True:
@@ -320,8 +319,8 @@ class Worker:
                     break
                 tries += 1
                 if tries > self.max_retries:
-                    raise Exception('No fn_results for %r after %d '
-                                    'retries' % (fn, self.max_retries))
+                    raise Exception('No fn_results for %r after %d retires' \
+                                     % (fn, self.max_retries), tries)
             # XXX The name of this method does not suggest that it
             # will also retry on socket-level errors. Regardless,
             # sometimes Swift refuses connections (probably when it's
@@ -333,10 +332,11 @@ class Worker:
             # socket.error should NOT get raised here for connection failures.
             # So hopefully this socket.error trapping code path will not get
             # hit.
-            except socket.error:
+            except socket.error as error:
                 tries += 1
                 if tries > self.max_retries:
-                    raise
+                    error.args += (tries-1,)
+                    raise error
             except client.ClientException as error:
                 tries += 1
                 if error.http_status in statuses and \
@@ -356,7 +356,9 @@ class Worker:
                                 self.token_data_lock.release()
                     logging.debug("Retrying an error: %r", error)
                 else:
-                    raise
+                    error.args += (tries-1,)
+                    raise error
+        fn_results['retries'] = tries
         return fn_results
 
     def put_results(self, *args, **kwargs):
@@ -376,8 +378,10 @@ class Worker:
                                         **kwargs))
 
     def put_exception_results(self, job_data, e):
+        # last arg is assumed as the # of retries
         self.put_results(job_data,
                          exception=repr(e),
+                         retries=e.args[-1],
                          traceback=traceback.format_exc())
 
     def _put_results_from_response(self, object_info, resp_headers):
@@ -391,14 +395,16 @@ class Worker:
                 'x-swiftstack-first-byte-latency', None),
             last_byte_latency=resp_headers.get(
                 'x-swiftstack-last-byte-latency', None),
-            trans_id=resp_headers.get('x-trans-id', None))
+            trans_id=resp_headers.get('x-trans-id', None),
+            retries=resp_headers.get('retries', 0))
 
     def handle_noop(self, object_info):
         self.put_results(
             object_info,
             first_byte_latency=0.0,
             last_byte_latency=0.0,
-            trans_id=None)
+            trans_id=None,
+            retries=0)
     handle_PING = handle_noop
 
     def handle_upload_object(self, object_info, letter='A'):

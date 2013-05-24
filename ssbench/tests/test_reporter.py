@@ -60,35 +60,35 @@ class TestReporter(ScenarioFixture, TestCase):
             # Thise lists will just have one element, unless the worker was
             # using a batch-size > 1, in which case they might have more.
             [self.gen_result(
-                1, ssbench.CREATE_OBJECT, 'small', 100.0, 101.0, 103.0),
+                1, ssbench.CREATE_OBJECT, 'small', 100.0, 101.0, 103.0, 0),
             self.gen_result(
-                1, ssbench.READ_OBJECT, 'tiny', 103.0, 103.1, 103.8)],
+                1, ssbench.READ_OBJECT, 'tiny', 103.0, 103.1, 103.8, 0)],
             [self.gen_result(
-                1, ssbench.CREATE_OBJECT, 'huge', 103.8, 105.0, 106.0),
+                1, ssbench.CREATE_OBJECT, 'huge', 103.8, 105.0, 106.0, 0),
             self.gen_result(
-                1, ssbench.UPDATE_OBJECT, 'large', 106.1, 106.3, 106.4)],
+                1, ssbench.UPDATE_OBJECT, 'large', 106.1, 106.3, 106.4, 0)],
             #
             # exceptions should be ignored
-            [dict(worker_id=2, type=ssbench.UPDATE_OBJECT,
-                  completed_at=39293.2, exception='wacky!', traceback='ugh'),
+            [dict(worker_id=2, type=ssbench.UPDATE_OBJECT, size_str='large',
+                  completed_at=152.2, retries=5, exception='wacky!', traceback='ugh'),
             self.gen_result(
-                2, ssbench.UPDATE_OBJECT, 'medium', 100.1, 100.9, 102.9)],
+                2, ssbench.UPDATE_OBJECT, 'medium', 100.1, 100.9, 102.9, 1)],
             [self.gen_result(
-                2, ssbench.DELETE_OBJECT, 'large', 102.9, 103.0, 103.3),
+                2, ssbench.DELETE_OBJECT, 'large', 102.9, 103.0, 103.3, 0),
             self.gen_result(
-                2, ssbench.CREATE_OBJECT, 'tiny', 103.3, 103.4, 103.5)],
+                2, ssbench.CREATE_OBJECT, 'tiny', 103.3, 103.4, 103.5, 1)],
             [self.gen_result(
-                2, ssbench.READ_OBJECT, 'small', 103.5, 103.7, 104.0),
+                2, ssbench.READ_OBJECT, 'small', 103.5, 103.7, 104.0, 0),
             #
             self.gen_result(
-                3, ssbench.READ_OBJECT, 'tiny', 100.1, 101.1, 101.9)],
+                3, ssbench.READ_OBJECT, 'tiny', 100.1, 101.1, 101.9, 0)],
             # worker 3 took a while (observer lower concurrency in second 102
             [self.gen_result(
-                3, ssbench.DELETE_OBJECT, 'small', 103.1, 103.6, 103.9),
+                3, ssbench.DELETE_OBJECT, 'small', 103.1, 103.6, 103.9, 0),
             self.gen_result(
-                3, ssbench.READ_OBJECT, 'medium', 103.9, 104.2, 104.3),
+                3, ssbench.READ_OBJECT, 'medium', 103.9, 104.2, 104.3, 0),
             self.gen_result(
-                3, ssbench.UPDATE_OBJECT, 'tiny', 104.3, 104.9, 104.999)],
+                3, ssbench.UPDATE_OBJECT, 'tiny', 104.3, 104.9, 104.999, 0)],
         ]
         self.run_results = MagicMock()
         self.run_results.read_results.return_value = (self.scenario,
@@ -100,7 +100,7 @@ class TestReporter(ScenarioFixture, TestCase):
         super(TestReporter, self).tearDown()
 
     def gen_result(self, worker_id, op_type, size_str, start, first_byte,
-                   last_byte):
+                   last_byte, retries):
         self.result_index += 1
 
         return {
@@ -110,6 +110,7 @@ class TestReporter(ScenarioFixture, TestCase):
             'type': op_type,
             'size_str': size_str,
             'size': 989,
+            'retries': retries,
             'first_byte_latency': first_byte - start,
             'last_byte_latency': last_byte - start,
             'trans_id': 'txID%03d' % self.result_index,
@@ -177,8 +178,9 @@ class TestReporter(ScenarioFixture, TestCase):
         last_byte_latency_all = [3, 0.8, 2.2, 0.3, 2.8, 0.4, 0.2,
                                  0.5, 1.8, 0.8, 0.4, 0.699]
         self.assertDictEqual(dict(
-            worker_count=3, start=100.0, stop=106.4, req_count=12,
-            avg_req_per_sec=round(12 / (106.4 - 100), 6),
+            worker_count=3, start=100.0, stop=152.2, req_count=13,
+            retries=7, retry_rate=53.846154, errors=1,
+            avg_req_per_sec=round(13 / (152.2 - 100), 6),
             first_byte_latency=dict(
                 min='%6.3f' % 0.1,
                 max='%7.3f' % 1.2,
@@ -209,8 +211,9 @@ class TestReporter(ScenarioFixture, TestCase):
         self.reporter.read_results(nth_pctile=20)
 
         self.assertDictEqual(dict(
-            worker_count=3, start=100.0, stop=106.4, req_count=12,
-            avg_req_per_sec=round(12 / (106.4 - 100), 6),
+            worker_count=3, start=100.0, stop=152.2, req_count=13,
+            retries=7, retry_rate=53.846154, errors=1,
+            avg_req_per_sec=round(13 / (152.2 - 100), 6),
             first_byte_latency=dict(
                 min='%6.3f' % 0.1,
                 max='%7.3f' % 1.2,
@@ -237,6 +240,7 @@ class TestReporter(ScenarioFixture, TestCase):
         w1_last_byte_latency = [3.0, 0.8, 2.2, 0.3]
         self.assertDictEqual(dict(
             start=100.0, stop=106.4, req_count=4,
+            retries=0, retry_rate=0.0, errors=0,
             avg_req_per_sec=round(4 / (106.4 - 100), 6),
             first_byte_latency=dict(
                 min='%6.3f' % min(w1_first_byte_latency),
@@ -264,8 +268,9 @@ class TestReporter(ScenarioFixture, TestCase):
         w2_first_byte_latency = [0.8, 0.1, 0.1, 0.2]
         w2_last_byte_latency = [2.8, 0.4, 0.2, 0.5]
         self.assertDictEqual(dict(
-            start=100.1, stop=104.0, req_count=4,
-            avg_req_per_sec=round(4 / (104.0 - 100.1), 6),
+            start=100.1, stop=152.2, req_count=5,
+            retries=7, retry_rate=140.0, errors=1,
+            avg_req_per_sec=round(5 / (152.2 - 100.1), 6),
             first_byte_latency=dict(
                 min='%6.3f' % min(w2_first_byte_latency),
                 max='%7.3f' % max(w2_first_byte_latency),
@@ -293,6 +298,7 @@ class TestReporter(ScenarioFixture, TestCase):
         w3_last_byte_latency = [1.8, 0.8, 0.4, 0.699]
         self.assertDictEqual(dict(
             start=100.1, stop=104.999, req_count=4,
+            retries=0, retry_rate=0.0, errors=0,
             avg_req_per_sec=round(4 / (104.999 - 100.1), 6),
             first_byte_latency=dict(
                 min='%6.3f' % min(w3_first_byte_latency),
@@ -322,6 +328,7 @@ class TestReporter(ScenarioFixture, TestCase):
         c_last_byte_latency = [3.0, 2.2, 0.2]
         self.assertDictEqual(dict(
             start=100.0, stop=106.0, req_count=3,
+            retries=1, retry_rate=33.333333, errors=0,
             avg_req_per_sec=round(3 / (106 - 100.0), 6),
             first_byte_latency=dict(
                 min='%6.3f' % min(c_first_byte_latency),
@@ -358,6 +365,9 @@ class TestReporter(ScenarioFixture, TestCase):
                           'worst_first_byte_latency': (0.1, 'txID008'),
                           'worst_last_byte_latency': (0.2, 'txID008'),
                           'req_count': 1,
+                          'retries': 1,
+                          'retry_rate': 100.0,
+                          'errors': 0,
                           'start': 103.3,
                           'stop': 103.5}),
                 ('small', {'avg_req_per_sec': 0.333333,
@@ -376,6 +386,9 @@ class TestReporter(ScenarioFixture, TestCase):
                            'worst_first_byte_latency': (1.0, 'txID002'),
                            'worst_last_byte_latency': (3.0, 'txID002'),
                            'req_count': 1,
+                           'retries': 0,
+                           'retry_rate': 0.0,
+                           'errors': 0,
                            'start': 100.0,
                            'stop': 103.0}),
                 ('huge', {'avg_req_per_sec': 0.454545,
@@ -394,6 +407,9 @@ class TestReporter(ScenarioFixture, TestCase):
                           'worst_first_byte_latency': (1.2, 'txID004'),
                           'worst_last_byte_latency': (2.2, 'txID004'),
                           'req_count': 1,
+                          'retries': 0,
+                          'retry_rate': 0.0,
+                          'errors': 0,
                           'start': 103.8,
                           'stop': 106.0})]),
         ), self.reporter.stats['op_stats'][ssbench.CREATE_OBJECT])
@@ -404,6 +420,7 @@ class TestReporter(ScenarioFixture, TestCase):
         r_last_byte_latency = [0.8, 0.5, 1.8, 0.4]
         self.assertDictEqual(dict(
             start=100.1, stop=104.3, req_count=4,
+            retries=0, retry_rate=0.0, errors=0,
             avg_req_per_sec=round(4 / (104.3 - 100.1), 6),
             first_byte_latency=dict(
                 min='%6.3f' % min(r_first_byte_latency),
@@ -440,6 +457,9 @@ class TestReporter(ScenarioFixture, TestCase):
                           'worst_first_byte_latency': (1.0, 'txID010'),
                           'worst_last_byte_latency': (1.8, 'txID010'),
                           'req_count': 2,
+                          'retries': 0,
+                          'retry_rate': 0.0,
+                          'errors': 0,
                           'start': 100.1,
                           'stop': 103.8}),
                 ('small', {'avg_req_per_sec': 2.0,
@@ -458,6 +478,9 @@ class TestReporter(ScenarioFixture, TestCase):
                            'worst_first_byte_latency': (0.2, 'txID009'),
                            'worst_last_byte_latency': (0.5, 'txID009'),
                            'req_count': 1,
+                           'retries': 0,
+                           'retry_rate': 0.0,
+                           'errors': 0,
                            'start': 103.5,
                            'stop': 104.0}),
                 ('medium', {'avg_req_per_sec': 2.5,
@@ -476,6 +499,9 @@ class TestReporter(ScenarioFixture, TestCase):
                             'worst_first_byte_latency': (0.3, 'txID012'),
                             'worst_last_byte_latency': (0.4, 'txID012'),
                             'req_count': 1,
+                            'retries': 0,
+                            'retry_rate': 0.0,
+                            'errors': 0,
                             'start': 103.9,
                             'stop': 104.3})]),
         ), self.reporter.stats['op_stats'][ssbench.READ_OBJECT])
@@ -484,8 +510,9 @@ class TestReporter(ScenarioFixture, TestCase):
         u_first_byte_latency = [0.2, 0.8, 0.6]
         u_last_byte_latency = [0.3, 2.8, 0.699]
         self.assertDictEqual(dict(
-            start=100.1, stop=106.4, req_count=3,
-            avg_req_per_sec=round(3 / (106.4 - 100.1), 6),
+            start=100.1, stop=152.2, req_count=4,
+            retries=6, retry_rate=150.0, errors=1,
+            avg_req_per_sec=round(4 / (152.2 - 100.1), 6),
             first_byte_latency=dict(
                 min='%6.3f' % min(u_first_byte_latency),
                 max='%7.3f' % max(u_first_byte_latency),
@@ -521,6 +548,9 @@ class TestReporter(ScenarioFixture, TestCase):
                                                 'std_dev': '%7.3f' % 0.0},
                           'worst_last_byte_latency': (0.699, 'txID013'),
                           'req_count': 1,
+                          'retries': 0,
+                          'retry_rate': 0.0,
+                          'errors': 0,
                           'start': 104.3,
                           'stop': 104.999}),
                 ('medium', {'avg_req_per_sec': 0.357143,
@@ -539,9 +569,12 @@ class TestReporter(ScenarioFixture, TestCase):
                                                   'std_dev': '%7.3f' % 0.0},
                             'worst_last_byte_latency': (2.8, 'txID006'),
                             'req_count': 1,
+                            'retries': 1,
+                            'retry_rate': 100.0,
+                            'errors': 0,
                             'start': 100.1,
                             'stop': 102.9}),
-                ('large', {'avg_req_per_sec': 3.333333,
+                ('large', {'avg_req_per_sec': 0.043384,
                            'first_byte_latency': {'avg': '%7.3f' % 0.2,
                                                   'pctile': '%7.3f' % 0.2,
                                                   'max': '%7.3f' % 0.2,
@@ -556,9 +589,12 @@ class TestReporter(ScenarioFixture, TestCase):
                                                  'min': '%6.3f' % 0.3,
                                                  'std_dev': '%7.3f' % 0.0},
                            'worst_last_byte_latency': (0.3, 'txID005'),
-                           'req_count': 1,
+                           'req_count': 2,
+                           'retries': 5,
+                           'retry_rate': 250.0,
+                           'errors': 1,
                            'start': 106.1,
-                           'stop': 106.4})]),
+                           'stop': 152.2})]),
         ), self.reporter.stats['op_stats'][ssbench.UPDATE_OBJECT])
 
     def test_calculate_scenario_stats_delete(self):
@@ -566,6 +602,7 @@ class TestReporter(ScenarioFixture, TestCase):
         d_last_byte_latency = [0.4, 0.8]
         self.assertDictEqual(dict(
             start=102.9, stop=103.9, req_count=2,
+            retries=0, retry_rate=0.0, errors=0,
             avg_req_per_sec=round(2 / (103.9 - 102.9), 6),
             first_byte_latency=dict(
                 min='%6.3f' % min(d_first_byte_latency),
@@ -602,6 +639,9 @@ class TestReporter(ScenarioFixture, TestCase):
                            'worst_first_byte_latency': (0.5, 'txID011'),
                            'worst_last_byte_latency': (0.8, 'txID011'),
                            'req_count': 1,
+                           'retries': 0,
+                           'retry_rate': 0.0,
+                           'errors': 0,
                            'start': 103.1,
                            'stop': 103.9}),
                 ('large', {'avg_req_per_sec': 2.5,
@@ -620,6 +660,9 @@ class TestReporter(ScenarioFixture, TestCase):
                            'worst_first_byte_latency': (0.1, 'txID007'),
                            'worst_last_byte_latency': (0.4, 'txID007'),
                            'req_count': 1,
+                           'retries': 0,
+                           'retry_rate': 0.0,
+                           'errors': 0,
                            'start': 102.9,
                            'stop': 103.3})]),
         ), self.reporter.stats['op_stats'][ssbench.DELETE_OBJECT])
@@ -642,6 +685,9 @@ class TestReporter(ScenarioFixture, TestCase):
                       'worst_first_byte_latency': (1.0, 'txID010'),
                       'worst_last_byte_latency': (1.8, 'txID010'),
                       'req_count': 4,
+                      'retries': 1,
+                      'retry_rate': 25.0,
+                      'errors': 0,
                       'start': 100.1,
                       'stop': 104.999}),
             ('small', {'avg_req_per_sec': 0.75,
@@ -660,6 +706,9 @@ class TestReporter(ScenarioFixture, TestCase):
                        'worst_first_byte_latency': (1.0, 'txID002'),
                        'worst_last_byte_latency': (3.0, 'txID002'),
                        'req_count': 3,
+                       'retries': 0,
+                       'retry_rate': 0.0,
+                       'errors': 0,
                        'start': 100.0,
                        'stop': 104.0}),
             ('medium', {'avg_req_per_sec': 0.47619,
@@ -678,9 +727,12 @@ class TestReporter(ScenarioFixture, TestCase):
                         'worst_first_byte_latency': (0.8, 'txID006'),
                         'worst_last_byte_latency': (2.8, 'txID006'),
                         'req_count': 2,
+                        'retries': 1,
+                        'retry_rate': 50.0,
+                        'errors': 0,
                         'start': 100.1,
                         'stop': 104.3}),
-            ('large', {'avg_req_per_sec': 0.571429,
+            ('large', {'avg_req_per_sec': 0.060852,
                        'first_byte_latency': {'avg': '%7.3f' % 0.15,
                                               'max': '%7.3f' % 0.2,
                                               'pctile': '%7.3f' % 0.2,
@@ -695,9 +747,12 @@ class TestReporter(ScenarioFixture, TestCase):
                                              'std_dev': '%7.3f' % 0.05},
                        'worst_first_byte_latency': (0.2, 'txID005'),
                        'worst_last_byte_latency': (0.4, 'txID007'),
-                       'req_count': 2,
+                       'req_count': 3,
+                       'retries': 5,
+                       'retry_rate': 166.666667,
+                       'errors': 1,
                        'start': 102.9,
-                       'stop': 106.4}),
+                       'stop': 152.2}),
             ('huge', {'avg_req_per_sec': 0.454545,
                       'first_byte_latency': {'avg': '%7.3f' % 1.2,
                                              'max': '%7.3f' % 1.2,
@@ -714,6 +769,9 @@ class TestReporter(ScenarioFixture, TestCase):
                       'worst_first_byte_latency': (1.2, 'txID004'),
                       'worst_last_byte_latency': (2.2, 'txID004'),
                       'req_count': 1,
+                      'retries': 0,
+                      'retry_rate': 0.0,
+                      'errors': 0,
                       'start': 103.8,
                       'stop': 106.0})]),
             self.reporter.stats['size_stats'])
@@ -765,7 +823,7 @@ Worker count:   3   Concurrency:   2  Ran 1970-01-01 00:01:39 UTC to 1970-01-01 
          51  29  10  10      CRUD weighted average
 
 TOTAL
-       Count:    12  Average requests per second:   1.9
+       Count:    13 (    1 error;     7 retries: 53.85%)  Average requests per second:   0.2
                             min       max      avg      std_dev  50%-ile                   Worst latency TX ID
        First-byte latency:  0.100 -   1.200    0.508  (  0.386)    0.400  (all obj sizes)  txID004
        Last-byte  latency:  0.200 -   3.000    1.158  (  0.970)    0.749  (all obj sizes)  txID002
@@ -781,7 +839,7 @@ TOTAL
        Last-byte  latency:  2.200 -   2.200    2.200  (  0.000)    2.200  (    huge objs)  txID004
 
 CREATE
-       Count:     3  Average requests per second:   0.5
+       Count:     3 (    0 error;     1 retries: 33.33%)  Average requests per second:   0.5
                             min       max      avg      std_dev  50%-ile                   Worst latency TX ID
        First-byte latency:  0.100 -   1.200    0.767  (  0.478)    1.000  (all obj sizes)  txID004
        Last-byte  latency:  0.200 -   3.000    1.800  (  1.178)    2.200  (all obj sizes)  txID002
@@ -793,7 +851,7 @@ CREATE
        Last-byte  latency:  2.200 -   2.200    2.200  (  0.000)    2.200  (    huge objs)  txID004
 
 READ
-       Count:     4  Average requests per second:   1.0
+       Count:     4 (    0 error;     0 retries:  0.00%)  Average requests per second:   1.0
                             min       max      avg      std_dev  50%-ile                   Worst latency TX ID
        First-byte latency:  0.100 -   1.000    0.400  (  0.354)    0.250  (all obj sizes)  txID010
        Last-byte  latency:  0.400 -   1.800    0.875  (  0.554)    0.650  (all obj sizes)  txID010
@@ -805,7 +863,7 @@ READ
        Last-byte  latency:  0.400 -   0.400    0.400  (  0.000)    0.400  (  medium objs)  txID012
 
 UPDATE
-       Count:     3  Average requests per second:   0.5
+       Count:     4 (    1 error;     6 retries: 150.00%)  Average requests per second:   0.1
                             min       max      avg      std_dev  50%-ile                   Worst latency TX ID
        First-byte latency:  0.200 -   0.800    0.533  (  0.249)    0.600  (all obj sizes)  txID006
        Last-byte  latency:  0.300 -   2.800    1.266  (  1.097)    0.699  (all obj sizes)  txID006
@@ -817,7 +875,7 @@ UPDATE
        Last-byte  latency:  0.300 -   0.300    0.300  (  0.000)    0.300  (   large objs)  txID005
 
 DELETE
-       Count:     2  Average requests per second:   2.0
+       Count:     2 (    0 error;     0 retries:  0.00%)  Average requests per second:   2.0
                             min       max      avg      std_dev  50%-ile                   Worst latency TX ID
        First-byte latency:  0.100 -   0.500    0.300  (  0.200)    0.300  (all obj sizes)  txID011
        Last-byte  latency:  0.400 -   0.800    0.600  (  0.200)    0.600  (all obj sizes)  txID011
@@ -846,8 +904,8 @@ DELETE
             'start_time': '1970-01-01 00:01:39 UTC',
             'stop_time': '1970-01-01 00:01:46 UTC',
             'duration': '6.800000000000011',
-            'total_count': '12',
-            'total_avg_req_per_s': '1.875',
+            'total_count': '13',
+            'total_avg_req_per_s': '0.249042',
             'total_first_all_min': '0.1',
             'total_first_all_max': '1.2',
             'total_first_all_avg': '0.508333',
@@ -1020,8 +1078,8 @@ DELETE
             'read_last_medium_std_dev': '0.0',
             'read_last_medium_50_pctile': '0.4',
             'read_last_medium_worst_txid': 'txID012',
-            'update_count': '3',
-            'update_avg_req_per_s': '0.47619',
+            'update_count': '4',
+            'update_avg_req_per_s': '0.076775',
             'update_first_all_min': '0.2',
             'update_first_all_max': '0.8',
             'update_first_all_avg': '0.533333',

@@ -73,7 +73,7 @@ class TestWorker(object):
             'time'
         ).and_return(self.stub_time)
 
-        self.stub_fn_return = 'slambammer!'
+        self.stub_fn_return = {'x-trans-id':'slambammer!'}
         self.stub_fn_calls = []
 
         self.mock_token_data_lock = flexmock(self.worker.token_data_lock)
@@ -284,13 +284,14 @@ class TestWorker(object):
             'x-swiftstack-first-byte-latency': 0.492393,
             'x-swiftstack-last-byte-latency': 8.23283,
             'x-trans-id': 'abcdef',
+            'retries': 0,
         }).once
         self.time_expectation.once
         self.result_queue.should_receive('put').with_args(
             worker.add_dicts(
                 object_info, worker_id=self.worker_id,
                 first_byte_latency=0.492393, last_byte_latency=8.23283,
-                trans_id='abcdef', completed_at=self.stub_time),
+                trans_id='abcdef', completed_at=self.stub_time, retries=0),
         ).once
         self.mock_worker.handle_upload_object(object_info)
 
@@ -308,12 +309,13 @@ class TestWorker(object):
             'x-swiftstack-first-byte-latency': 0.94932,
             'x-swiftstack-last-byte-latency': 8.3273,
             'x-trans-id': '9bjkk',
+            'retries': 0,
         }).once
         self.result_queue.should_receive('put').with_args(
             worker.add_dicts(
                 object_info, worker_id=self.worker_id,
                 first_byte_latency=0.94932, last_byte_latency=8.3273,
-                trans_id='9bjkk', completed_at=self.stub_time),
+                trans_id='9bjkk', completed_at=self.stub_time, retries=0),
         ).once
         self.mock_worker.handle_delete_object(object_info)
 
@@ -334,12 +336,13 @@ class TestWorker(object):
             'x-swiftstack-first-byte-latency': 4.45,
             'x-swiftstack-last-byte-latency': 23.283,
             'x-trans-id': 'biejs',
+            'retries': 0,
         }).once
         self.result_queue.should_receive('put').with_args(
             worker.add_dicts(
                 object_info, worker_id=self.worker_id,
                 completed_at=self.stub_time, trans_id='biejs',
-                first_byte_latency=4.45, last_byte_latency=23.283),
+                first_byte_latency=4.45, last_byte_latency=23.283, retries=0),
         ).once
 
         self.mock_worker.handle_update_object(object_info)
@@ -360,12 +363,13 @@ class TestWorker(object):
             'x-swiftstack-first-byte-latency': 5.33,
             'x-swiftstack-last-byte-latency': 9.99,
             'x-trans-id': 'bies',
+            'retries': 0,
         }).once
         self.result_queue.should_receive('put').with_args(
             worker.add_dicts(
                 object_info, worker_id=self.worker_id,
                 completed_at=self.stub_time, trans_id='bies',
-                first_byte_latency=5.33, last_byte_latency=9.99),
+                first_byte_latency=5.33, last_byte_latency=9.99, retries=0),
         ).once
 
         self.mock_worker.handle_get_object(object_info)
@@ -377,7 +381,7 @@ class TestWorker(object):
     def test_dispatching_socket_exception(self):
         info = {'type': ssbench.CREATE_OBJECT, 'a': 1}
         self.mock_worker.should_receive('handle_upload_object').with_args(info).and_raise(
-            socket.error('slap happy')
+            socket.error('slap happy', 5)
         ).once
         got = []
         self.result_queue.should_receive('put').replace_with(
@@ -391,13 +395,17 @@ class TestWorker(object):
         assert_equal(
             worker.add_dicts(
                 info, worker_id=self.worker_id, completed_at=self.stub_time,
-                exception=repr(socket.error('slap happy'))),
+                exception=repr(socket.error('slap happy', 5)), retries=5),
             got[0])
 
     def test_dispatching_client_exception(self):
         info = {'type': ssbench.READ_OBJECT, 'container': 'fun', 'a': 2}
+        # ClientException allows any args such as scheme, i.e. calling with some
+        # args could not make tuple in Exception class.
+        wrappedException = client.ClientException('slam bam')
+        wrappedException.args += (3,)
         self.mock_worker.should_receive('handle_get_object').with_args(info).and_raise(
-            client.ClientException('slam bam')
+            wrappedException
         ).once
         got = []
         self.result_queue.should_receive('put').replace_with(
@@ -411,13 +419,14 @@ class TestWorker(object):
         assert_equal(
             worker.add_dicts(
                 info, worker_id=self.worker_id, completed_at=self.stub_time,
-                exception=repr(client.ClientException('slam bam'))),
+                exception=repr(wrappedException),
+                retries=3),
             got[0])
 
     def test_dispatching_value_error_exception(self):
         info = {'type': ssbench.READ_OBJECT, 'container': 'fun', 'a': 2}
         self.mock_worker.should_receive('handle_get_object').with_args(info).and_raise(
-            ValueError('ve'),
+            ValueError('ve', 0),
         ).once
         got = []
         self.result_queue.should_receive('put').replace_with(
@@ -431,7 +440,7 @@ class TestWorker(object):
         assert_equal(
             worker.add_dicts(
                 info, worker_id=self.worker_id, completed_at=self.stub_time,
-                exception=repr(ValueError('ve'))),
+                exception=repr(ValueError('ve', 0)), retries=0),
             got[0])
 
     def test_dispatching_noop(self):

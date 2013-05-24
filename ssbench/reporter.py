@@ -56,7 +56,7 @@ ${size_datum['pct_total_ops']}   % ${size_datum['crud_pcts']}      ${size_datum[
 % for label, stats, sstats in stat_list:
 % if stats['req_count']:
 ${label}
-       Count: ${'%5d' % stats['req_count']}  Average requests per second: ${'%5.1f' % stats['avg_req_per_sec']}
+       Count: ${'%5d' % stats['req_count']} (${'%5d' % stats['errors']} error; ${'%5d' % stats['retries']} retries: ${'%5.2f' % stats['retry_rate']}%)  Average requests per second: ${'%5.1f' % stats['avg_req_per_sec']}
                             min       max      avg      std_dev  ${'%02d' % nth_pctile}%-ile  ${'%15s' % ''}  Worst latency TX ID
        First-byte latency: ${stats['first_byte_latency']['min']} - ${stats['first_byte_latency']['max']}  ${stats['first_byte_latency']['avg']}  (${stats['first_byte_latency']['std_dev']})  ${stats['first_byte_latency']['pctile']}  (all obj sizes)  ${stats['worst_first_byte_latency'][1] if 'worst_first_byte_latency' in stats else ''}
        Last-byte  latency: ${stats['last_byte_latency']['min']} - ${stats['last_byte_latency']['max']}  ${stats['last_byte_latency']['avg']}  (${stats['last_byte_latency']['std_dev']})  ${stats['last_byte_latency']['pctile']}  (all obj sizes)  ${stats['worst_last_byte_latency'][1] if 'worst_last_byte_latency' in stats else ''}
@@ -221,7 +221,10 @@ ${label}
                     'start': 1.1,
                     'stop': 1.1,
                     'req_count': 1,
+                    'retries': 0,
+                    'errors' : 0,
                     'avg_req_per_sec': 1.1, # req_count / (stop - start)?
+                    'retry_rate': 0.0,
                     'first_byte_latency': SERIES_STATS,
                     'last_byte_latency': SERIES_STATS,
                 },
@@ -230,6 +233,9 @@ ${label}
                         'start': 1.1,
                         'stop': 1.1,
                         'req_count': 1,
+                        'retries': 0,
+                        'retry_rate': 0.0,
+                        'errors': 0,
                         'avg_req_per_sec': 1.1, # req_count / (stop - start)?
                         'first_byte_latency': SERIES_STATS,
                         'last_byte_latency': SERIES_STATS,
@@ -245,7 +251,10 @@ ${label}
                         'size_stats': {
                             'small': { # keys are size_str values
                                 'req_count': 1, # num requests of this type and size
+                                'retries': 0, # num of retries
                                 'avg_req_per_sec': 1.1, # total_requests / sum(last_byte_latencies)
+                                'errors': 0,
+                                'retry_rate': 0.0,
                                 'first_byte_latency': SERIES_STATS,
                                 'last_byte_latency': SERIES_STATS,
                             },
@@ -257,7 +266,11 @@ ${label}
                 'size_stats': {
                     'small': { # keys are size_str values
                         'req_count': 1, # num requests of this size (for all CRUD types)
+                        'retries': 0, # num of retries
+                        'acutual_request_count': 1, # num requests includes retries
                         'avg_req_per_sec': 1.1, # total_requests / sum(last_byte_latencies)
+                        'errors': 0,
+                        'retry_rate': 0.0,
                         'first_byte_latency': SERIES_STATS,
                         'last_byte_latency': SERIES_STATS,
                     },
@@ -277,15 +290,19 @@ ${label}
         #   'worker_id': 1,
         #   'type': 'get_object',
         #   'size': 4900000,
+        #   'size_str': 'large',
         #   'first_byte_latency': 0.9137639999389648,
         #   'last_byte_latency': 0.913769006729126,
+        #   'retries': 1
         #   'completed_at': 1324372892.360802,
         #}
         # OR
         # {
         #   'worker_id': 1,
         #   'type': 'get_object',
+        #   'size_str': 'large'
         #   'completed_at': 1324372892.360802,
+        #   'retries': 1
         #   'exception': '...',
         # }
         logging.info('Calculating statistics...')
@@ -309,23 +326,23 @@ ${label}
             size_stats=OrderedDict.fromkeys(self.scenario.sizes_by_name.keys()))
         for results in self.unpacker:
             for result in results:
+                completion_time = int(result['completed_at'])
                 if 'exception' in result:
-                    # skip but log exceptions
+                    # report log exceptions
                     logging.warn('calculate_scenario_stats: exception from '
                                  'worker %d: %s',
                                  result['worker_id'], result['exception'])
                     logging.info(result['traceback'])
-                    continue
-                completion_time = int(result['completed_at'])
-                if completion_time < completion_time_min:
-                    completion_time_min = completion_time
-                    start_time = completion_time - result['last_byte_latency']
-                if completion_time > completion_time_max:
-                    completion_time_max = completion_time
-                req_completion_seconds[completion_time] = \
-                    1 + req_completion_seconds.get(completion_time, 0)
-                result['start'] = (
-                    result['completed_at'] - result['last_byte_latency'])
+                else:
+                    if completion_time < completion_time_min:
+                        completion_time_min = completion_time
+                        start_time = completion_time - result['last_byte_latency']
+                    if completion_time > completion_time_max:
+                        completion_time_max = completion_time
+                    req_completion_seconds[completion_time] = \
+                        1 + req_completion_seconds.get(completion_time, 0)
+                    result['start'] = (
+                        result['completed_at'] - result['last_byte_latency'])
 
                 # Stats per-worker
                 if result['worker_id'] not in stats['worker_stats']:
@@ -352,20 +369,24 @@ ${label}
 
         agg_stats['worker_count'] = len(stats['worker_stats'].keys())
         self._compute_req_per_sec(agg_stats)
+        self._compute_retry_rate(agg_stats)
         self._compute_latency_stats(agg_stats, nth_pctile, format_numbers)
         for worker_stats in stats['worker_stats'].values():
             self._compute_req_per_sec(worker_stats)
+            self._compute_retry_rate(worker_stats)
             self._compute_latency_stats(worker_stats, nth_pctile,
                                         format_numbers)
         for op_stat, op_stats_dict in op_stats.iteritems():
             if op_stats_dict['req_count']:
                 self._compute_req_per_sec(op_stats_dict)
+                self._compute_retry_rate(op_stats_dict)
                 self._compute_latency_stats(op_stats_dict, nth_pctile,
                                             format_numbers)
                 for size_str, size_stats in \
                         op_stats_dict['size_stats'].iteritems():
                     if size_stats:
                         self._compute_req_per_sec(size_stats)
+                        self._compute_retry_rate(size_stats)
                         self._compute_latency_stats(size_stats, nth_pctile,
                                                     format_numbers)
                     else:
@@ -373,6 +394,7 @@ ${label}
         for size_str, size_stats in stats['size_stats'].iteritems():
             if size_stats:
                 self._compute_req_per_sec(size_stats)
+                self._compute_retry_rate(size_stats)
                 self._compute_latency_stats(size_stats, nth_pctile,
                                             format_numbers)
             else:
@@ -401,8 +423,15 @@ ${label}
                                              (stat_dict['stop'] -
                                               stat_dict['start']), 6)
 
+    def _compute_retry_rate(self, stat_dict):
+        stat_dict['retry_rate'] = round((float(stat_dict['retries']) /
+                                         stat_dict['req_count']) * 100, 6)
+
     def _add_result_to(self, stat_dict, result):
-        if 'start' not in stat_dict or result['start'] < stat_dict['start']:
+        if 'errors' not in stat_dict:
+            stat_dict['errors'] = 0
+        if 'start' in result and ('start' not in stat_dict or
+                                  result['start'] < stat_dict['start']):
             stat_dict['start'] = result['start']
         if 'stop' not in stat_dict or \
                 result['completed_at'] > stat_dict['stop']:
@@ -411,7 +440,14 @@ ${label}
             stat_dict['req_count'] = 1
         else:
             stat_dict['req_count'] += 1
-        self._rec_latency(stat_dict, result)
+        if 'retries' not in stat_dict:
+            stat_dict['retries'] = int(result['retries'])
+        else:
+            stat_dict['retries'] += int(result['retries'])
+        if 'exception' not in result:
+            self._rec_latency(stat_dict, result)
+        else:
+            stat_dict['errors'] += 1
 
     def _series_stats(self, sequence, nth_pctile, format_numbers):
         sequence = filter(None, sequence)

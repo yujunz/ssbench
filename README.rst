@@ -361,7 +361,7 @@ command.  Simply use the ``--workers COUNT`` option to ``ssbench-master``::
            10  75  15   0      CRUD weighted average
   
   TOTAL
-         Count:   613  Average requests per second: 118.7
+         Count:   613  (   0 error;    0 retries:  0.00%)  Average requests per second: 118.7
                               min       max      avg      std_dev  50%-ile                   Worst latency TX ID
          First-byte latency:  0.004 -   0.044    0.017  (  0.008)    0.016  (all obj sizes)  txe026893bbf09486c83fcdb629f6f25a3
          Last-byte  latency:  0.004 -   0.157    0.029  (  0.024)    0.019  (all obj sizes)  tx6f988120ec5044329f817-0051b21708
@@ -371,7 +371,7 @@ command.  Simply use the ``--workers COUNT`` option to ``ssbench-master``::
          Last-byte  latency:  0.005 -   0.120    0.031  (  0.026)    0.021  (   small objs)  tx87bf30db5a70412b97a5c71ae60036c1
   
   CREATE
-         Count:    64  Average requests per second:  12.5
+         Count:    64  (   0 error;    0 retries:  0.00%)  Average requests per second: 12.5
                               min       max      avg      std_dev  50%-ile                   Worst latency TX ID
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (all obj sizes)
          Last-byte  latency:  0.024 -   0.157    0.067  (  0.023)    0.060  (all obj sizes)  tx6f988120ec5044329f817-0051b21708
@@ -381,7 +381,7 @@ command.  Simply use the ``--workers COUNT`` option to ``ssbench-master``::
          Last-byte  latency:  0.061 -   0.120    0.087  (  0.020)    0.089  (   small objs)  tx87bf30db5a70412b97a5c71ae60036c1
   
   READ
-         Count:   459  Average requests per second:  88.9
+         Count:   459  (   0 error;    0 retries:  0.00%)  Average requests per second: 88.9
                               min       max      avg      std_dev  50%-ile                   Worst latency TX ID
          First-byte latency:  0.004 -   0.044    0.017  (  0.008)    0.016  (all obj sizes)  txe026893bbf09486c83fcdb629f6f25a3
          Last-byte  latency:  0.004 -   0.044    0.017  (  0.008)    0.016  (all obj sizes)  txe026893bbf09486c83fcdb629f6f25a3
@@ -391,7 +391,7 @@ command.  Simply use the ``--workers COUNT`` option to ``ssbench-master``::
          Last-byte  latency:  0.005 -   0.044    0.019  (  0.008)    0.017  (   small objs)  txe026893bbf09486c83fcdb629f6f25a3
   
   UPDATE
-         Count:    90  Average requests per second:  18.1
+         Count:    90  (   0 error;    0 retries:  0.00%)  Average requests per second: 18.1
                               min       max      avg      std_dev  50%-ile                   Worst latency TX ID
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (all obj sizes)
          Last-byte  latency:  0.021 -   0.143    0.062  (  0.021)    0.061  (all obj sizes)  tx9a502107a0c246e69a987d120a2b9919
