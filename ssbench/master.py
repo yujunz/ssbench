@@ -17,6 +17,7 @@ import gevent
 import gevent.pool
 import gevent.monkey
 gevent.monkey.patch_socket()
+gevent.monkey.patch_ssl()
 gevent.monkey.patch_time()
 
 import os
