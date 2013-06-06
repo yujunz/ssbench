@@ -159,14 +159,14 @@ class TestScenario(ScenarioFixture):
     def test_no_filename_or__scenario_data(self):
         with assert_raises(ValueError):
             self.write_scenario_file()
-            scenario = Scenario()
+            Scenario()
 
     def test_no_op_count_or_run_seconds(self):
         with assert_raises(ValueError):
             self.scenario_dict.pop('run_seconds', None)
             self.scenario_dict.pop('operation_count', None)
             self.write_scenario_file()
-            scenario = Scenario(self.stub_scenario_file)
+            Scenario(self.stub_scenario_file)
 
     def test_constructor_overrides(self):
         scenario = Scenario(self.stub_scenario_file, container_count=21,

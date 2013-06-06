@@ -15,9 +15,6 @@
 
 import time
 import socket
-import msgpack
-from argparse import Namespace
-from collections import Counter
 from flexmock import flexmock
 from nose.tools import *
 import gevent.queue
@@ -127,8 +124,10 @@ class TestWorker(object):
         self.mock_token_data_lock.should_receive('release').never
         self.mock_client.should_receive('get_auth').never
         mock_pool = flexmock()
+
         def _insert_mock_pool(url, ignored1, ignored2):
             self.worker.conn_pools[url] = mock_pool
+
         self.mock_worker.should_receive('_create_connection_pool').with_args(
             'someUrl', 3.142, 2.718,
         ).replace_with(_insert_mock_pool).once
@@ -182,8 +181,10 @@ class TestWorker(object):
             **call_info['auth_kwargs']
         ).and_return(('someStorageUrl', 'someStorageToken')).once
         mock_pool = flexmock()
+
         def _insert_mock_pool(url, ignored1, ignored2):
             self.worker.conn_pools[url] = mock_pool
+
         self.mock_worker.should_receive('_create_connection_pool').with_args(
             'someStorageUrl', 3.142, 2.718,
         ).replace_with(_insert_mock_pool).once
@@ -218,16 +219,20 @@ class TestWorker(object):
             'network_timeout': 2.718,
         }
         token_key = self.worker._token_key(call_info['auth_kwargs'])
+
         def _insert_auth():
             self.worker.token_data[token_key] = ('otherUrl', 'otherToken')
+
         self.mock_token_data_lock.should_receive('acquire').replace_with(
             _insert_auth,
         ).ordered.once
         self.mock_token_data_lock.should_receive('release').ordered.once
         self.mock_client.should_receive('get_auth').never
         mock_pool = flexmock()
+
         def _insert_mock_pool(url, ignored1, ignored2):
             self.worker.conn_pools[url] = mock_pool
+
         self.mock_worker.should_receive('_create_connection_pool').with_args(
             'otherUrl', 3.142, 2.718,
         ).replace_with(_insert_mock_pool).once

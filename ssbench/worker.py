@@ -27,10 +27,7 @@ gevent.monkey.patch_ssl()
 gevent.monkey.patch_time()
 
 import os
-import re
-import sys
 import time
-import random
 import socket
 import msgpack
 import logging
@@ -38,11 +35,9 @@ import resource
 import traceback
 from gevent_zeromq import zmq
 from httplib import CannotSendRequest
-from functools import partial
 from contextlib import contextmanager
 from geventhttpclient.response import HTTPConnectionClosed
 
-import ssbench
 import ssbench.swift_client as client
 
 
@@ -165,8 +160,9 @@ class Worker:
                 try:
                     if 'container' in job_datum:
                         logging.debug('WORK: %13s %s/%-17s',
-                                    job_datum['type'], job_datum['container'],
-                                    job_datum['name'])
+                                      job_datum['type'],
+                                      job_datum['container'],
+                                      job_datum['name'])
                     else:
                         logging.debug('CMD: %13s', job_datum['type'])
                 except Exception as e:
@@ -251,7 +247,7 @@ class Worker:
                 parts.append(self._token_key(value))
             else:
                 parts.append(value)
-        return '\x01'.join(map(str,parts))
+        return '\x01'.join(map(str, parts))
 
     def ignoring_http_responses(self, statuses, fn, call_info, **extra_keys):
         if 401 not in statuses:
@@ -279,7 +275,7 @@ class Worker:
                     try:
                         if token_key not in self.token_data:
                             logging.debug('Authenticating with %r',
-                                        call_info['auth_kwargs'])
+                                          call_info['auth_kwargs'])
                             storage_url, token = client.get_auth(
                                 **call_info['auth_kwargs'])
                             override_url = call_info['auth_kwargs'].get(
@@ -331,7 +327,7 @@ class Worker:
             # sometimes Swift refuses connections (probably when it's
             # way overloaded and the listen socket's connection queue
             # (in the kernel) is full, so the kernel just says RST).
-            # 
+            #
             # UPDATE: connections should be handled by the ConnectionPool
             # (which will trap socket.error and retry after a slight delay), so
             # socket.error should NOT get raised here for connection failures.

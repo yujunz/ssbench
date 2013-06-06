@@ -19,10 +19,8 @@ import shutil
 import msgpack
 import tempfile
 import subprocess
-from cStringIO import StringIO
 from nose.tools import *
 
-import ssbench
 from ssbench.scenario import Scenario
 from ssbench.run_results import RunResults
 

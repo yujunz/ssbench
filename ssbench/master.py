@@ -22,22 +22,15 @@ gevent.monkey.patch_time()
 
 import os
 import sys
-import math
 import signal
 import logging
 import msgpack
 import resource
-import statlib.stats
-from datetime import datetime
 from gevent_zeromq import zmq
-from mako.template import Template
 
 import ssbench
 import ssbench.swift_client as client
 from ssbench.run_state import RunState
-from ssbench.ordered_dict import OrderedDict
-
-from pprint import pprint, pformat
 
 
 def _container_creator(storage_url, token, container):
@@ -80,13 +73,14 @@ class Master:
         result_count = 0
         for result in results:
             result_count += 1
-            logging.debug('RESULT: %13s %s/%-17s %s/%s %s',
-                        result['type'], result['container'], result['name'],
-                        '%7.4f' % result.get('first_byte_latency')
-                        if result.get('first_byte_latency', None) else ' (none)',
-                        '%7.4f' % result.get('last_byte_latency')
-                        if result.get('last_byte_latency', None) else '(none) ',
-                        result.get('trans_id', ''))
+            logging.debug(
+                'RESULT: %13s %s/%-17s %s/%s %s',
+                result['type'], result['container'], result['name'],
+                '%7.4f' % result.get('first_byte_latency')
+                if result.get('first_byte_latency', None) else ' (none)',
+                '%7.4f' % result.get('last_byte_latency')
+                if result.get('last_byte_latency', None) else '(none) ',
+                result.get('trans_id', ''))
             if label and not self.quiet:
                 if 'exception' in result:
                     sys.stderr.write('X')
@@ -212,7 +206,7 @@ class Master:
                 result_packed = self.results_pull.recv()
                 result = msgpack.loads(result_packed, use_list=False)
                 logging.info('Heard from worker id=%d; sending SUICIDE',
-                            result['worker_id'])
+                             result['worker_id'])
                 self.work_push.send(msgpack.dumps([{'type': 'SUICIDE'}]))
                 gevent.sleep(0.1)
             else:

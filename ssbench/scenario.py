@@ -23,8 +23,6 @@ import msgpack
 import ssbench
 from ssbench.ordered_dict import OrderedDict
 
-from pprint import pprint
-
 
 class Scenario(object):
     """Encapsulation of a benchmark "CRUD" scenario."""
@@ -51,7 +49,7 @@ class Scenario(object):
                 self._scenario_data = json.load(fp)
             except:
                 logging.exception('Error loading scenario file %r',
-                                scenario_filename)
+                                  scenario_filename)
                 raise
         else:
             raise ValueError('Scenario() must get one of scenario_filename '

@@ -23,6 +23,7 @@ from cStringIO import StringIO
 
 from ssbench.scenario import Scenario
 
+
 def _thread_writer(queue, target_file):
     """
     Read blobs off the given queue, writing them to target_file.

@@ -13,14 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import random
-import logging
 from collections import defaultdict, deque
 
 import ssbench
-
-from pprint import pprint, pformat
 
 
 class RunState(object):

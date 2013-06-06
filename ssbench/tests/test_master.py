@@ -13,18 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import csv
 from unittest import TestCase
 from flexmock import flexmock
-from pprint import pprint, pformat
-from statlib import stats
-from cStringIO import StringIO
 from gevent_zeromq import zmq
 
-import ssbench
-from ssbench.scenario import Scenario
 from ssbench.master import Master
-from ssbench.ordered_dict import OrderedDict
 
 from ssbench.tests.test_scenario import ScenarioFixture
 

@@ -22,8 +22,6 @@ from mako.template import Template
 import ssbench
 from ssbench.ordered_dict import OrderedDict
 
-from pprint import pprint, pformat
-
 
 REPORT_TIME_FORMAT = '%F %T UTC'
 
@@ -250,8 +248,8 @@ ${label}
                 if 'exception' in result:
                     # skip but log exceptions
                     logging.warn('calculate_scenario_stats: exception from '
-                                'worker %d: %s',
-                                result['worker_id'], result['exception'])
+                                 'worker %d: %s',
+                                 result['worker_id'], result['exception'])
                     logging.info(result['traceback'])
                     continue
                 completion_time = int(result['completed_at'])
@@ -278,16 +276,16 @@ ${label}
                                     result)
 
                 self._add_result_to(agg_stats, result)
-                self._add_result_to(op_stats[result['type']], result)
+
+                type_stats = op_stats[result['type']]
+                self._add_result_to(type_stats, result)
 
                 # Stats per-operation-per-file-size
-                if not op_stats[result['type']]\
-                        ['size_stats'][result['size_str']]:
-                    op_stats[result['type']]\
-                            ['size_stats'][result['size_str']] = {}
+                if not type_stats['size_stats'][result['size_str']]:
+                    type_stats['size_stats'][result['size_str']] = {}
                 self._add_result_to(
-                    op_stats[result['type']]['size_stats'][result['size_str']],
-                    result)
+                    type_stats['size_stats'][result['size_str']], result)
+
         agg_stats['worker_count'] = len(stats['worker_stats'].keys())
         self._compute_req_per_sec(agg_stats)
         self._compute_latency_stats(agg_stats, nth_pctile)
@@ -366,7 +364,6 @@ ${label}
             minval = sequence[0]
             maxval = sequence[0]
             mean = sequence[0]
-            std_dev = 0
         return dict(
             min='%6.3f' % minval,
             max='%7.3f' % maxval,

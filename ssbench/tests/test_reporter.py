@@ -17,9 +17,7 @@ import csv
 from mock import MagicMock
 from statlib import stats
 from unittest import TestCase
-from flexmock import flexmock
 from cStringIO import StringIO
-from gevent_zeromq import zmq
 
 import ssbench
 from ssbench.reporter import Reporter
@@ -55,7 +53,6 @@ class TestReporter(ScenarioFixture, TestCase):
         )
         super(TestReporter, self).setUp()
 
-
         self.result_index = 1  # for self.gen_result()
 
         self.stub_results = [
@@ -73,7 +70,7 @@ class TestReporter(ScenarioFixture, TestCase):
             #
             # exceptions should be ignored
             [dict(worker_id=2, type=ssbench.UPDATE_OBJECT,
-                 completed_at=39293.2, exception='wacky!', traceback='ugh'),
+                  completed_at=39293.2, exception='wacky!', traceback='ugh'),
             self.gen_result(
                 2, ssbench.UPDATE_OBJECT, 'medium', 100.1, 100.9, 102.9)],
             [self.gen_result(
@@ -618,8 +615,6 @@ class TestReporter(ScenarioFixture, TestCase):
         ), self.reporter.stats['op_stats'][ssbench.DELETE_OBJECT])
 
     def test_calculate_scenario_size_stats(self):
-        d_first_byte_latency = [0.1, 0.5]
-        d_last_byte_latency = [0.4, 0.8]
         self.assertDictEqual(OrderedDict([
             ('tiny', {'avg_req_per_sec': 0.816493,
                       'first_byte_latency': {'avg': '%7.3f' % 0.45,
