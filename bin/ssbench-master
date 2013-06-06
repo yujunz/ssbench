@@ -31,8 +31,9 @@ from datetime import datetime
 import ssbench
 import ssbench.swift_client as client
 from ssbench.master import Master
-from ssbench.run_results import RunResults
+from ssbench.reporter import Reporter
 from ssbench.scenario import Scenario, ScenarioNoop
+from ssbench.run_results import RunResults
 
 
 DEFAULT_OBJECTS_PER_CONTAINER = 1000
@@ -47,7 +48,56 @@ def kill_workers(master, args):
     master.kill_workers()
 
 
-def run_scenario(master, args):
+def run_scenario(args):
+    if not args.auth_url or not args.user or not args.key:
+        # Use 2.0 auth if any of the old args are missing
+        args.auth_version = '2.0'
+
+    # Use new-style args if old ones not present or if v2.0
+    is_v2 = args.auth_version.startswith('2')
+    if is_v2 or (not args.auth_url and args.os_auth_url):
+        args.auth_url = args.os_auth_url
+    if is_v2 or (not args.user and args.os_username):
+        args.user = args.os_username
+    if is_v2 or (not args.key and args.os_password):
+        args.key = args.os_password
+
+    # Specific OpenStack args
+    args.os_options = {
+        'tenant_id': args.os_tenant_id,
+        'tenant_name': args.os_tenant_name,
+        'service_type': args.os_service_type,
+        'endpoint_type': args.os_endpoint_type,
+        'auth_token': args.os_auth_token,
+        'object_storage_url': args.os_storage_url,
+        'region_name': args.os_region_name,
+    }
+
+    if args.storage_url and args.token:
+        args.auth_url = None
+        args.user = None
+        args.key = None
+    elif not args.auth_url or not args.user or not args.key:
+        print >>sys.stderr, '''
+Auth version 1.0 requires ST_AUTH, ST_USER, and ST_KEY environment variables
+to be set or overridden with -A, -U, or -K.
+
+Auth version 2.0 requires OS_AUTH_URL, OS_USERNAME, OS_PASSWORD, and
+OS_TENANT_NAME OS_TENANT_ID to be set or overridden with --os-auth-url,
+--os-username, --os-password, --os-tenant-name or os-tenant-id.'''.strip('\n')
+        run_scenario_arg_parser.print_help(file=sys.stderr)
+        exit(1)
+    os.environ.pop('ST_AUTH', None)
+    os.environ.pop('ST_USER', None)
+    os.environ.pop('ST_KEY', None)
+
+    master = Master(getattr(args, 'zmq_bind_ip', None),
+                    getattr(args, 'zmq_work_port', None),
+                    getattr(args, 'zmq_results_port', None),
+                    quiet=args.func == run_scenario and args.quiet,
+                    connect_timeout=getattr(args, 'connect_timeout', None),
+                    network_timeout=getattr(args, 'network_timeout', None))
+
     container_count = int(args.container_count) \
             if args.container_count != DEFAULT_FROM_SCENARIO else None
     user_count = int(args.user_count) \
@@ -169,7 +219,7 @@ def run_scenario(master, args):
         args.stats_file = stats_file_path
         args.report_file = sys.stdout
         args.rps_histogram = None
-        report_scenario(master, args)
+        report_scenario(args)
 
     # Wait for gzipping to finish
     stdout_err, _ = gzipper.communicate()
@@ -206,20 +256,21 @@ def maybe_fix_sudo_perms(path):
                  int(os.environ['SUDO_GID']))
 
 
-def report_scenario(master, args):
+def report_scenario(args):
     if args.profile:
         import cProfile
         prof = cProfile.Profile()
         prof.enable()
 
     run_results = RunResults(args.stats_file)
-    scenario, unpacker = run_results.read_results()
+    reporter = Reporter(run_results)
+    reporter.read_results()
 
-    stats = master.calculate_scenario_stats(scenario, unpacker,
-                                            nth_pctile=args.pctile)
-    args.report_file.write(master.generate_scenario_report(scenario, stats))
+    default_report = reporter.generate_default_report()
+    args.report_file.write(default_report)
+
     if args.rps_histogram:
-        master.write_rps_histogram(stats, args.rps_histogram)
+        reporter.write_rps_histogram(args.rps_histogram)
         # Note: not explicitly closing here in case it's redirected to STDOUT
         # (i.e. "-")
 
@@ -456,63 +507,13 @@ if __name__ == "__main__":
 
     args = arg_parser.parse_args(sys.argv[1:])
 
-    if args.func == run_scenario:
-        if not args.auth_url or not args.user or not args.key:
-            # Use 2.0 auth if any of the old args are missing
-            args.auth_version = '2.0'
-
-        # Use new-style args if old ones not present or if v2.0
-        is_v2 = args.auth_version.startswith('2')
-        if is_v2 or (not args.auth_url and args.os_auth_url):
-            args.auth_url = args.os_auth_url
-        if is_v2 or (not args.user and args.os_username):
-            args.user = args.os_username
-        if is_v2 or (not args.key and args.os_password):
-            args.key = args.os_password
-
-        # Specific OpenStack args
-        args.os_options = {
-            'tenant_id': args.os_tenant_id,
-            'tenant_name': args.os_tenant_name,
-            'service_type': args.os_service_type,
-            'endpoint_type': args.os_endpoint_type,
-            'auth_token': args.os_auth_token,
-            'object_storage_url': args.os_storage_url,
-            'region_name': args.os_region_name,
-        }
-
-        if args.storage_url and args.token:
-            args.auth_url = None
-            args.user = None
-            args.key = None
-        elif not args.auth_url or not args.user or not args.key:
-            print >>sys.stderr, '''
-Auth version 1.0 requires ST_AUTH, ST_USER, and ST_KEY environment variables
-to be set or overridden with -A, -U, or -K.
-
-Auth version 2.0 requires OS_AUTH_URL, OS_USERNAME, OS_PASSWORD, and
-OS_TENANT_NAME OS_TENANT_ID to be set or overridden with --os-auth-url,
---os-username, --os-password, --os-tenant-name or os-tenant-id.'''.strip('\n')
-            run_scenario_arg_parser.print_help(file=sys.stderr)
-            exit(1)
-    os.environ.pop('ST_AUTH', None)
-    os.environ.pop('ST_USER', None)
-    os.environ.pop('ST_KEY', None)
-
     if args.verbose:
         log_level = logging.DEBUG
-    elif args.func == run_scenario and args.quiet:
+    elif getattr(args, 'quiet', False):
         log_level = logging.WARNING
     else:
         log_level = logging.INFO
     logging.basicConfig(level=log_level)
 
-    master = Master(getattr(args, 'zmq_bind_ip', None),
-                    getattr(args, 'zmq_work_port', None),
-                    getattr(args, 'zmq_results_port', None),
-                    quiet=args.func == run_scenario and args.quiet,
-                    connect_timeout=getattr(args, 'connect_timeout', None),
-                    network_timeout=getattr(args, 'network_timeout', None))
     logging.info('SwiftStack Benchmark (ssbench) version %s', ssbench.version)
-
-    args.func(master, args)
+    args.func(args)
