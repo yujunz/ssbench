@@ -205,7 +205,7 @@ class Master:
                 result_packed = self.results_pull.recv()
                 result = msgpack.loads(result_packed, use_list=False)
                 logging.info('Heard from worker id=%d; sending SUICIDE',
-                             result['worker_id'])
+                             result[0]['worker_id'])
                 self.work_push.send(msgpack.dumps([{'type': 'SUICIDE'}]))
                 gevent.sleep(0.1)
             else:
