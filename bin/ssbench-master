@@ -94,7 +94,7 @@ OS_TENANT_NAME OS_TENANT_ID to be set or overridden with --os-auth-url,
     master = Master(getattr(args, 'zmq_bind_ip', None),
                     getattr(args, 'zmq_work_port', None),
                     getattr(args, 'zmq_results_port', None),
-                    quiet=args.func == run_scenario and args.quiet,
+                    quiet=args.quiet or args.verbose,
                     connect_timeout=getattr(args, 'connect_timeout', None),
                     network_timeout=getattr(args, 'network_timeout', None))
 
@@ -264,9 +264,11 @@ def report_scenario(args):
 
     run_results = RunResults(args.stats_file)
     reporter = Reporter(run_results)
-    reporter.read_results()
 
-    default_report = reporter.generate_default_report()
+    format_numbers = not args.csv
+    reporter.read_results(nth_pctile=args.pctile, format_numbers=format_numbers)
+
+    default_report = reporter.generate_default_report(output_csv=args.csv)
     args.report_file.write(default_report)
 
     if args.rps_histogram:
@@ -288,6 +290,10 @@ if __name__ == "__main__":
             ssbench.version,))
     arg_parser.add_argument('-v', '--verbose', action='store_true',
                             default=False, help='Enable more verbose output.')
+    arg_parser.add_argument(
+        '-q', '--quiet', action='store_true', default=False,
+        help='Suppress most output (including progress characters during '
+        'run).')
 
     subparsers = arg_parser.add_subparsers()
 
@@ -447,10 +453,6 @@ if __name__ == "__main__":
         'user-count should be greater than and an even multiple of '
         'both batch-size and worker count.')
     run_scenario_arg_parser.add_argument(
-        '-q', '--quiet', action='store_true', default=False,
-        help='Suppress most output (including progress characters during '
-        'run).')
-    run_scenario_arg_parser.add_argument(
         '--profile', action='store_true', default=False,
         help='Profile the main benchmark run.')
     run_scenario_arg_parser.add_argument(
@@ -477,6 +479,9 @@ if __name__ == "__main__":
         help="Suppress the default immediate generation of a benchmark "
         "report to STDOUT after saving stats-file")
     run_scenario_arg_parser.add_argument(
+        '--csv', action='store_true', default=False,
+        help='Output the default report in CSV format instead of textual table')
+    run_scenario_arg_parser.add_argument(
         '--pctile', type=int, metavar='PERCENTILE', default=95,
         help='Report on the N-th percentile, if generating a report.')
     run_scenario_arg_parser.set_defaults(func=run_scenario)
@@ -484,7 +489,10 @@ if __name__ == "__main__":
 
     report_scenario_arg_parser = subparsers.add_parser(
         "report-scenario",
-        help="Generate a report from saved scenario statistics",
+        help="""
+Generate a report from saved scenario statistics.  Various types of reports may
+be generated, with the default being a "textual summary".
+""",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     report_scenario_arg_parser.add_argument(
         '-s', '--stats-file', type=str, required=True,
@@ -496,6 +504,9 @@ if __name__ == "__main__":
     report_scenario_arg_parser.add_argument(
         '--pctile', type=int, metavar='PERCENTILE', default=95,
         help='Report on the N-th percentile.')
+    report_scenario_arg_parser.add_argument(
+        '--csv', action='store_true', default=False,
+        help='Output the report in CSV format')
     report_scenario_arg_parser.add_argument(
         '-r', '--rps-histogram', type=argparse.FileType('w'),
         help='Also write a CSV file with requests completed per second '
@@ -509,11 +520,14 @@ if __name__ == "__main__":
 
     if args.verbose:
         log_level = logging.DEBUG
-    elif getattr(args, 'quiet', False):
+        log_format = '%(asctime)s:%(levelname)s:%(message)s'
+    elif args.quiet:
         log_level = logging.WARNING
+        log_format = '%(levelname)s:%(message)s'
     else:
         log_level = logging.INFO
-    logging.basicConfig(level=log_level)
+        log_format = '%(levelname)s:%(message)s'
+    logging.basicConfig(level=log_level, format=log_format)
 
-    logging.info('SwiftStack Benchmark (ssbench) version %s', ssbench.version)
+    logging.info('SwiftStack Benchmark (ssbench version %s)', ssbench.version)
     args.func(args)

@@ -169,7 +169,6 @@ class Master:
                 except StopIteration:
                     break
 
-            logging.debug('len(send_q): %d', len(send_q))
             self.work_push.send(msgpack.dumps(send_q))
             active += len(send_q)
 

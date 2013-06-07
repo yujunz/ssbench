@@ -13,10 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import csv
 import math
 import logging
 import statlib.stats
 from datetime import datetime
+from cStringIO import StringIO
 from mako.template import Template
 
 import ssbench
@@ -30,9 +32,9 @@ class Reporter:
     def __init__(self, run_results):
         self.run_results = run_results
 
-    def read_results(self, nth_pctile=95):
+    def read_results(self, nth_pctile=95, format_numbers=True):
         self.scenario, self.unpacker = self.run_results.read_results()
-        self.stats = self.calculate_scenario_stats(nth_pctile)
+        self.stats = self.calculate_scenario_stats(nth_pctile, format_numbers)
 
     def write_rps_histogram(self, target_file):
         target_file.write('"Seconds Since Start","Requests Completed"\n')
@@ -69,7 +71,7 @@ ${label}
 % endfor
 """
 
-    def generate_default_report(self):
+    def generate_default_report(self, output_csv=False):
         """Format a default summary report based on calculated statistics for
         an executed scenario.
 
@@ -128,7 +130,68 @@ ${label}
             tmpl_vars['weighted_r'] += pct_total * size_data['crud_pcts'][1] / 100.0
             tmpl_vars['weighted_u'] += pct_total * size_data['crud_pcts'][2] / 100.0
             tmpl_vars['weighted_d'] += pct_total * size_data['crud_pcts'][3] / 100.0
-        return template.render(scenario=self.scenario, stats=stats, **tmpl_vars)
+        if output_csv:
+            csv_fields = [
+                'scenario_name', 'ssbench_version', 'worker_count',
+                'concurrency', 'start_time', 'stop_time', 'duration']
+            csv_data = {
+                'scenario_name': self.scenario.name,
+                'ssbench_version': self.scenario.version,
+                'worker_count': tmpl_vars['agg_stats']['worker_count'],
+                'concurrency': self.scenario.user_count,
+                'start_time': tmpl_vars['start_time'],
+                'stop_time': tmpl_vars['stop_time'],
+                'duration': tmpl_vars['duration'],
+            }
+            for label, stats, sstats in tmpl_vars['stat_list']:
+                label_lc = label.lower()
+                if stats.get('req_count', 0):
+                    self._add_csv_kv(csv_fields, csv_data,
+                                     '%s_count' % label_lc, stats['req_count'])
+                    self._add_csv_kv(csv_fields, csv_data,
+                                     '%s_avg_req_per_s' % label_lc,
+                                     stats['avg_req_per_sec'])
+                    self._add_stats_for(csv_fields, csv_data, label, 'all',
+                                        stats, tmpl_vars['nth_pctile'])
+                    for size_str, per_size_stats in sstats.iteritems():
+                        if per_size_stats:
+                            self._add_stats_for(csv_fields, csv_data, label,
+                                                size_str, per_size_stats,
+                                                tmpl_vars['nth_pctile'])
+            csv_file = StringIO()
+            csv_writer = csv.DictWriter(csv_file, csv_fields,
+                                        lineterminator='\n',
+                                        quoting=csv.QUOTE_NONNUMERIC)
+            csv_writer.writeheader()
+            csv_writer.writerow(csv_data)
+            return csv_file.getvalue()
+        else:
+            return template.render(scenario=self.scenario, **tmpl_vars)
+
+    def _add_csv_kv(self, csv_fields, csv_data, key, value):
+        csv_fields.append(key)
+        csv_data[key] = value
+
+    def _add_stats_for(self, csv_fields, csv_data, label, size_str, stats,
+                       nth_pctile):
+        for latency_type in ('first', 'last'):
+            latency_stats = stats['%s_byte_latency' % latency_type]
+            key_base = '%s_%s_%s_' % (label.lower(), latency_type, size_str)
+            self._add_csv_kv(csv_fields, csv_data, key_base + 'min',
+                             latency_stats['min'])
+            self._add_csv_kv(csv_fields, csv_data, key_base + 'max',
+                             latency_stats['max'])
+            self._add_csv_kv(csv_fields, csv_data, key_base + 'avg',
+                             latency_stats['avg'])
+            self._add_csv_kv(csv_fields, csv_data, key_base + 'std_dev',
+                             latency_stats['std_dev'])
+            self._add_csv_kv(csv_fields, csv_data,
+                             key_base + '%d_pctile' % nth_pctile,
+                             latency_stats['pctile'])
+            worst_key = 'worst_%s_byte_latency' % latency_type
+            self._add_csv_kv(
+                csv_fields, csv_data, key_base + 'worst_txid',
+                stats[worst_key][1] if worst_key in stats else '')
 
     def _format_bytes(self, byte_count):
         units = [' B', 'kB', 'MB', 'GB']
@@ -138,11 +201,13 @@ ${label}
             i += 1
         return '%3.0f %s' % (round(byte_count), units[i])
 
-    def calculate_scenario_stats(self, nth_pctile=95):
-        """Given a list of worker job result dicts, compute various statistics.
+    def calculate_scenario_stats(self, nth_pctile=95, format_numbers=True):
+        """Compute various statistics from worker job result dicts.
 
-        :results_unpacker: An iterator which will yield results
-        :returns: A stats python dict which looks like:
+        :param nth_pctile: Use this percentile when calculating the stats
+        :param format_numbers: Should various floating-point numbers be
+        formatted as strings or left full-precision floats
+        :returns: A stats python dict which looks something like:
             SERIES_STATS = {
                 'min': 1.1,
                 'max': 1.1,
@@ -223,8 +288,7 @@ ${label}
         #   'completed_at': 1324372892.360802,
         #   'exception': '...',
         # }
-        logging.info('Calculating statistics (ssbench version %s)...',
-                     ssbench.version)
+        logging.info('Calculating statistics...')
         agg_stats = dict(start=2 ** 32, stop=0, req_count=0)
         op_stats = {}
         for crud_type in [ssbench.CREATE_OBJECT, ssbench.READ_OBJECT,
@@ -288,25 +352,29 @@ ${label}
 
         agg_stats['worker_count'] = len(stats['worker_stats'].keys())
         self._compute_req_per_sec(agg_stats)
-        self._compute_latency_stats(agg_stats, nth_pctile)
+        self._compute_latency_stats(agg_stats, nth_pctile, format_numbers)
         for worker_stats in stats['worker_stats'].values():
             self._compute_req_per_sec(worker_stats)
-            self._compute_latency_stats(worker_stats, nth_pctile)
+            self._compute_latency_stats(worker_stats, nth_pctile,
+                                        format_numbers)
         for op_stat, op_stats_dict in op_stats.iteritems():
             if op_stats_dict['req_count']:
                 self._compute_req_per_sec(op_stats_dict)
-                self._compute_latency_stats(op_stats_dict, nth_pctile)
+                self._compute_latency_stats(op_stats_dict, nth_pctile,
+                                            format_numbers)
                 for size_str, size_stats in \
                         op_stats_dict['size_stats'].iteritems():
                     if size_stats:
                         self._compute_req_per_sec(size_stats)
-                        self._compute_latency_stats(size_stats, nth_pctile)
+                        self._compute_latency_stats(size_stats, nth_pctile,
+                                                    format_numbers)
                     else:
                         op_stats_dict['size_stats'].pop(size_str)
         for size_str, size_stats in stats['size_stats'].iteritems():
             if size_stats:
                 self._compute_req_per_sec(size_stats)
-                self._compute_latency_stats(size_stats, nth_pctile)
+                self._compute_latency_stats(size_stats, nth_pctile,
+                                            format_numbers)
             else:
                 stats['size_stats'].pop(size_str)
         time_series_data = [req_completion_seconds.get(t, 0)
@@ -319,11 +387,11 @@ ${label}
 
         return stats
 
-    def _compute_latency_stats(self, stat_dict, nth_pctile):
+    def _compute_latency_stats(self, stat_dict, nth_pctile, format_numbers):
         try:
             for latency_type in ('first_byte_latency', 'last_byte_latency'):
                 stat_dict[latency_type] = self._series_stats(
-                    stat_dict[latency_type], nth_pctile)
+                    stat_dict[latency_type], nth_pctile, format_numbers)
         except KeyError:
             logging.exception('stat_dict: %r', stat_dict)
             raise
@@ -345,11 +413,8 @@ ${label}
             stat_dict['req_count'] += 1
         self._rec_latency(stat_dict, result)
 
-    def _series_stats(self, sequence, nth_pctile):
-        pre_filter_count = len(sequence)
+    def _series_stats(self, sequence, nth_pctile, format_numbers):
         sequence = filter(None, sequence)
-        logging.debug('_series_stats pre/post seq len: %d/%d',
-                      pre_filter_count, len(sequence))
         if not sequence:
             # No data available
             return dict(min=' N/A  ', max='  N/A  ', avg='  N/A  ',
@@ -364,13 +429,22 @@ ${label}
             minval = sequence[0]
             maxval = sequence[0]
             mean = sequence[0]
-        return dict(
-            min='%6.3f' % minval,
-            max='%7.3f' % maxval,
-            avg='%7.3f' % mean,
-            pctile='%7.3f' % self.pctile(sequence, nth_pctile),
-            std_dev='%7.3f' % statlib.stats.lsamplestdev(sequence),
-            median='%7.3f' % statlib.stats.lmedianscore(sequence))
+        if format_numbers:
+            return dict(
+                min='%6.3f' % minval,
+                max='%7.3f' % maxval,
+                avg='%7.3f' % mean,
+                pctile='%7.3f' % self.pctile(sequence, nth_pctile),
+                std_dev='%7.3f' % statlib.stats.lsamplestdev(sequence),
+                median='%7.3f' % statlib.stats.lmedianscore(sequence))
+        else:
+            return dict(
+                min=round(minval, 6),
+                max=round(maxval, 6),
+                avg=round(mean, 6),
+                pctile=round(self.pctile(sequence, nth_pctile), 6),
+                std_dev=round(statlib.stats.lsamplestdev(sequence), 6),
+                median=round(statlib.stats.lmedianscore(sequence), 6))
 
     def pctile(self, sequence, nth_pctile):
         seq_len = len(sequence)

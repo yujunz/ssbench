@@ -107,6 +107,10 @@ defining a benchmark run.  Specifically, it defines:
   either a CREATE, READ, UPDATE, or DELETE of an object.  This value may be
   overridden for any given run with the ``-o COUNT`` flag to ``ssbench-master
   run-scenario``.
+- A ``run_seconds`` number of seconds the benchmark scenario should run.  This
+  is mutually exclusive with ``operation_count``, so only one of those two
+  should be specified.  Both values may be overridden with command-line
+  arguments to ``ssbench-master``.
 - A ``crud_profile`` which determines the distribution of each kind of operation.
   For instance, ``[3, 4, 2, 2]`` would mean 27% CREATE, 36% READ, 18% UPDATE,
   and 18% DELETE.
@@ -176,7 +180,7 @@ The ``ssbench-worker`` script's usage message may be generated with::
   usage: ssbench-worker [-h] [--zmq-host ZMQ_HOST]
                         [--zmq-work-port ZMQ_WORK_PORT]
                         [--zmq-results-port ZMQ_RESULTS_PORT] [-c CONCURRENCY]
-                        [--retries RETRIES] [-p COUNT] [-v]
+                        [--retries RETRIES] [--batch-size COUNT] [-p COUNT] [-v]
                         worker_id
 
   ...
@@ -188,27 +192,30 @@ either ``run-scenario`` to actually run a benchmark scenario,
 with ``--workers`` to kill themselves::
 
   $ ssbench-master -h
-  usage: ssbench-master [-h] [-v]
-                        {kill-workers,run-scenario,report-scenario} ...
-
-  Benchmark your Swift installation
-
+  usage: ssbench-master [-h] [-v] [-q]
+                        {report-scenario,kill-workers,run-scenario} ...
+  
+  SwiftStack Benchmark (ssbench) version 0.2.14
+  
   positional arguments:
-    {kill-workers,run-scenario,report-scenario}
+    {report-scenario,kill-workers,run-scenario}
       kill-workers        Tell all workers to exit.
       run-scenario        Run CRUD scenario, saving statistics. You must supply
                           a valid set of v1.0 or v2.0 auth credentials. See
                           usage message for run-scenario for more details.
-      report-scenario     Generate a report from saved scenario statistics
-
+      report-scenario     Generate a report from saved scenario statistics.
+                          Various types of reports may be generated, with the
+                          default being a "textual summary".
+  
   optional arguments:
     -h, --help            show this help message and exit
     -v, --verbose         Enable more verbose output. (default: False)
-
-    usage: ssbench-master [-h] [-v]
+    -q, --quiet           Suppress most output (including progress characters
+                          during run). (default: False)
+  
+                          
+                          usage: ssbench-master [-h] [-v]
                           {kill-workers,run-scenario,report-scenario} ...
-
-    Benchmark your Swift installation
 
 The ``run-scenario`` sub-command of ``ssbench-master`` actually
 runs a benchmark scenario::
@@ -231,12 +238,13 @@ runs a benchmark scenario::
                                      [--os-endpoint-type <endpoint-type>]
                                      [--os-cacert <ca-certificate>] [--insecure]
                                      [-S STORAGE_URL] [-T TOKEN] [-c COUNT]
-                                     [-u COUNT] [-o COUNT] [--workers COUNT]
-                                     [--batch-size COUNT] [-q] [--profile]
-                                     [--noop] [-k]
+                                     [-u COUNT] [-o COUNT] [-r SECONDS]
+                                     [--workers COUNT] [--batch-size COUNT]
+                                     [--profile] [--noop] [-k]
                                      [--connect-timeout CONNECT_TIMEOUT]
                                      [--network-timeout NETWORK_TIMEOUT]
-                                     [-s STATS_FILE] [-r] [--pctile PERCENTILE]
+                                     [-s STATS_FILE] [-R] [--csv]
+                                     [--pctile PERCENTILE]
   ...
 
 
@@ -245,9 +253,8 @@ previously-run benchmark scenario::
 
   $ ssbench-master report-scenario -h
   usage: ssbench-master report-scenario [-h] -s STATS_FILE [-f REPORT_FILE]
-                                        [--pctile PERCENTILE] [-r RPS_HISTOGRAM]
-                                        [--profile]
-
+                                        [--pctile PERCENTILE] [--csv]
+                                        [-r RPS_HISTOGRAM] [--profile]
   ...
 
 The ``kill-workers`` sub-command of ``ssbench-master`` kills all
@@ -316,12 +323,13 @@ If you only need workers running on the local host, you can do so with a single
 command.  Simply use the ``--workers COUNT`` option to ``ssbench-master``::
 
   $ ssbench-master run-scenario -f scenarios/very_small.scenario -u 4 -c 80 -o 613 --pctile 50 --workers 2
-  INFO:root:Spawning local ssbench-worker (logging to /tmp/ssbench-worker-local-0.log) with ssbench-worker --zmq-host 127.0.0.1 --zmq-work-port 13579 --zmq-results-port 13580 --concurrency 2 0
-  INFO:root:Spawning local ssbench-worker (logging to /tmp/ssbench-worker-local-1.log) with ssbench-worker --zmq-host 127.0.0.1 --zmq-work-port 13579 --zmq-results-port 13580 --concurrency 2 1
-  INFO:root:Starting scenario run for "Small test scenario"
-  INFO:root:Ensuring 80 containers (ssbench_*) exist; concurrency=10...
-  INFO:root:Initializing cluster with stock data (up to 4 concurrent workers)
-  INFO:root:Starting benchmark run (up to 4 concurrent workers)
+  INFO:SwiftStack Benchmark (ssbench version 0.2.14)
+  INFO:Spawning local ssbench-worker (logging to /tmp/ssbench-worker-local-0.log) with ssbench-worker ... --concurrency 2 --batch-size 1 0
+  INFO:Spawning local ssbench-worker (logging to /tmp/ssbench-worker-local-1.log) with ssbench-worker ... --concurrency 2 --batch-size 1 1
+  INFO:Starting scenario run for "Small test scenario"
+  INFO:Ensuring 80 containers (ssbench_*) exist; concurrency=10...
+  INFO:Initializing cluster with stock data (up to 4 concurrent workers)
+  INFO:Starting benchmark run (up to 4 concurrent workers)
   Benchmark Run:
     X    work job raised an exception
     .  <  1s first-byte-latency
@@ -332,79 +340,86 @@ command.  Simply use the ``--workers COUNT`` option to ``ssbench-master``::
     |  <  3s last-byte-latency  (CREATE or UPDATE)
     ^  < 10s last-byte-latency  (CREATE or UPDATE)
     @ >= 10s last-byte-latency  (CREATE or UPDATE)
-  .___..__..__.__..____._._._._.___.__.____..._._._.__._.._.____._.__._.__..._..
-  .._.._..._..._........_._.._.___....__...._..._.__._.._._........_..._..__....
-  .._..__.___.._._..__.._..._.___.___..._._____.__....___.._._..__.......___._._
-  .__.._.___.._.___._._._._.._.__.________._.........__..__._._.._._.__._.___._.
-  ._._...._._.._..._.._...______..._____.__.._....._...._._.____.._._._.___.._._
-  .._._.___...___.._....._.__..__.......__._...__.__...__.._._...__._..._.....__
-  __..___._.__..__..___._.._._____...___.__..___._..._.____._._._....__...__..__
-  ______.__.._....__..._.___.._._____...___.__..___.._._._______.____
-  INFO:root:Deleting population objects from cluster
-  INFO:root:Calculating statistics for 613 result items...
-
-  Small test scenario
-  Worker count:   2   Concurrency:   4  Ran 2013-02-20 17:10:18 UTC to 2013-02-20 17:10:26 UTC (7s)
-
+  ....._........_.._......_.._..__.._.._..._...__...__._..._._..................
+  ....._.._....__........._.._._......__.._.._._......._..__.._....._..._...__._
+  ...._......_....____....__._.........._...._...._......._....__._.._._..__._..
+  ....__.._..._._._....._......_...._...__...._...___.........._.._._..___..._._
+  ....._._....__.............._.__..._...._...._...._._.._....___........_.__.._
+  _..__._.__.._.................__......._......._...._.____...._.._....._...._.
+  ..._.............__.._..._.._.._._._._...._.._.._....__._._........_......_.__
+  .........._._...._.._.........._........_._.._....._......._....._.
+  INFO:Deleting population objects from cluster
+  INFO:Calculating statistics...
+  
+  Small test scenario  (generated with ssbench version 0.2.14)
+  Worker count:   2   Concurrency:   4  Ran 2013-06-07 17:23:16 UTC to 2013-06-07 17:23:22 UTC (5s)
+  
   % Ops    C   R   U   D       Size Range       Size Name
-   91%   % 27  36  18  18        4 kB -  66 kB  tiny
-    9%   % 27  36  18  18      100 kB - 200 kB  small
+   91%   % 10  75  15   0        4 kB -   8 kB  tiny
+    9%   % 10  75  15   0       20 kB -  40 kB  small
   ---------------------------------------------------------------------
-           27  36  18  18      CRUD weighted average
-
+           10  75  15   0      CRUD weighted average
+  
   TOTAL
-         Count:   613  Average requests per second:  79.8
+         Count:   613  Average requests per second: 118.7
                               min       max      avg      std_dev  50%-ile                   Worst latency TX ID
-         First-byte latency:  0.004 -   0.079    0.019  (  0.014)    0.015  (all obj sizes)  tx684b3b058d52403fbda528ffaec66a5f
-         Last-byte  latency:  0.004 -   0.167    0.043  (  0.027)    0.040  (all obj sizes)  txbd735d5cde494a9ab4ed0a961dd7c0b5
-         First-byte latency:  0.004 -   0.079    0.019  (  0.013)    0.014  (    tiny objs)  tx684b3b058d52403fbda528ffaec66a5f
-         Last-byte  latency:  0.004 -   0.167    0.042  (  0.027)    0.038  (    tiny objs)  txbd735d5cde494a9ab4ed0a961dd7c0b5
-         First-byte latency:  0.009 -   0.049    0.025  (  0.013)    0.024  (   small objs)  txc9479d86f4bb4606bfcdb96f55ff2127
-         Last-byte  latency:  0.019 -   0.123    0.054  (  0.026)    0.048  (   small objs)  tx3b2d5943869a4d65af887ef00d95271a
-
+         First-byte latency:  0.004 -   0.044    0.017  (  0.008)    0.016  (all obj sizes)  txe026893bbf09486c83fcdb629f6f25a3
+         Last-byte  latency:  0.004 -   0.157    0.029  (  0.024)    0.019  (all obj sizes)  tx6f988120ec5044329f817-0051b21708
+         First-byte latency:  0.004 -   0.044    0.016  (  0.007)    0.016  (    tiny objs)  tx1d35c8e273bf4bbeb6298-0051b21705
+         Last-byte  latency:  0.004 -   0.157    0.028  (  0.024)    0.019  (    tiny objs)  tx6f988120ec5044329f817-0051b21708
+         First-byte latency:  0.005 -   0.044    0.018  (  0.008)    0.016  (   small objs)  txe026893bbf09486c83fcdb629f6f25a3
+         Last-byte  latency:  0.005 -   0.120    0.031  (  0.026)    0.021  (   small objs)  tx87bf30db5a70412b97a5c71ae60036c1
+  
   CREATE
-         Count:   179  Average requests per second:  23.3
+         Count:    64  Average requests per second:  12.5
                               min       max      avg      std_dev  50%-ile                   Worst latency TX ID
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (all obj sizes)
-         Last-byte  latency:  0.018 -   0.167    0.066  (  0.021)    0.066  (all obj sizes)  txbd735d5cde494a9ab4ed0a961dd7c0b5
+         Last-byte  latency:  0.024 -   0.157    0.067  (  0.023)    0.060  (all obj sizes)  tx6f988120ec5044329f817-0051b21708
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (    tiny objs)
-         Last-byte  latency:  0.018 -   0.167    0.065  (  0.021)    0.066  (    tiny objs)  txbd735d5cde494a9ab4ed0a961dd7c0b5
+         Last-byte  latency:  0.024 -   0.157    0.064  (  0.022)    0.059  (    tiny objs)  tx6f988120ec5044329f817-0051b21708
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (   small objs)
-         Last-byte  latency:  0.048 -   0.123    0.077  (  0.020)    0.078  (   small objs)  tx3b2d5943869a4d65af887ef00d95271a
-
+         Last-byte  latency:  0.061 -   0.120    0.087  (  0.020)    0.089  (   small objs)  tx87bf30db5a70412b97a5c71ae60036c1
+  
   READ
-         Count:   215  Average requests per second:  28.3
+         Count:   459  Average requests per second:  88.9
                               min       max      avg      std_dev  50%-ile                   Worst latency TX ID
-         First-byte latency:  0.004 -   0.032    0.012  (  0.006)    0.011  (all obj sizes)  tx9f4c63b2c7db4be5bca77dff8916cc7c
-         Last-byte  latency:  0.004 -   0.053    0.016  (  0.009)    0.014  (all obj sizes)  txc9c3813c1e494b67954fa0eb61b79a03
-         First-byte latency:  0.004 -   0.032    0.012  (  0.006)    0.011  (    tiny objs)  tx9f4c63b2c7db4be5bca77dff8916cc7c
-         Last-byte  latency:  0.004 -   0.042    0.015  (  0.007)    0.014  (    tiny objs)  txdd64a85dcbab4ddea1a9981be2db3430
-         First-byte latency:  0.009 -   0.027    0.015  (  0.006)    0.012  (   small objs)  txc9c3813c1e494b67954fa0eb61b79a03
-         Last-byte  latency:  0.019 -   0.053    0.033  (  0.011)    0.031  (   small objs)  txc9c3813c1e494b67954fa0eb61b79a03
-
+         First-byte latency:  0.004 -   0.044    0.017  (  0.008)    0.016  (all obj sizes)  txe026893bbf09486c83fcdb629f6f25a3
+         Last-byte  latency:  0.004 -   0.044    0.017  (  0.008)    0.016  (all obj sizes)  txe026893bbf09486c83fcdb629f6f25a3
+         First-byte latency:  0.004 -   0.044    0.016  (  0.007)    0.016  (    tiny objs)  tx1d35c8e273bf4bbeb6298-0051b21705
+         Last-byte  latency:  0.004 -   0.044    0.017  (  0.007)    0.016  (    tiny objs)  tx1d35c8e273bf4bbeb6298-0051b21705
+         First-byte latency:  0.005 -   0.044    0.018  (  0.008)    0.016  (   small objs)  txe026893bbf09486c83fcdb629f6f25a3
+         Last-byte  latency:  0.005 -   0.044    0.019  (  0.008)    0.017  (   small objs)  txe026893bbf09486c83fcdb629f6f25a3
+  
   UPDATE
-         Count:   119  Average requests per second:  15.8
+         Count:    90  Average requests per second:  18.1
                               min       max      avg      std_dev  50%-ile                   Worst latency TX ID
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (all obj sizes)
-         Last-byte  latency:  0.023 -   0.108    0.064  (  0.019)    0.067  (all obj sizes)  tx5bf7d7107973419ea42e6ac0b1971cac
+         Last-byte  latency:  0.021 -   0.143    0.062  (  0.021)    0.061  (all obj sizes)  tx9a502107a0c246e69a987d120a2b9919
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (    tiny objs)
-         Last-byte  latency:  0.023 -   0.108    0.063  (  0.019)    0.065  (    tiny objs)  tx5bf7d7107973419ea42e6ac0b1971cac
+         Last-byte  latency:  0.021 -   0.143    0.062  (  0.022)    0.061  (    tiny objs)  tx9a502107a0c246e69a987d120a2b9919
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (   small objs)
-         Last-byte  latency:  0.052 -   0.102    0.077  (  0.017)    0.085  (   small objs)  tx7be6135fa8544e2d87c64b335e990e5d
+         Last-byte  latency:  0.036 -   0.085    0.065  (  0.015)    0.065  (   small objs)  tx732aae54c9484689b8fea-0051b21709
+  
+  INFO:Scenario run results saved to /tmp/ssbench-results/Small_test_scenario.u4.o613.r-.2013-06-07.102314.stat.gz
+  INFO:You may generate a report with:
+    .../ssbench-master report-scenario -s /tmp/ssbench-results/Small_test_scenario.u4.o613.r-.2013-06-07.102314.stat.gz
 
-  DELETE
-         Count:   100  Average requests per second:  13.7
-                              min       max      avg      std_dev  50%-ile                   Worst latency TX ID
-         First-byte latency:  0.010 -   0.079    0.035  (  0.012)    0.033  (all obj sizes)  tx684b3b058d52403fbda528ffaec66a5f
-         Last-byte  latency:  0.010 -   0.079    0.035  (  0.012)    0.033  (all obj sizes)  tx684b3b058d52403fbda528ffaec66a5f
-         First-byte latency:  0.010 -   0.079    0.035  (  0.013)    0.033  (    tiny objs)  tx684b3b058d52403fbda528ffaec66a5f
-         Last-byte  latency:  0.010 -   0.079    0.035  (  0.013)    0.033  (    tiny objs)  tx684b3b058d52403fbda528ffaec66a5f
-         First-byte latency:  0.020 -   0.049    0.036  (  0.009)    0.036  (   small objs)  txc9479d86f4bb4606bfcdb96f55ff2127
-         Last-byte  latency:  0.020 -   0.049    0.036  (  0.009)    0.036  (   small objs)  txc9479d86f4bb4606bfcdb96f55ff2127
 
-  INFO:root:Scenario run results saved to /tmp/ssbench-results/Small_test_scenario.2013-02-20.091016.stat
-  INFO:root:You may generate a report with:
-    ssbench-master report-scenario -s /tmp/ssbench-results/Small_test_scenario.2013-02-20.091016.stat
+Benchmark Reports
+-----------------
+
+The default, textual table report may be seen in the above example output.  You
+can also specify ``--csv`` when running a scenario or generating a report later
+to generate a CSV report instead.  This feature is still pretty new so expect
+the CSV report output to change over time.
+
+Right now, the default report's CSV version is two lines: a line of column
+header names and one line of actual data.  Both lines are *very* long and the
+set of columns present in any given CSV report will depend on the scenario
+which was run.  Some column names have the ``--pctile`` value in them and many
+columns have the object sizes in them, which are defined in the scenario file.
+You can think of the two CVS lines as a linear denormalization of the contents
+of the two-dimensional table output.
 
 
 Scalability and Throughput
@@ -483,6 +498,11 @@ code contributions should not *lower* the code coverage (so please include
 new tests or update existing ones as part of your change).  Running tests will
 probably require Python 2.7 and a few additional modules like ``flexmock`` and
 ``nose``.
+
+Regarding test tools, I started out using ``flexmock``, but plan to mostly add
+new tests using the ``mock`` library since that's been included in the stdlib
+and the Python community seems to be converging on it.  So please use ``mock``
+instead of ``flexmock`` for new tests.
 
 If contributing code which implements a feature or fixes
 a bug, please ensure a Github Issue exists prior to submitting the pull request
