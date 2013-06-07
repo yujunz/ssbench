@@ -44,8 +44,17 @@ DEFAULT_STATS_PATH_DEFAULT = '/tmp/ssbench-results/%s.u%s.o%s.r%s.%s.stat' % (
 DEFAULT_FROM_SCENARIO = 'value from scenario'
 
 
-def kill_workers(master, args):
-    master.kill_workers()
+def master_from_args(args):
+    return Master(getattr(args, 'zmq_bind_ip', None),
+                  getattr(args, 'zmq_work_port', None),
+                  getattr(args, 'zmq_results_port', None),
+                  quiet=args.quiet or args.verbose,
+                  connect_timeout=getattr(args, 'connect_timeout', None),
+                  network_timeout=getattr(args, 'network_timeout', None))
+
+
+def kill_workers(args):
+    master_from_args(args).kill_workers()
 
 
 def run_scenario(args):
@@ -91,12 +100,7 @@ OS_TENANT_NAME OS_TENANT_ID to be set or overridden with --os-auth-url,
     os.environ.pop('ST_USER', None)
     os.environ.pop('ST_KEY', None)
 
-    master = Master(getattr(args, 'zmq_bind_ip', None),
-                    getattr(args, 'zmq_work_port', None),
-                    getattr(args, 'zmq_results_port', None),
-                    quiet=args.quiet or args.verbose,
-                    connect_timeout=getattr(args, 'connect_timeout', None),
-                    network_timeout=getattr(args, 'network_timeout', None))
+    master = master_from_args(args)
 
     container_count = int(args.container_count) \
             if args.container_count != DEFAULT_FROM_SCENARIO else None
