@@ -93,6 +93,7 @@ class ConnectionPool(gevent.queue.Queue):
         assert conn[1].sock.timeout == self.network_timeout
         return conn
 
+
 class Worker:
     def __init__(self, zmq_host, zmq_work_port, zmq_results_port, worker_id,
                  max_retries, profile_count=0, concurrency=256, batch_size=1):
@@ -181,7 +182,8 @@ class Worker:
                     prof.disable()
                     prof_output_path = '/tmp/worker_go.%d.prof' % os.getpid()
                     prof.dump_stats(prof_output_path)
-                    logging.info('PROFILED worker go() to %s', prof_output_path)
+                    logging.info('PROFILED worker go() to %s',
+                                 prof_output_path)
                     self.profile_count = None
                 gotten += 1
             jobs = self.work_pull.recv()
@@ -319,8 +321,8 @@ class Worker:
                     break
                 tries += 1
                 if tries > self.max_retries:
-                    raise Exception('No fn_results for %r after %d retires' \
-                                     % (fn, self.max_retries), tries)
+                    raise Exception('No fn_results for %r after %d retires'
+                                    % (fn, self.max_retries), tries)
             # XXX The name of this method does not suggest that it
             # will also retry on socket-level errors. Regardless,
             # sometimes Swift refuses connections (probably when it's
@@ -349,8 +351,9 @@ class Worker:
                                 if token_key in self.token_data and \
                                         self.token_data[token_key][1] == \
                                         args['token']:
-                                    logging.debug('Deleting token %s',
-                                                  self.token_data[token_key][1])
+                                    logging.debug(
+                                        'Deleting token %s',
+                                        self.token_data[token_key][1])
                                     del self.token_data[token_key]
                             finally:
                                 self.token_data_lock.release()

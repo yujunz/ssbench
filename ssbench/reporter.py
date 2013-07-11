@@ -436,14 +436,9 @@ ${label}
         if 'stop' not in stat_dict or \
                 result['completed_at'] > stat_dict['stop']:
             stat_dict['stop'] = result['completed_at']
-        if 'req_count' not in stat_dict:
-            stat_dict['req_count'] = 1
-        else:
-            stat_dict['req_count'] += 1
-        if 'retries' not in stat_dict:
-            stat_dict['retries'] = int(result['retries'])
-        else:
-            stat_dict['retries'] += int(result['retries'])
+        stat_dict['req_count'] = stat_dict.get('req_count', 0) + 1
+        stat_dict['retries'] = \
+            stat_dict.get('retries', 0) + int(result['retries'])
         if 'exception' not in result:
             self._rec_latency(stat_dict, result)
         else:
