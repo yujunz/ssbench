@@ -289,6 +289,16 @@ the authentication system.
 .. _`python-swiftclient`: https://github.com/openstack/python-swiftclient
 
 
+Load Balancing
+--------------
+
+You can bypass your normal load-balancing scheme by telling ``ssbench-master``
+to distribute load across a specified set of Storage URLs.  This is done by
+specifiying one or more ``-S STORAGE_URL`` options to ``ssbench-master``.  Any
+storage URL returned from the auth server will be ignored and a randomly chosen
+command-line-specified storage URL will be used instead.
+
+
 Example Multi-Server Run
 ------------------------
 
