@@ -97,8 +97,6 @@ OS_TENANT_NAME OS_TENANT_ID to be set or overridden with --os-auth-url,
     os.environ.pop('ST_USER', None)
     os.environ.pop('ST_KEY', None)
 
-    master = master_from_args(args)
-
     container_count = int(args.container_count) \
         if args.container_count != DEFAULT_FROM_SCENARIO else None
     user_count = int(args.user_count) \
@@ -151,8 +149,9 @@ OS_TENANT_NAME OS_TENANT_ID to be set or overridden with --os-auth-url,
         if worker_count:
             users_per_worker = int(math.ceil(float(scenario.user_count) /
                                              worker_count))
-            zmq_host = '127.0.0.1' if args.zmq_bind_ip == '0.0.0.0' \
-                else args.zmq_bind_ip
+            if args.zmq_bind_ip == '0.0.0.0':
+                args.zmq_bind_ip = '127.0.0.1'
+            zmq_host = args.zmq_bind_ip
             worker_cmd = [
                 'ssbench-worker', '--zmq-host', zmq_host,
                 '--zmq-work-port', str(args.zmq_work_port),
@@ -180,6 +179,10 @@ OS_TENANT_NAME OS_TENANT_ID to be set or overridden with --os-auth-url,
                                                       close_fds=True))
                 local_worker_logs.append((log_path, logfp))
 
+            # give the workers a little time to hook up
+            time.sleep(0.5)
+
+        master = master_from_args(args)
         master.run_scenario(scenario, auth_url=args.auth_url, user=args.user,
                             key=args.key, auth_version=args.auth_version,
                             os_options=args.os_options, cacert=args.os_cacert,
