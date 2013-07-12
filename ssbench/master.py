@@ -26,12 +26,12 @@ import signal
 import random
 import logging
 import msgpack
-import resource
 from gevent_zeromq import zmq
 
 import ssbench
 import ssbench.swift_client as client
 from ssbench.run_state import RunState
+from ssbench.util import raise_file_descriptor_limit
 
 
 def _container_creator(storage_url, token, container):
@@ -246,13 +246,7 @@ class Master:
 
         logging.info(u'Starting scenario run for "%s"', scenario.name)
 
-        soft_nofile, hard_nofile = resource.getrlimit(resource.RLIMIT_NOFILE)
-        nofile_target = 1024
-        if os.geteuid() == 0:
-            nofile_target = max(nofile_target, scenario.user_count + 20)
-            hard_nofile = nofile_target
-        resource.setrlimit(resource.RLIMIT_NOFILE, (nofile_target,
-                                                    hard_nofile))
+        raise_file_descriptor_limit()
 
         # Construct auth_kwargs appropriate for client.get_auth()
         if not token:

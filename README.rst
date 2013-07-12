@@ -298,13 +298,19 @@ specifiying one or more ``-S STORAGE_URL`` options to ``ssbench-master``.  Any
 storage URL returned from the auth server will be ignored and a randomly chosen
 command-line-specified storage URL will be used instead.
 
+Note that each ``ssbench-worker`` process will create a fully-populated
+connection pool for each unique ``-S`` argument specified.  Each connection
+pool will contain a number of sockets equal to the ``-c`` option (which defaults
+to 64).  So a large number of unique ``-S`` arguments for ``ssbench-worker``
+and a large ``-c`` value for ``ssbench-worker`` processes will not mix well.
+
 
 Example Multi-Server Run
 ------------------------
 
 Start one or more ``ssbench-worker`` processes on each server (each
 ``ssbench-worker`` process defaults to a maximum `gevent`_-based concurrency
-of 256, but the ``-c`` option can override that default).  Use the
+of 64, but the ``-c`` option can override that default).  Use the
 ``--zmq-host`` command-line parameter to specify the host on which you will run
 ``ssbench-master``.::
 

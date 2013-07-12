@@ -23,6 +23,7 @@ from gevent_zeromq import zmq
 import ssbench
 from ssbench import worker
 from ssbench import swift_client as client
+from ssbench.util import add_dicts
 
 
 class TestWorker(object):
@@ -221,7 +222,7 @@ class TestWorker(object):
         token_key = self.worker._token_key(call_info['auth_kwargs'])
 
         def _insert_auth():
-            self.worker.token_data[token_key] = ('otherUrl', 'otherToken')
+            self.worker.token_data[token_key] = (['otherUrl'], 'otherToken')
 
         self.mock_token_data_lock.should_receive('acquire').replace_with(
             _insert_auth,
@@ -288,7 +289,7 @@ class TestWorker(object):
         }).once
         self.time_expectation.once
         self.result_queue.should_receive('put').with_args(
-            worker.add_dicts(
+            add_dicts(
                 object_info, worker_id=self.worker_id,
                 first_byte_latency=0.492393, last_byte_latency=8.23283,
                 trans_id='abcdef', completed_at=self.stub_time, retries=0),
@@ -312,7 +313,7 @@ class TestWorker(object):
             'retries': 0,
         }).once
         self.result_queue.should_receive('put').with_args(
-            worker.add_dicts(
+            add_dicts(
                 object_info, worker_id=self.worker_id,
                 first_byte_latency=0.94932, last_byte_latency=8.3273,
                 trans_id='9bjkk', completed_at=self.stub_time, retries=0),
@@ -339,7 +340,7 @@ class TestWorker(object):
             'retries': 0,
         }).once
         self.result_queue.should_receive('put').with_args(
-            worker.add_dicts(
+            add_dicts(
                 object_info, worker_id=self.worker_id,
                 completed_at=self.stub_time, trans_id='biejs',
                 first_byte_latency=4.45, last_byte_latency=23.283, retries=0),
@@ -366,7 +367,7 @@ class TestWorker(object):
             'retries': 0,
         }).once
         self.result_queue.should_receive('put').with_args(
-            worker.add_dicts(
+            add_dicts(
                 object_info, worker_id=self.worker_id,
                 completed_at=self.stub_time, trans_id='bies',
                 first_byte_latency=5.33, last_byte_latency=9.99, retries=0),
@@ -394,7 +395,7 @@ class TestWorker(object):
         assert_true(traceback.startswith('Traceback'),
                     'Traceback did not start with Traceback: %s' % traceback)
         assert_equal(
-            worker.add_dicts(
+            add_dicts(
                 info, worker_id=self.worker_id, completed_at=self.stub_time,
                 exception=repr(socket.error('slap happy')), retries=5),
             got[0])
@@ -415,7 +416,7 @@ class TestWorker(object):
         assert_true(traceback.startswith('Traceback'),
                     'Traceback did not start with Traceback: %s' % traceback)
         assert_equal(
-            worker.add_dicts(
+            add_dicts(
                 info, worker_id=self.worker_id, completed_at=self.stub_time,
                 exception=repr(wrappedException),
                 retries=3),
@@ -435,7 +436,7 @@ class TestWorker(object):
         assert_true(traceback.startswith('Traceback'),
                     'Traceback did not start with Traceback: %s' % traceback)
         assert_equal(
-            worker.add_dicts(
+            add_dicts(
                 info, worker_id=self.worker_id, completed_at=self.stub_time,
                 exception=repr(ValueError('ve', 0)), retries=0),
             got[0])

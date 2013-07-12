@@ -32,30 +32,17 @@ import random
 import socket
 import msgpack
 import logging
-import resource
 import traceback
 from gevent_zeromq import zmq
 from httplib import CannotSendRequest
 from contextlib import contextmanager
 from geventhttpclient.response import HTTPConnectionClosed
 
+from ssbench.util import add_dicts, raise_file_descriptor_limit
 import ssbench.swift_client as client
 
 
 BLOCK_SIZE = 2 ** 16  # 65536
-
-
-def add_dicts(*args, **kwargs):
-    """
-    Utility to "add" together zero or more dicts passed in as positional
-    arguments with kwargs.  The positional argument dicts, if present, are not
-    mutated.
-    """
-    result = {}
-    for d in args:
-        result.update(d)
-    result.update(kwargs)
-    return result
 
 
 class ConnectionPool(gevent.queue.Queue):
@@ -67,8 +54,9 @@ class ConnectionPool(gevent.queue.Queue):
 
         gevent.queue.Queue.__init__(self, maxsize)
 
-        logging.info('Initializing ConnectionPool with %d connections...',
-                     maxsize)
+        logging.info('Initializing ConnectionPool to %s with %d '
+                     'connections...',
+                     factory_kwargs.get('url', 'UNKNOWN'), maxsize)
         for _ in xrange(maxsize):
             self.put(self.create(is_initial=True))
 
@@ -105,13 +93,7 @@ class Worker:
         self.profile_count = profile_count
         self.batch_size = batch_size
 
-        soft_nofile, hard_nofile = resource.getrlimit(resource.RLIMIT_NOFILE)
-        nofile_target = 1024
-        if os.geteuid() == 0:
-            nofile_target = max(nofile_target, concurrency + 50)
-            hard_nofile = nofile_target
-        resource.setrlimit(resource.RLIMIT_NOFILE, (nofile_target,
-                                                    hard_nofile))
+        raise_file_descriptor_limit()
 
         self.concurrency = concurrency
         self.conn_pools_lock = gevent.coros.Semaphore(1)
@@ -286,14 +268,13 @@ class Worker:
                             override_urls = call_info['auth_kwargs'].get(
                                 'storage_urls', None)
                             if override_urls:
-                                override_url = random.choice(override_urls)
                                 logging.debug(
-                                    'Overriding auth storage url %s with %s',
-                                    storage_url, override_url)
-                                storage_url = override_url
-                            logging.debug('Using token %s at %s',
-                                          token, storage_url)
-                            self.token_data[token_key] = (storage_url, token)
+                                    'Will override auth storage url %s with '
+                                    'one of %r', storage_url, override_urls)
+                                storage_urls = override_urls
+                            else:
+                                storage_urls = [storage_url]
+                            self.token_data[token_key] = (storage_urls, token)
                         else:
                             collided = True
                     finally:
@@ -303,7 +284,8 @@ class Worker:
                         # another greenthread's re-auth
                         logging.debug('Collided on re-auth; sleeping 0.005')
                         gevent.sleep(0.005)
-                args['url'], args['token'] = self.token_data[token_key]
+                storage_urls, args['token'] = self.token_data[token_key]
+                args['url'] = random.choice(storage_urls)
 
             # Check for connection pool initialization (protected by a
             # semaphore)

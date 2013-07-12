@@ -37,7 +37,7 @@ if __name__ == "__main__":
     arg_parser.add_argument(
         '--zmq-results-port', type=int, default=13580,
         help='Must match the value given to ssbench-master')
-    arg_parser.add_argument('-c', '--concurrency', type=int, default=256,
+    arg_parser.add_argument('-c', '--concurrency', type=int, default=64,
                             help='Maximum concurrency this worker will '
                             'provide.')
     arg_parser.add_argument('--retries', default=10, type=int,

@@ -1,3 +1,9 @@
+ssbench (0.2.20)
+
+    * Pick a storage URL for each request (better multiple -S support)
+
+    * Lowered default ssbench-worker concurrency level to 64
+
 ssbench (0.2.19)
 
     * Calculate some requests-per-worker-id stats (printed at DEBUG level)
