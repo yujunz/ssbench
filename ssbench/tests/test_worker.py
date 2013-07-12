@@ -16,7 +16,7 @@
 import time
 import socket
 from flexmock import flexmock
-from nose.tools import *
+from nose.tools import assert_equal, assert_raises, assert_true
 import gevent.queue
 from gevent_zeromq import zmq
 
@@ -73,7 +73,7 @@ class TestWorker(object):
             'time'
         ).and_return(self.stub_time)
 
-        self.stub_fn_return = {'x-trans-id':'slambammer!'}
+        self.stub_fn_return = {'x-trans-id': 'slambammer!'}
         self.stub_fn_calls = []
 
         self.mock_token_data_lock = flexmock(self.worker.token_data_lock)
@@ -380,9 +380,8 @@ class TestWorker(object):
 
     def test_dispatching_socket_exception(self):
         info = {'type': ssbench.CREATE_OBJECT, 'a': 1}
-        self.mock_worker.should_receive('handle_upload_object').with_args(info).and_raise(
-            socket.error('slap happy', 5)
-        ).once
+        self.mock_worker.should_receive('handle_upload_object').with_args(
+            info).and_raise(socket.error('slap happy', 5)).once
         got = []
         self.result_queue.should_receive('put').replace_with(
             lambda value: got.append(value)).once
@@ -400,13 +399,12 @@ class TestWorker(object):
 
     def test_dispatching_client_exception(self):
         info = {'type': ssbench.READ_OBJECT, 'container': 'fun', 'a': 2}
-        # ClientException allows any args such as scheme, i.e. calling with some
-        # args could not make tuple in Exception class.
+        # ClientException allows any args such as scheme, i.e. calling with
+        # some args could not make tuple in Exception class.
         wrappedException = client.ClientException('slam bam')
         wrappedException.args += (3,)
-        self.mock_worker.should_receive('handle_get_object').with_args(info).and_raise(
-            wrappedException
-        ).once
+        self.mock_worker.should_receive('handle_get_object').with_args(
+            info).and_raise(wrappedException).once
         got = []
         self.result_queue.should_receive('put').replace_with(
             lambda value: got.append(value)).once
@@ -425,9 +423,8 @@ class TestWorker(object):
 
     def test_dispatching_value_error_exception(self):
         info = {'type': ssbench.READ_OBJECT, 'container': 'fun', 'a': 2}
-        self.mock_worker.should_receive('handle_get_object').with_args(info).and_raise(
-            ValueError('ve', 0),
-        ).once
+        self.mock_worker.should_receive('handle_get_object').with_args(
+            info).and_raise(ValueError('ve', 0)).once
         got = []
         self.result_queue.should_receive('put').replace_with(
             lambda value: got.append(value)).once

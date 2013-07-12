@@ -19,7 +19,8 @@ import shutil
 import msgpack
 import tempfile
 import subprocess
-from nose.tools import *
+from nose.tools import (assert_equal, assert_false, assert_greater,
+                        assert_raises)
 
 from ssbench.scenario import Scenario
 from ssbench.run_results import RunResults

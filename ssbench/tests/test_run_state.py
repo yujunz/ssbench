@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nose.tools import *
+from nose.tools import assert_equal, assert_set_equal
 from collections import deque
 
 import ssbench

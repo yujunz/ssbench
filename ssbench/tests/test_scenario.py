@@ -19,7 +19,10 @@ import time
 import signal
 import msgpack
 from cStringIO import StringIO
-from nose.tools import *
+from nose.tools import (assert_equal, assert_dict_equal, assert_is_instance,
+                        assert_raises, assert_list_equal, assert_not_in,
+                        assert_almost_equal, assert_true, assert_in,
+                        assert_greater)
 from exceptions import OSError
 from collections import Counter
 
@@ -49,9 +52,9 @@ class ScenarioFixture(object):
                          crud_profile=[13, 17, 19, 51])],
                 initial_files=dict(
                     tiny=700, small=400, medium=200, large=100),
-                # From first POC input, all file size percentages can be derived
-                # directly from the distribution of initial files.  So we take that
-                # shortcut in the definition of scenarios.
+                # From first POC input, all file size percentages can be
+                # derived directly from the distribution of initial files.  So
+                # we take that shortcut in the definition of scenarios.
                 operation_count=20000,
                 #             C  R  U  D
                 crud_profile=[10, 7, 4, 1],  # maybe make this a dict?
@@ -215,8 +218,8 @@ class TestScenario(ScenarioFixture):
 
         err_pct = 0.15   # Expect +/- 15% for size/CRUD distribution
 
-        # Expect count of sizes to be +/- 10% of expected proportions (which are
-        # derived from the initial counts; 30%, 30%, 30%, 10% in this case)
+        # Expect count of sizes to be +/- 10% of expected proportions (which
+        # are derived from the initial counts; 30%, 30%, 30%, 10% in this case)
         size_counter = Counter([_['size_str'] for _ in jobs])
         assert_almost_equal(700.0 / 1400 * 20000, size_counter['tiny'],
                             delta=err_pct * 700.0 / 1400 * 20000)

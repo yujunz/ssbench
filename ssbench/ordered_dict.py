@@ -149,10 +149,10 @@ class OrderedDict(dict):
     def update(*args, **kwds):
         '''od.update(E, **F) -> None.  Update od from dict/iterable E and F.
 
-        If E is a dict instance, does:           for k in E: od[k] = E[k]
-        If E has a .keys() method, does:         for k in E.keys(): od[k] = E[k]
-        Or if E is an iterable of items, does:   for k, v in E: od[k] = v
-        In either case, this is followed by:     for k, v in F.items(): od[k] = v
+        If E is a dict instance, does:         for k in E: od[k] = E[k]
+        If E has a .keys() method, does:       for k in E.keys(): od[k] = E[k]
+        Or if E is an iterable of items, does: for k, v in E: od[k] = v
+        In either case, this is followed by:   for k, v in F.items(): od[k] = v
 
         '''
         if len(args) > 2:
@@ -177,13 +177,15 @@ class OrderedDict(dict):
         for key, value in kwds.items():
             self[key] = value
 
-    __update = update  # let subclasses override update without breaking __init__
+    __update = update  # let subclasses override update w/o breaking __init__
 
     __marker = object()
 
     def pop(self, key, default=__marker):
-        '''od.pop(k[,d]) -> v, remove specified key and return the corresponding value.
-        If key is not found, d is returned if given, otherwise KeyError is raised.
+        '''od.pop(k[,d]) -> v, remove specified key and return the
+        corresponding value.
+        If key is not found, d is returned if given, otherwise KeyError is
+        raised.
 
         '''
         if key in self:
@@ -240,8 +242,9 @@ class OrderedDict(dict):
         return d
 
     def __eq__(self, other):
-        '''od.__eq__(y) <==> od==y.  Comparison to another OD is order-sensitive
-        while comparison to a regular mapping is order-insensitive.
+        '''od.__eq__(y) <==> od==y.  Comparison to another OD is
+        order-sensitive while comparison to a regular mapping is
+        order-insensitive.
 
         '''
         if isinstance(other, OrderedDict):
