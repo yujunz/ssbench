@@ -1,3 +1,71 @@
+ssbench (0.2.19)
+
+    * Calculate some requests-per-worker-id stats (printed at DEBUG level)
+
+    * Juggle requirements files around a bit to be more standard.
+
+ssbench (0.2.18)
+
+    * Bind to 127.0.0.1 with --workers and no --bind-ip specified.
+
+ssbench (0.2.17)
+
+    * Added retries/errors in reporting [Kota Tsuyuzaki]
+
+    * Fixed #40: Allow load-balancing via multiple -S options.
+
+    * Fixed #48: Don't crash in reporting when zero jobs succeeded.
+
+ssbench (0.2.16)
+
+    * Fixed another bug in ssbench-master kill-workers
+
+ssbench (0.2.15)
+
+    * Fixed bug in ssbench-master kill-workers
+
+ssbench (0.2.14)
+
+    * Fixed #62: Support benchmark results >> size of RAM.
+
+    * Fixed #64: Include more parameters in default results filename.
+
+    * Fixed #56: Allow specification of run-time instead of op count.
+
+    * Fixed #50: Make ssbench output include version number.
+
+    * Fixed #69: Fixes SSL issues with ssbench. [Sergio Rubio]
+
+    * Fixed worker issues when using SSL and --insecure [Sergio Rubio]
+
+    * Added experimental --csv option (CSV reporting output)
+
+ssbench (0.2.13)
+
+    * Fixed a few bugs/typos.
+
+ssbench (0.2.12)
+
+    * Fixed #46: Use blocking calls where possible.
+
+    * Fixed #47: Allow batching of work jobs.
+
+ssbench (0.2.11)
+
+    * Fixed #26: Add socket timeouts.
+
+ssbench (0.2.10)
+
+    * Fixed #42: Support Keystone v2.0 auth.
+
+    * Fixed #39: Never set nofile less than 1024.
+
+    * Fixed #34: Never use concurrency < 1 for workers.
+
+    * Fixed #38: Allow -S while still authenticating.
+
+    * Fixed #32: Save results gzipped.
+
 ssbench (0.2.9)
 
     * Fixed #25: ssbench-worker will re-auth if necessary.

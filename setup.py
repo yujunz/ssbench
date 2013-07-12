@@ -23,10 +23,10 @@ sys.path.insert(0, thispath)
 
 import ssbench
 
-with open(os.path.join(thispath, '.requirements.txt'), 'r') as f:
+with open(os.path.join(thispath, 'requirements.txt'), 'r') as f:
     requires = [x.strip() for x in f if x.strip()]
 
-with open(os.path.join(thispath, '.requirements-test.txt'), 'r') as f:
+with open(os.path.join(thispath, 'test-requirements.txt'), 'r') as f:
     test_requires = [x.strip() for x in f if x.strip()]
 
 with open(os.path.join(thispath, 'README.rst'), 'r') as f:

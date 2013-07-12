@@ -61,35 +61,35 @@ class TestReporter(ScenarioFixture, TestCase):
             # using a batch-size > 1, in which case they might have more.
             [self.gen_result(
                 1, ssbench.CREATE_OBJECT, 'small', 100.0, 101.0, 103.0, 0),
-            self.gen_result(
-                1, ssbench.READ_OBJECT, 'tiny', 103.0, 103.1, 103.8, 0)],
+             self.gen_result(
+                 1, ssbench.READ_OBJECT, 'tiny', 103.0, 103.1, 103.8, 0)],
             [self.gen_result(
                 1, ssbench.CREATE_OBJECT, 'huge', 103.8, 105.0, 106.0, 0),
-            self.gen_result(
-                1, ssbench.UPDATE_OBJECT, 'large', 106.1, 106.3, 106.4, 0)],
+             self.gen_result(
+                 1, ssbench.UPDATE_OBJECT, 'large', 106.1, 106.3, 106.4, 0)],
             #
             # exceptions should be ignored
             [dict(worker_id=2, type=ssbench.UPDATE_OBJECT, size_str='large',
                   completed_at=152.2, retries=5, exception='wacky!',
                   traceback='ugh'),
-            self.gen_result(
-                2, ssbench.UPDATE_OBJECT, 'medium', 100.1, 100.9, 102.9, 1)],
+             self.gen_result(
+                 2, ssbench.UPDATE_OBJECT, 'medium', 100.1, 100.9, 102.9, 1)],
             [self.gen_result(
                 2, ssbench.DELETE_OBJECT, 'large', 102.9, 103.0, 103.3, 0),
-            self.gen_result(
-                2, ssbench.CREATE_OBJECT, 'tiny', 103.3, 103.4, 103.5, 1)],
+             self.gen_result(
+                 2, ssbench.CREATE_OBJECT, 'tiny', 103.3, 103.4, 103.5, 1)],
             [self.gen_result(
                 2, ssbench.READ_OBJECT, 'small', 103.5, 103.7, 104.0, 0),
-            #
-            self.gen_result(
-                3, ssbench.READ_OBJECT, 'tiny', 100.1, 101.1, 101.9, 0)],
+             #
+             self.gen_result(
+                 3, ssbench.READ_OBJECT, 'tiny', 100.1, 101.1, 101.9, 0)],
             # worker 3 took a while (observer lower concurrency in second 102
             [self.gen_result(
                 3, ssbench.DELETE_OBJECT, 'small', 103.1, 103.6, 103.9, 0),
-            self.gen_result(
-                3, ssbench.READ_OBJECT, 'medium', 103.9, 104.2, 104.3, 0),
-            self.gen_result(
-                3, ssbench.UPDATE_OBJECT, 'tiny', 104.3, 104.9, 104.999, 0)],
+             self.gen_result(
+                 3, ssbench.READ_OBJECT, 'medium', 103.9, 104.2, 104.3, 0),
+             self.gen_result(
+                 3, ssbench.UPDATE_OBJECT, 'tiny', 104.3, 104.9, 104.999, 0)],
         ]
         self.run_results = MagicMock()
         self.run_results.read_results.return_value = (self.scenario,
@@ -182,6 +182,17 @@ class TestReporter(ScenarioFixture, TestCase):
                 'pctile': '  N/A  ', 'std_dev': '  N/A  ',
                 'median': '  N/A  '}},
             some_stats)
+
+    def test_calculate_scenario_stats_per_worker(self):
+        req_counts = [4, 5, 4]
+        self.assertDictEqual(dict(
+            min='%6.3f' % 4,
+            max='%7.3f' % 5,
+            avg='%7.3f' % stats.lmean(req_counts),
+            pctile='%7.3f' % 5,
+            std_dev='%7.3f' % stats.lsamplestdev(req_counts),
+            median='%7.3f' % stats.lmedianscore(req_counts),
+        ), self.reporter.stats['jobs_per_worker_stats'])
 
     def test_calculate_scenario_stats_aggregate(self):
         first_byte_latency_all = [1, 0.1, 1.2, 0.2, 0.8, 0.1, 0.1,

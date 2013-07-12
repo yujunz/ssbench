@@ -1,3 +1,5 @@
 #!/bin/bash
 
-nosetests --exe --with-coverage --cover-package ssbench --cover-html --cover-branch --cover-erase $@
+nosetests --exe --with-coverage --cover-package ssbench --cover-html --cover-branch --cover-erase $@ && \
+    flake8 && flake8 bin/*
+

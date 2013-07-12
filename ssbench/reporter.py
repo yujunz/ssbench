@@ -17,6 +17,7 @@ import csv
 import math
 import logging
 import statlib.stats
+from pprint import pformat
 from datetime import datetime
 from cStringIO import StringIO
 from mako.template import Template
@@ -126,10 +127,14 @@ ${label}
                 'size_name': size_data['name'],
                 'pct_total_ops': '%3.0f%%' % pct_total,
             })
-            tmpl_vars['weighted_c'] += pct_total * size_data['crud_pcts'][0] / 100.0
-            tmpl_vars['weighted_r'] += pct_total * size_data['crud_pcts'][1] / 100.0
-            tmpl_vars['weighted_u'] += pct_total * size_data['crud_pcts'][2] / 100.0
-            tmpl_vars['weighted_d'] += pct_total * size_data['crud_pcts'][3] / 100.0
+            tmpl_vars['weighted_c'] += \
+                pct_total * size_data['crud_pcts'][0] / 100.0
+            tmpl_vars['weighted_r'] += \
+                pct_total * size_data['crud_pcts'][1] / 100.0
+            tmpl_vars['weighted_u'] += \
+                pct_total * size_data['crud_pcts'][2] / 100.0
+            tmpl_vars['weighted_d'] += \
+                pct_total * size_data['crud_pcts'][3] / 100.0
         if output_csv:
             csv_fields = [
                 'scenario_name', 'ssbench_version', 'worker_count',
@@ -312,7 +317,8 @@ ${label}
                           ssbench.UPDATE_OBJECT, ssbench.DELETE_OBJECT]:
             op_stats[crud_type] = dict(
                 req_count=0, avg_req_per_sec=0,
-                size_stats=OrderedDict.fromkeys(self.scenario.sizes_by_name.keys()))
+                size_stats=OrderedDict.fromkeys(
+                    self.scenario.sizes_by_name.keys()))
 
         req_completion_seconds = {}
         start_time = 0
@@ -323,7 +329,8 @@ ${label}
             agg_stats=agg_stats,
             worker_stats={},
             op_stats=op_stats,
-            size_stats=OrderedDict.fromkeys(self.scenario.sizes_by_name.keys()))
+            size_stats=OrderedDict.fromkeys(
+                self.scenario.sizes_by_name.keys()))
         for results in self.unpacker:
             for result in results:
                 completion_time = int(result['completed_at'])
@@ -336,7 +343,8 @@ ${label}
                 else:
                     if completion_time < completion_time_min:
                         completion_time_min = completion_time
-                        start_time = completion_time - result['last_byte_latency']
+                        start_time = (
+                            completion_time - result['last_byte_latency'])
                     if completion_time > completion_time_max:
                         completion_time_max = completion_time
                     req_completion_seconds[completion_time] = \
@@ -371,11 +379,20 @@ ${label}
         self._compute_req_per_sec(agg_stats)
         self._compute_retry_rate(agg_stats)
         self._compute_latency_stats(agg_stats, nth_pctile, format_numbers)
+
+        jobs_per_worker = []
         for worker_stats in stats['worker_stats'].values():
+            jobs_per_worker.append(worker_stats['req_count'])
             self._compute_req_per_sec(worker_stats)
             self._compute_retry_rate(worker_stats)
             self._compute_latency_stats(worker_stats, nth_pctile,
                                         format_numbers)
+        stats['jobs_per_worker_stats'] = self._series_stats(jobs_per_worker,
+                                                            nth_pctile,
+                                                            format_numbers)
+        logging.debug('Jobs per worker stats:\n' +
+                      pformat(stats['jobs_per_worker_stats']))
+
         for op_stat, op_stats_dict in op_stats.iteritems():
             if op_stats_dict['req_count']:
                 self._compute_req_per_sec(op_stats_dict)
