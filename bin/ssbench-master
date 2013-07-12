@@ -19,13 +19,10 @@ import re
 import sys
 import time
 import math
-import msgpack
 import logging
 import argparse
 import subprocess
 from os import environ
-import cPickle as pickle
-from gzip import GzipFile
 from datetime import datetime
 
 import ssbench
@@ -103,13 +100,13 @@ OS_TENANT_NAME OS_TENANT_ID to be set or overridden with --os-auth-url,
     master = master_from_args(args)
 
     container_count = int(args.container_count) \
-            if args.container_count != DEFAULT_FROM_SCENARIO else None
+        if args.container_count != DEFAULT_FROM_SCENARIO else None
     user_count = int(args.user_count) \
-            if args.user_count != DEFAULT_FROM_SCENARIO else None
+        if args.user_count != DEFAULT_FROM_SCENARIO else None
     operation_count = int(args.op_count) \
-            if args.op_count != DEFAULT_FROM_SCENARIO else None
+        if args.op_count != DEFAULT_FROM_SCENARIO else None
     run_seconds = int(args.run_seconds) \
-            if args.run_seconds != DEFAULT_FROM_SCENARIO else None
+        if args.run_seconds != DEFAULT_FROM_SCENARIO else None
 
     if args.noop:
         scenario_class = ScenarioNoop
@@ -125,8 +122,8 @@ OS_TENANT_NAME OS_TENANT_ID to be set or overridden with --os-auth-url,
     # Sanity-check batch_size
     if args.batch_size > scenario.user_count:
         logging.warning('--batch-size %d was > --user-count %d; using '
-                        '--batch-size %d', args.batch_size, scenario.user_count,
-                        scenario.user_count)
+                        '--batch-size %d', args.batch_size,
+                        scenario.user_count, scenario.user_count)
         args.batch_size = scenario.user_count
 
     if args.stats_file == DEFAULT_STATS_PATH_DEFAULT:
@@ -155,7 +152,7 @@ OS_TENANT_NAME OS_TENANT_ID to be set or overridden with --os-auth-url,
             users_per_worker = int(math.ceil(float(scenario.user_count) /
                                              worker_count))
             zmq_host = '127.0.0.1' if args.zmq_bind_ip == '0.0.0.0' \
-                    else args.zmq_bind_ip
+                else args.zmq_bind_ip
             worker_cmd = [
                 'ssbench-worker', '--zmq-host', zmq_host,
                 '--zmq-work-port', str(args.zmq_work_port),
@@ -187,7 +184,7 @@ OS_TENANT_NAME OS_TENANT_ID to be set or overridden with --os-auth-url,
                             key=args.key, auth_version=args.auth_version,
                             os_options=args.os_options, cacert=args.os_cacert,
                             insecure=args.insecure,
-                            storage_url=args.storage_url, token=args.token,
+                            storage_urls=args.storage_url, token=args.token,
                             noop=args.noop, with_profiling=args.profile,
                             keep_objects=args.keep_objects,
                             batch_size=args.batch_size,
@@ -216,8 +213,10 @@ OS_TENANT_NAME OS_TENANT_ID to be set or overridden with --os-auth-url,
     report_compress_start = time.time()
     gzip_cmd = "gzip -5 -q -c '{0}' > '{0}.gz'".format(stats_file_path)
     gzipper = subprocess.Popen(gzip_cmd,
-                               shell=True, cwd=os.path.dirname(stats_file_path),
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                               shell=True,
+                               cwd=os.path.dirname(stats_file_path),
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT)
 
     if not args.no_default_report:
         args.stats_file = stats_file_path
@@ -241,8 +240,8 @@ OS_TENANT_NAME OS_TENANT_ID to be set or overridden with --os-auth-url,
         stats_file_path = gzip_path
     else:
         if gzipper.returncode != 0:
-            logging.warning('%s: rc=%d; %s', ' '.join(gzip_cmd), gzipper.returncode,
-                            stdout_err)
+            logging.warning('%s: rc=%d; %s', ' '.join(gzip_cmd),
+                            gzipper.returncode, stdout_err)
         else:
             logging.error("Expected to find %s but didn't...", gzip_path)
         maybe_fix_sudo_perms(stats_file_path)
@@ -270,7 +269,8 @@ def report_scenario(args):
     reporter = Reporter(run_results)
 
     format_numbers = not args.csv
-    reporter.read_results(nth_pctile=args.pctile, format_numbers=format_numbers)
+    reporter.read_results(nth_pctile=args.pctile,
+                          format_numbers=format_numbers)
 
     default_report = reporter.generate_default_report(output_csv=args.csv)
     args.report_file.write(default_report)
@@ -321,8 +321,8 @@ if __name__ == "__main__":
         "run-scenario", help="""
         Run CRUD scenario, saving statistics.
 
-        You must supply a valid set of v1.0 or v2.0 auth credentials.  See usage
-        message for run-scenario for more details.
+        You must supply a valid set of v1.0 or v2.0 auth credentials.  See
+        usage message for run-scenario for more details.
         """.strip(),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     run_scenario_arg_parser.add_argument(
@@ -420,8 +420,9 @@ if __name__ == "__main__":
         'the keystone\'s certificate will not be verified.')
     #
     run_scenario_arg_parser.add_argument(
-        '-S', '--storage-url', help='A specific X-Storage-Url to use; mutually '
-        'exclusive with -A, -U, and -K; requires -T')
+        '-S', '--storage-url', action='append',
+        help='Override the Storage Url used; if specified more than once, '
+        'each connection will use one at random.')
     run_scenario_arg_parser.add_argument(
         '-T', '--token', help='A specific X-Storage-Token to use; mutually '
         'exclusive with -A, -U, and -K; requires -S')
@@ -484,12 +485,12 @@ if __name__ == "__main__":
         "report to STDOUT after saving stats-file")
     run_scenario_arg_parser.add_argument(
         '--csv', action='store_true', default=False,
-        help='Output the default report in CSV format instead of textual table')
+        help='Output the default report in CSV format instead of textual '
+        'table')
     run_scenario_arg_parser.add_argument(
         '--pctile', type=int, metavar='PERCENTILE', default=95,
         help='Report on the N-th percentile, if generating a report.')
     run_scenario_arg_parser.set_defaults(func=run_scenario)
-
 
     report_scenario_arg_parser = subparsers.add_parser(
         "report-scenario",

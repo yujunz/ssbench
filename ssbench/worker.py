@@ -28,6 +28,7 @@ gevent.monkey.patch_time()
 
 import os
 import time
+import random
 import socket
 import msgpack
 import logging
@@ -246,6 +247,8 @@ class Worker:
             value = auth_kwargs.get(key, '') or ''
             if isinstance(value, dict):
                 parts.append(self._token_key(value))
+            elif isinstance(value, list):
+                parts.extend(value)
             else:
                 parts.append(value)
         return '\x01'.join(map(str, parts))
@@ -266,7 +269,8 @@ class Worker:
         while True:
             # Make sure we've got a current storage_url/token
             if call_info['auth_kwargs'].get('token', None):
-                args['url'] = call_info['auth_kwargs']['storage_url']
+                args['url'] = random.choice(
+                    call_info['auth_kwargs']['storage_urls'])
                 args['token'] = call_info['auth_kwargs']['token']
             else:
                 token_key = self._token_key(call_info['auth_kwargs'])
@@ -279,9 +283,10 @@ class Worker:
                                           call_info['auth_kwargs'])
                             storage_url, token = client.get_auth(
                                 **call_info['auth_kwargs'])
-                            override_url = call_info['auth_kwargs'].get(
-                                'storage_url', None)
-                            if override_url:
+                            override_urls = call_info['auth_kwargs'].get(
+                                'storage_urls', None)
+                            if override_urls:
+                                override_url = random.choice(override_urls)
                                 logging.debug(
                                     'Overriding auth storage url %s with %s',
                                     storage_url, override_url)
@@ -337,7 +342,7 @@ class Worker:
             except socket.error as error:
                 tries += 1
                 if tries > self.max_retries:
-                    error.args += (tries-1,)
+                    error.retries = tries - 1
                     raise error
             except client.ClientException as error:
                 tries += 1
@@ -359,7 +364,7 @@ class Worker:
                                 self.token_data_lock.release()
                     logging.debug("Retrying an error: %r", error)
                 else:
-                    error.args += (tries-1,)
+                    error.retries = tries - 1
                     raise error
         fn_results['retries'] = tries
         return fn_results
@@ -384,7 +389,7 @@ class Worker:
         # last arg is assumed as the # of retries
         self.put_results(job_data,
                          exception=repr(e),
-                         retries=e.args[-1],
+                         retries=getattr(e, 'retries', 0),
                          traceback=traceback.format_exc())
 
     def _put_results_from_response(self, object_info, resp_headers):

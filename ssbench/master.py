@@ -23,6 +23,7 @@ gevent.monkey.patch_time()
 import os
 import sys
 import signal
+import random
 import logging
 import msgpack
 import resource
@@ -213,7 +214,7 @@ class Master:
             signal.alarm(0)
 
     def run_scenario(self, scenario, auth_url, user, key, auth_version,
-                     os_options, cacert, insecure, storage_url, token,
+                     os_options, cacert, insecure, storage_urls, token,
                      run_results, noop=False, with_profiling=False,
                      keep_objects=False, batch_size=1):
         """
@@ -230,7 +231,8 @@ class Master:
         :param insecure: Allow to access insecure keystone server.
                          The keystone's certificate will not be verified.
         :param cacert: Bundle file to use in verifying SSL.
-        :param storage_url: Optional user-specified x-storage-url
+        :param storage_urls: Optional user-specified list of x-storage-url
+                             values
         :param token: Optional user-specified x-auth-token
         :param run_results: RunResults objects for the run
         :param noop: Run in no-op mode?
@@ -257,9 +259,9 @@ class Master:
             auth_kwargs = dict(
                 auth_url=auth_url, user=user, key=key,
                 auth_version=auth_version, os_options=os_options,
-                cacert=cacert, insecure=insecure, storage_url=storage_url)
+                cacert=cacert, insecure=insecure, storage_urls=storage_urls)
         else:
-            auth_kwargs = dict(storage_url=storage_url, token=token)
+            auth_kwargs = dict(storage_urls=storage_urls, token=token)
 
         # Ensure containers exist
         if not noop:
@@ -267,12 +269,13 @@ class Master:
                 logging.debug('Authenticating to %s with %s/%s', auth_url,
                               user, key)
                 c_storage_url, c_token = client.get_auth(**auth_kwargs)
-                if storage_url:
+                if storage_urls:
+                    overridden_url = random.choice(storage_urls)
                     logging.debug('Overriding auth storage url %s with %s',
-                                  c_storage_url, storage_url)
-                    c_storage_url = storage_url
+                                  c_storage_url, overridden_url)
+                    c_storage_url = overridden_url
             else:
-                c_storage_url, c_token = storage_url, token
+                c_storage_url, c_token = random.choice(storage_urls), token
                 logging.debug('Using token %s at %s', c_token, c_storage_url)
 
             logging.info('Ensuring %d containers (%s_*) exist; '

@@ -114,7 +114,7 @@ class TestWorker(object):
             'container': 'someContainer',
             'name': 'someName',
             'auth_kwargs': {
-                'storage_url': 'someUrl',
+                'storage_urls': ['someUrl'],
                 'token': 'someToken',
             },
             'connect_timeout': 3.142,
@@ -380,8 +380,10 @@ class TestWorker(object):
 
     def test_dispatching_socket_exception(self):
         info = {'type': ssbench.CREATE_OBJECT, 'a': 1}
+        wrappedException = socket.error('slap happy')
+        wrappedException.retries = 5
         self.mock_worker.should_receive('handle_upload_object').with_args(
-            info).and_raise(socket.error('slap happy', 5)).once
+            info).and_raise(wrappedException).once
         got = []
         self.result_queue.should_receive('put').replace_with(
             lambda value: got.append(value)).once
@@ -394,15 +396,13 @@ class TestWorker(object):
         assert_equal(
             worker.add_dicts(
                 info, worker_id=self.worker_id, completed_at=self.stub_time,
-                exception=repr(socket.error('slap happy', 5)), retries=5),
+                exception=repr(socket.error('slap happy')), retries=5),
             got[0])
 
     def test_dispatching_client_exception(self):
         info = {'type': ssbench.READ_OBJECT, 'container': 'fun', 'a': 2}
-        # ClientException allows any args such as scheme, i.e. calling with
-        # some args could not make tuple in Exception class.
         wrappedException = client.ClientException('slam bam')
-        wrappedException.args += (3,)
+        wrappedException.retries = 3
         self.mock_worker.should_receive('handle_get_object').with_args(
             info).and_raise(wrappedException).once
         got = []

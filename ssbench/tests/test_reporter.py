@@ -70,7 +70,8 @@ class TestReporter(ScenarioFixture, TestCase):
             #
             # exceptions should be ignored
             [dict(worker_id=2, type=ssbench.UPDATE_OBJECT, size_str='large',
-                  completed_at=152.2, retries=5, exception='wacky!', traceback='ugh'),
+                  completed_at=152.2, retries=5, exception='wacky!',
+                  traceback='ugh'),
             self.gen_result(
                 2, ssbench.UPDATE_OBJECT, 'medium', 100.1, 100.9, 102.9, 1)],
             [self.gen_result(
@@ -169,8 +170,18 @@ class TestReporter(ScenarioFixture, TestCase):
             'median': '  N/A  '}, self.reporter._series_stats([], 88, True))
 
     def test__compute_latency_stats_bad_key(self):
-        with self.assertRaises(KeyError):
-            self.reporter._compute_latency_stats({}, 88, True)
+        some_stats = {}
+        self.reporter._compute_latency_stats(some_stats, 88, True)
+        self.assertEqual({
+            'first_byte_latency': {
+                'min': ' N/A  ', 'max': '  N/A  ', 'avg': '  N/A  ',
+                'pctile': '  N/A  ', 'std_dev': '  N/A  ',
+                'median': '  N/A  '},
+            'last_byte_latency': {
+                'min': ' N/A  ', 'max': '  N/A  ', 'avg': '  N/A  ',
+                'pctile': '  N/A  ', 'std_dev': '  N/A  ',
+                'median': '  N/A  '}},
+            some_stats)
 
     def test_calculate_scenario_stats_aggregate(self):
         first_byte_latency_all = [1, 0.1, 1.2, 0.2, 0.8, 0.1, 0.1,

@@ -413,15 +413,20 @@ ${label}
         try:
             for latency_type in ('first_byte_latency', 'last_byte_latency'):
                 stat_dict[latency_type] = self._series_stats(
-                    stat_dict[latency_type], nth_pctile, format_numbers)
+                    stat_dict.get(latency_type, []), nth_pctile,
+                    format_numbers)
         except KeyError:
             logging.exception('stat_dict: %r', stat_dict)
             raise
 
     def _compute_req_per_sec(self, stat_dict):
-        stat_dict['avg_req_per_sec'] = round(stat_dict['req_count'] /
-                                             (stat_dict['stop'] -
-                                              stat_dict['start']), 6)
+        if 'start' in stat_dict:
+            delta_t = stat_dict['stop'] - stat_dict['start']
+            stat_dict['avg_req_per_sec'] = round(
+                stat_dict['req_count'] / delta_t,
+                6)
+        else:
+            stat_dict['avg_req_per_sec'] = 0.0
 
     def _compute_retry_rate(self, stat_dict):
         stat_dict['retry_rate'] = round((float(stat_dict['retries']) /
