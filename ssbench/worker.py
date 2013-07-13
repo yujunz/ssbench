@@ -42,7 +42,7 @@ from ssbench.util import add_dicts, raise_file_descriptor_limit
 import ssbench.swift_client as client
 
 
-BLOCK_SIZE = 2 ** 16  # 65536
+DEFAULT_BLOCK_SIZE = 2 ** 16  # 65536
 
 
 class ConnectionPool(gevent.queue.Queue):
@@ -382,6 +382,7 @@ class Worker:
         object_info.pop('connect_timeout', None)
         object_info.pop('auth_kwargs', None)
         object_info.pop('head_first', None)
+        object_info.pop('block_size', None)
         self.put_results(
             object_info,
             first_byte_latency=resp_headers.get(
@@ -413,11 +414,12 @@ class Worker:
                 self._put_results_from_response(object_info, headers)
                 return
         object_info['size'] = int(object_info['size'])
-        contents = letter * BLOCK_SIZE
+        block_size = object_info.get('block_size') or DEFAULT_BLOCK_SIZE
+        contents = letter * block_size
         headers = self.ignoring_http_responses(
             (503,), client.put_object, object_info,
             content_length=object_info['size'],
-            chunk_size=BLOCK_SIZE, contents=contents)
+            chunk_size=block_size, contents=contents)
         self._put_results_from_response(object_info, headers)
 
     # By the time a job gets to the worker, an object create and update look
@@ -434,5 +436,5 @@ class Worker:
     def handle_get_object(self, object_info):
         headers = self.ignoring_http_responses(
             (404, 503), client.get_object, object_info,
-            resp_chunk_size=BLOCK_SIZE)
+            resp_chunk_size=object_info.get('block_size', DEFAULT_BLOCK_SIZE))
         self._put_results_from_response(object_info, headers)

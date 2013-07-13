@@ -280,7 +280,8 @@ class TestWorker(object):
         ).with_args(
             (503,), client.put_object, object_info,
             content_length=99000,
-            chunk_size=worker.BLOCK_SIZE, contents='A' * worker.BLOCK_SIZE,
+            chunk_size=worker.DEFAULT_BLOCK_SIZE,
+            contents='A' * worker.DEFAULT_BLOCK_SIZE,
         ).and_return({
             'x-swiftstack-first-byte-latency': 0.492393,
             'x-swiftstack-last-byte-latency': 8.23283,
@@ -304,6 +305,7 @@ class TestWorker(object):
             'name': object_name,
             'size': 99000,
             'head_first': True,
+            'block_size': 889,
         }
         self.mock_worker.should_receive(
             'ignoring_http_responses'
@@ -320,7 +322,8 @@ class TestWorker(object):
         ).with_args(
             (503,), client.put_object, object_info,
             content_length=99000,
-            chunk_size=worker.BLOCK_SIZE, contents='A' * worker.BLOCK_SIZE,
+            chunk_size=889,
+            contents='A' * 889,
         ).never
         self.time_expectation.once
         exp_put = add_dicts(
@@ -328,6 +331,7 @@ class TestWorker(object):
             last_byte_latency=8.84328, trans_id='abcdef',
             completed_at=self.stub_time, retries=0)
         exp_put.pop('head_first')
+        exp_put.pop('block_size')
         self.result_queue.should_receive('put').with_args(exp_put).once
         self.mock_worker.handle_upload_object(object_info)
 
@@ -339,6 +343,7 @@ class TestWorker(object):
             'name': object_name,
             'size': 99000,
             'head_first': True,
+            'block_size': None,
         }
         self.mock_worker.should_receive(
             'ignoring_http_responses'
@@ -350,7 +355,8 @@ class TestWorker(object):
         ).with_args(
             (503,), client.put_object, object_info,
             content_length=99000,
-            chunk_size=worker.BLOCK_SIZE, contents='A' * worker.BLOCK_SIZE,
+            chunk_size=worker.DEFAULT_BLOCK_SIZE,
+            contents='A' * worker.DEFAULT_BLOCK_SIZE,
         ).and_return({
             'x-swiftstack-first-byte-latency': 0.3248,
             'x-swiftstack-last-byte-latency': 4.493,
@@ -363,6 +369,7 @@ class TestWorker(object):
             last_byte_latency=4.493, trans_id='evn',
             completed_at=self.stub_time, retries=0)
         exp_put.pop('head_first')
+        exp_put.pop('block_size')
         self.result_queue.should_receive('put').with_args(exp_put).once
         self.mock_worker.handle_upload_object(object_info)
 
@@ -402,7 +409,8 @@ class TestWorker(object):
         ).with_args(
             (503,), client.put_object, object_info,
             content_length=483213,
-            chunk_size=worker.BLOCK_SIZE, contents='B' * worker.BLOCK_SIZE,
+            chunk_size=worker.DEFAULT_BLOCK_SIZE,
+            contents='B' * worker.DEFAULT_BLOCK_SIZE,
         ).and_return({
             'x-swiftstack-first-byte-latency': 4.45,
             'x-swiftstack-last-byte-latency': 23.283,
@@ -429,7 +437,7 @@ class TestWorker(object):
             'ignoring_http_responses',
         ).with_args(
             (404, 503), client.get_object, object_info,
-            resp_chunk_size=worker.BLOCK_SIZE,
+            resp_chunk_size=worker.DEFAULT_BLOCK_SIZE,
         ).and_return({
             'x-swiftstack-first-byte-latency': 5.33,
             'x-swiftstack-last-byte-latency': 9.99,

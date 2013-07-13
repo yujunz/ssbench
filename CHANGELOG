@@ -1,3 +1,14 @@
+ssbench (0.2.22)
+
+    * Always print the distribution of requests per worker-ID in the report.
+
+    * Allow ssbench-master to override the default work block size used for
+      GET/PUT operations (-b BYTES or --block-size BYTES)
+
+    * Document the container_base key in the scenario file and allow a
+      non-default value for that to be passed into the cleanup-containers
+      sub-command.
+
 ssbench (0.2.21)
 
     * Updated AUTHORS file (sorry guys!)

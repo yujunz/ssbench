@@ -33,7 +33,8 @@ class Scenario(object):
 
     def __init__(self, scenario_filename=None, container_count=None,
                  user_count=None, operation_count=None, run_seconds=None,
-                 _scenario_data=None, version=ssbench.version):
+                 block_size=None, _scenario_data=None,
+                 version=ssbench.version):
         """Initializes the object from a scenario file on disk.
 
         :scenario_filename: path to a scenario file
@@ -84,6 +85,7 @@ class Scenario(object):
             raise ValueError('A scenario requires run_seconds or '
                              'operation_count')
 
+        self.block_size = block_size
         self.name = self._scenario_data['name']
         self.container_base = self._scenario_data.get('container_base',
                                                       'ssbench')
@@ -182,6 +184,7 @@ class Scenario(object):
                         size=random.randint(
                             self.sizes_by_name[size_str]['size_min'],
                             self.sizes_by_name[size_str]['size_max']),
+                        block_size=self.block_size,
                         head_first=head_first)
 
     def bench_job(self, size_str, crud_index, i):
@@ -197,10 +200,12 @@ class Scenario(object):
         if crud_index == 0:
             return self.create_job(size_str, i)
         elif crud_index == 1:
-            return self.job(size_str, type=ssbench.READ_OBJECT)
+            return self.job(size_str, type=ssbench.READ_OBJECT,
+                            block_size=self.block_size)
         elif crud_index == 2:
             return self.job(
                 size_str, type=ssbench.UPDATE_OBJECT,
+                block_size=self.block_size,
                 size=random.randint(
                     self.sizes_by_name[size_str]['size_min'],
                     self.sizes_by_name[size_str]['size_max']))

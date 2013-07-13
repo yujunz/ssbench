@@ -26,6 +26,7 @@ from os import environ
 from datetime import datetime
 
 import ssbench
+import ssbench.worker
 import ssbench.swift_client as client
 from ssbench.master import Master
 from ssbench.reporter import Reporter
@@ -56,7 +57,8 @@ def kill_workers(args):
 
 def cleanup_containers(args):
     auth_kwargs = auth_kwargs_from_args(args)
-    master_from_args(args).cleanup_containers(auth_kwargs, args.concurrency)
+    master_from_args(args).cleanup_containers(auth_kwargs, args.container_base,
+                                              args.concurrency)
 
 
 def auth_kwargs_from_args(args):
@@ -136,11 +138,16 @@ def run_scenario(args):
         logging.info('NOTE: --noop was specified; not testing Swift.')
     else:
         scenario_class = Scenario
+    scenario_kwargs = {}
+    if args.block_size != ssbench.worker.DEFAULT_BLOCK_SIZE:
+        scenario_kwargs['block_size'] = args.block_size
+
     scenario = scenario_class(args.scenario_file,
                               container_count=container_count,
                               user_count=user_count,
                               operation_count=operation_count,
-                              run_seconds=run_seconds)
+                              run_seconds=run_seconds,
+                              **scenario_kwargs)
 
     # Sanity-check batch_size
     if args.batch_size > scenario.user_count:
@@ -475,6 +482,10 @@ if __name__ == "__main__":
         help='Override the run time specified in the '
         'scenario file; if specified, --op-count is ignored.')
     run_scenario_arg_parser.add_argument(
+        '-b', '--block-size', default=ssbench.worker.DEFAULT_BLOCK_SIZE,
+        type=int, metavar='BYTES',
+        help='Block size used by ssbench-worker during PUT and GET')
+    run_scenario_arg_parser.add_argument(
         '--workers', metavar='COUNT', type=int,
         help='Spawn COUNT local ssbench-worker processes just for this '
         'run. To workers on other hosts, they must be started manually.')
@@ -555,6 +566,11 @@ be generated, with the default being a "textual summary".
 Recursively delete all ssbench containers and their objects.
 """,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    cleanup_containers_arg_parser.add_argument(
+        '-b', '--container-base', default='ssbench',
+        help='The base string used to construct ssbench container '
+        'names; if you did not override this in your scenario file, '
+        'you do not need to specify this option.')
     cleanup_containers_arg_parser.add_argument(
         '-c', '--concurrency', type=int, default=10,
         help='Operate on this many containers concurrently, '

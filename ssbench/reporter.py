@@ -70,6 +70,7 @@ ${label}
 
 % endif
 % endfor
+Distribution of requests per worker-ID: ${jobs_per_worker_stats['min']} - ${jobs_per_worker_stats['max']} (avg: ${jobs_per_worker_stats['avg']}; stddev: ${jobs_per_worker_stats['std_dev']})
 """
 
     def generate_default_report(self, output_csv=False):
@@ -103,6 +104,7 @@ ${label}
                 stats['time_series']['stop']).strftime(REPORT_TIME_FORMAT),
             'duration': stats['time_series']['stop']
             - stats['time_series']['start_time'],
+            'jobs_per_worker_stats': stats['jobs_per_worker_stats'],
             'weighted_c': 0.0,
             'weighted_r': 0.0,
             'weighted_u': 0.0,

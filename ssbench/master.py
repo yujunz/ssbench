@@ -237,13 +237,13 @@ class Master:
                 break
             signal.alarm(0)
 
-    def cleanup_containers(self, auth_kwargs, concurrency):
+    def cleanup_containers(self, auth_kwargs, container_base, concurrency):
         storage_urls, token = self._authenticate(auth_kwargs)
 
         resp_headers, container_list = client.get_account(
             random.choice(storage_urls), token)
 
-        our_container_re = re.compile('ssbench_\d+$')
+        our_container_re = re.compile('%s_\d+$' % container_base)
 
         start_time = time.time()
         obj_count = 0

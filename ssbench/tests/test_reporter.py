@@ -906,6 +906,7 @@ DELETE
        First-byte latency:  0.100 -   0.100    0.100  (  0.000)    0.100  (   large objs)  txID007
        Last-byte  latency:  0.400 -   0.400    0.400  (  0.000)    0.400  (   large objs)  txID007
 
+Distribution of requests per worker-ID:  4.000 -   5.000 (avg:   4.333; stddev:   0.471)
 """.split('\n'), self.reporter.generate_default_report().split('\n'))
 
     def test_generate_default_report_csv(self):

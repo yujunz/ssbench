@@ -125,6 +125,9 @@ defining a benchmark run.  Specifically, it defines:
   concurrency for the benchmark client requests.)  This value may be overridden
   for any given run with the ``-u COUNT`` flag to ``ssbench-master
   run-scenario``.
+- A ``container_base`` which is a string used to construct the names of
+  containers used by ssbench.  It defaults to ``ssbench``, resulting in
+  container names like ``ssbench_000061``.
 - A ``container_count`` which determines how many Swift containers are used for
   the benchmark run.  This key is optional in the scenario file and defaults to
   100.  This value may be overridden for any given run with the ``-c
@@ -242,9 +245,9 @@ runs a benchmark scenario::
                                      [--os-cacert <ca-certificate>] [--insecure]
                                      [-S STORAGE_URL] [-T TOKEN] [-c COUNT]
                                      [-u COUNT] [-o COUNT] [-r SECONDS]
-                                     [--workers COUNT] [--batch-size COUNT]
-                                     [--profile] [--noop] [-k]
-                                     [--connect-timeout CONNECT_TIMEOUT]
+                                     [-b BYTES] [--workers COUNT]
+                                     [--batch-size COUNT] [--profile] [--noop]
+                                     [-k] [--connect-timeout CONNECT_TIMEOUT]
                                      [--network-timeout NETWORK_TIMEOUT]
                                      [-s STATS_FILE] [-R] [--csv]
                                      [--pctile PERCENTILE]
@@ -276,9 +279,9 @@ deletes all ssbench-created containers and objects.  It takes all the same
 authorization-related options as ``run-scenario``::
 
   $ ssbench-master cleanup-containers -h
-  usage: ssbench-master cleanup-containers [-h] [-c CONCURRENCY]
-                                           [-V AUTH_VERSION] [-A AUTH_URL]
-                                           [-U USER] [-K KEY]
+  usage: ssbench-master cleanup-containers [-h] [-b CONTAINER_BASE]
+                                           [-c CONCURRENCY] [-V AUTH_VERSION]
+                                           [-A AUTH_URL] [-U USER] [-K KEY]
                                            [--os-username <auth-user-name>]
                                            [--os-password <auth-password>]
                                            [--os-tenant-id <auth-tenant-id>]

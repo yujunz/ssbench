@@ -99,6 +99,14 @@ class TestScenario(ScenarioFixture):
         # very whitebox:
         assert_dict_equal(self.scenario_dict, self.scenario._scenario_data)
         assert_equal(ssbench.version, self.scenario.version)
+        assert_equal(None, self.scenario.block_size)
+
+    def test_basic_instantiation_with_block_size(self):
+        # very whitebox:
+        scenario = Scenario(self.stub_scenario_file, block_size=987)
+        assert_dict_equal(self.scenario_dict, scenario._scenario_data)
+        assert_equal(ssbench.version, scenario.version)
+        assert_equal(987, scenario.block_size)
 
     def test_packb_unpackb(self):
         packed = self.scenario.packb()
@@ -337,6 +345,16 @@ class TestScenario(ScenarioFixture):
         bench_job = self.scenario.bench_job('small', 0, 31)
         assert_in(bench_job['container'], self.scenario.containers)
         assert_equal('small_000031', bench_job['name'])
+        assert_equal(None, bench_job['block_size'])
+        assert_in(bench_job['size'], [199, 200])
+        assert_equal(ssbench.CREATE_OBJECT, bench_job['type'])
+
+    def test_bench_job_0_with_block_size(self):
+        self.scenario.block_size = 88
+        bench_job = self.scenario.bench_job('small', 0, 31)
+        assert_in(bench_job['container'], self.scenario.containers)
+        assert_equal('small_000031', bench_job['name'])
+        assert_equal(88, bench_job['block_size'])
         assert_in(bench_job['size'], [199, 200])
         assert_equal(ssbench.CREATE_OBJECT, bench_job['type'])
 
@@ -345,6 +363,16 @@ class TestScenario(ScenarioFixture):
         assert_dict_equal(dict(
             type=ssbench.READ_OBJECT,
             size_str='large',
+            block_size=None,
+        ), bench_job)
+
+    def test_bench_job_1_with_block_size(self):
+        self.scenario.block_size = 99
+        bench_job = self.scenario.bench_job('large', 1, 492)
+        assert_dict_equal(dict(
+            type=ssbench.READ_OBJECT,
+            size_str='large',
+            block_size=99,
         ), bench_job)
 
     def test_bench_job_2(self):
@@ -353,9 +381,28 @@ class TestScenario(ScenarioFixture):
         assert_dict_equal(dict(
             type=ssbench.UPDATE_OBJECT,
             size_str='tiny',
+            block_size=None,
+        ), bench_job)
+
+    def test_bench_job_2_with_block_size(self):
+        self.scenario.block_size = 71
+        bench_job = self.scenario.bench_job('tiny', 2, 9329)
+        assert_in(bench_job.pop('size'), [99, 100])
+        assert_dict_equal(dict(
+            type=ssbench.UPDATE_OBJECT,
+            size_str='tiny',
+            block_size=71,
         ), bench_job)
 
     def test_bench_job_3(self):
+        bench_job = self.scenario.bench_job('huge', 3, 30230)
+        assert_dict_equal(dict(
+            type=ssbench.DELETE_OBJECT,
+            size_str='huge',
+        ), bench_job)
+
+    def test_bench_job_3_with_block_size(self):
+        self.scenario.block_size = 111
         bench_job = self.scenario.bench_job('huge', 3, 30230)
         assert_dict_equal(dict(
             type=ssbench.DELETE_OBJECT,
@@ -380,6 +427,7 @@ class TestScenario(ScenarioFixture):
             'size_str': 'tiny',
             'name': 'tiny_000001',
             'head_first': True,
+            'block_size': None,
         }, jobs[0])
         assert_in(jobs[1].pop('size'), [199, 200])
         assert_dict_equal({
@@ -388,6 +436,7 @@ class TestScenario(ScenarioFixture):
             'size_str': 'small',
             'name': 'small_000001',
             'head_first': True,
+            'block_size': None,
         }, jobs[1])
         assert_in(jobs[2].pop('size'), [299, 300])
         assert_dict_equal({
@@ -396,6 +445,7 @@ class TestScenario(ScenarioFixture):
             'size_str': 'medium',
             'name': 'medium_000001',
             'head_first': True,
+            'block_size': None,
         }, jobs[2])
         assert_in(jobs[3].pop('size'), [399, 400])
         assert_dict_equal({
@@ -404,6 +454,7 @@ class TestScenario(ScenarioFixture):
             'size_str': 'large',
             'name': 'large_000001',
             'head_first': True,
+            'block_size': None,
         }, jobs[3])
         # This scenario called for no initial "huge" files, so we wrapped back
         # to tiny (#2)
@@ -414,6 +465,7 @@ class TestScenario(ScenarioFixture):
             'size_str': 'tiny',
             'name': 'tiny_000002',
             'head_first': True,
+            'block_size': None,
         }, jobs[4])
 
         size_counter = Counter([_['size_str'] for _ in jobs])

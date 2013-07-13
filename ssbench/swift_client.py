@@ -813,29 +813,28 @@ def put_object(url, token=None, container=None, name=None, contents=None,
         headers = {}
     if token:
         headers['X-Auth-Token'] = token
+    if not contents:
+        content_length = 0
     if content_length is not None:
         headers['Content-Length'] = str(content_length)
     else:
-        for n, v in headers.iteritems():
-            if n.lower() == 'content-length':
-                content_length = int(v)
+        raise ValueError('For benchmarking, content_length cannot be None!')
     if content_type is not None:
         headers['Content-Type'] = content_type
-    if not contents:
-        headers['Content-Length'] = '0'
     request_start = time()
     conn.putrequest('PUT', path)
     for header, value in headers.iteritems():
         conn.putheader(header, value)
     conn.endheaders()
     left = content_length
+    chunk_size = min(chunk_size, len(contents))
     while left > 0:
-        size = chunk_size
-        if size > left:
-            size = left
-        chunk = contents[:size]
-        conn.send(chunk)
-        left -= len(chunk)
+        if left < chunk_size:
+            conn.send(contents[:left])
+            left = 0
+        else:
+            conn.send(contents)
+            left -= chunk_size
     resp = conn.getresponse()
     body = resp.read()
     headers = {'X-Auth-Token': token}
