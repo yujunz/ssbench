@@ -5,6 +5,9 @@ ssbench (0.2.21)
     * Fixed #66: Add cleanup-containers command to ssbench-master to delete all
                  ssbench-created containers and objects.
 
+    * Fixed #65: Only create initial files if they're not already present (try
+                 to HEAD them first)
+
 ssbench (0.2.20)
 
     * Pick a storage URL for each request (better multiple -S support)

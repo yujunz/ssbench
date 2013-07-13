@@ -101,7 +101,11 @@ defining a benchmark run.  Specifically, it defines:
   initial files also defines the probability distribution of object sizes
   during the benchmark run itself.  So if a particular object size class is not
   included in ``initial_files`` or has a value of 0 in ``initial_files``, then
-  no objects in that size class will be used during the benchmark run.
+  no objects in that size class will be used during the benchmark run.  Each
+  initial object's name and container is deterministic and, as an optimization,
+  if an object of the right name is in the right container, it will not be
+  uploaded again; note that initial objects are not deleted after each
+  benchmark run, so this can speed up subsequent runs quite a bit.
 - An ``operation_count`` of operations to perform during the benchmark run.
   An operation is
   either a CREATE, READ, UPDATE, or DELETE of an object.  This value may be

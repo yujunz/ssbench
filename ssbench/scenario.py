@@ -19,6 +19,7 @@ import random
 import signal
 import logging
 import msgpack
+import itertools
 
 import ssbench
 from ssbench.ordered_dict import OrderedDict
@@ -166,18 +167,22 @@ class Scenario(object):
         job.update(kwargs)
         return job
 
-    def create_job(self, size_str, i):
+    def create_job(self, size_str, i, container=None, head_first=False):
         """
         Creates job dict which will create an object.
         """
 
+        if container is None:
+            container = random.choice(self.containers)
+
         return self.job(size_str,
                         type=ssbench.CREATE_OBJECT,
-                        container=random.choice(self.containers),
+                        container=container,
                         name='%s_%06d' % (size_str, i),
                         size=random.randint(
                             self.sizes_by_name[size_str]['size_min'],
-                            self.sizes_by_name[size_str]['size_max']))
+                            self.sizes_by_name[size_str]['size_max']),
+                        head_first=head_first)
 
     def bench_job(self, size_str, crud_index, i):
         """Creates a benchmark work job dict of a given size and crud "index"
@@ -212,6 +217,7 @@ class Scenario(object):
 
         count_by_size = copy.copy(self._scenario_data['initial_files'])
         index_per_size = dict.fromkeys(count_by_size.iterkeys(), 1)
+        container_iter = itertools.cycle(self.containers)
 
         yielded = True
         while yielded:
@@ -220,7 +226,9 @@ class Scenario(object):
                     lambda n: n in self._scenario_data['initial_files'],
                     self.sizes_by_name.keys()):
                 if count_by_size[size_str]:
-                    yield self.create_job(size_str, index_per_size[size_str])
+                    yield self.create_job(size_str, index_per_size[size_str],
+                                          container=container_iter.next(),
+                                          head_first=True)
                     count_by_size[size_str] -= 1
                     index_per_size[size_str] += 1
                     yielded = True

@@ -245,7 +245,7 @@ class Worker:
         args.update(extra_keys)
 
         if 'auth_kwargs' not in call_info:
-            raise ValueError('Got benchmark job without "auth_kwargs" key!', 0)
+            raise ValueError('Got benchmark job without "auth_kwargs" key!')
 
         tries = 0
         while True:
@@ -308,8 +308,10 @@ class Worker:
                     break
                 tries += 1
                 if tries > self.max_retries:
-                    raise Exception('No fn_results for %r after %d retires'
-                                    % (fn, self.max_retries), tries)
+                    e = Exception('No fn_results for %r after %d retires' % (
+                        fn, self.max_retries))
+                    e.retries = tries - 1
+                    raise e
             # XXX The name of this method does not suggest that it
             # will also retry on socket-level errors. Regardless,
             # sometimes Swift refuses connections (probably when it's
@@ -379,6 +381,7 @@ class Worker:
         object_info.pop('network_timeout', None)
         object_info.pop('connect_timeout', None)
         object_info.pop('auth_kwargs', None)
+        object_info.pop('head_first', None)
         self.put_results(
             object_info,
             first_byte_latency=resp_headers.get(
@@ -398,6 +401,17 @@ class Worker:
     handle_PING = handle_noop
 
     def handle_upload_object(self, object_info, letter='A'):
+        if object_info.get('head_first'):
+            # Only upload if it's not already present
+            try:
+                headers = self.ignoring_http_responses(
+                    (503,), client.head_object, object_info)
+            except client.ClientException:
+                # Not present, so continue on to the upload
+                pass
+            else:
+                self._put_results_from_response(object_info, headers)
+                return
         object_info['size'] = int(object_info['size'])
         contents = letter * BLOCK_SIZE
         headers = self.ignoring_http_responses(

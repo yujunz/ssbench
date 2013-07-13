@@ -371,44 +371,49 @@ class TestScenario(ScenarioFixture):
 
         # no need to be clever with these, the implementation will just stripe
         # across the sizes; we'll spot-check some here.
-        assert_in(jobs[0].pop('container'), self.scenario.containers)
         assert_in(jobs[0].pop('size'), [99, 100])
         assert_dict_equal({
             # Note that the scenario stays out of the business of which cluster
             # you're using and authentication tokens.
             'type': ssbench.CREATE_OBJECT,
+            'container': self.scenario.containers[0],
             'size_str': 'tiny',
             'name': 'tiny_000001',
+            'head_first': True,
         }, jobs[0])
-        assert_in(jobs[1].pop('container'), self.scenario.containers)
         assert_in(jobs[1].pop('size'), [199, 200])
         assert_dict_equal({
             'type': ssbench.CREATE_OBJECT,
+            'container': self.scenario.containers[1],
             'size_str': 'small',
             'name': 'small_000001',
+            'head_first': True,
         }, jobs[1])
-        assert_in(jobs[2].pop('container'), self.scenario.containers)
         assert_in(jobs[2].pop('size'), [299, 300])
         assert_dict_equal({
             'type': ssbench.CREATE_OBJECT,
+            'container': self.scenario.containers[2],
             'size_str': 'medium',
             'name': 'medium_000001',
+            'head_first': True,
         }, jobs[2])
-        assert_in(jobs[3].pop('container'), self.scenario.containers)
         assert_in(jobs[3].pop('size'), [399, 400])
         assert_dict_equal({
             'type': ssbench.CREATE_OBJECT,
+            'container': self.scenario.containers[3],
             'size_str': 'large',
             'name': 'large_000001',
+            'head_first': True,
         }, jobs[3])
         # This scenario called for no initial "huge" files, so we wrapped back
         # to tiny (#2)
-        assert_in(jobs[4].pop('container'), self.scenario.containers)
         assert_in(jobs[4].pop('size'), [99, 100])
         assert_dict_equal({
             'type': ssbench.CREATE_OBJECT,
+            'container': self.scenario.containers[4],
             'size_str': 'tiny',
-            'name': 'tiny_000002',  # <Usage><Type>######
+            'name': 'tiny_000002',
+            'head_first': True,
         }, jobs[4])
 
         size_counter = Counter([_['size_str'] for _ in jobs])

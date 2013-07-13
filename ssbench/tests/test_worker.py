@@ -296,6 +296,76 @@ class TestWorker(object):
         ).once
         self.mock_worker.handle_upload_object(object_info)
 
+    def test_handle_upload_object_head_first_present(self):
+        object_name = '/foo/bar/SP000001'
+        object_info = {
+            'type': ssbench.CREATE_OBJECT,
+            'container': 'Picture',
+            'name': object_name,
+            'size': 99000,
+            'head_first': True,
+        }
+        self.mock_worker.should_receive(
+            'ignoring_http_responses'
+        ).with_args(
+            (503,), client.head_object, object_info,
+        ).and_return({
+            'x-swiftstack-first-byte-latency': 0.942,
+            'x-swiftstack-last-byte-latency': 8.84328,
+            'x-trans-id': 'abcdef',
+            'retries': 0,
+        }).once
+        self.mock_worker.should_receive(
+            'ignoring_http_responses'
+        ).with_args(
+            (503,), client.put_object, object_info,
+            content_length=99000,
+            chunk_size=worker.BLOCK_SIZE, contents='A' * worker.BLOCK_SIZE,
+        ).never
+        self.time_expectation.once
+        exp_put = add_dicts(
+            object_info, worker_id=self.worker_id, first_byte_latency=0.942,
+            last_byte_latency=8.84328, trans_id='abcdef',
+            completed_at=self.stub_time, retries=0)
+        exp_put.pop('head_first')
+        self.result_queue.should_receive('put').with_args(exp_put).once
+        self.mock_worker.handle_upload_object(object_info)
+
+    def test_handle_upload_object_head_first_missing(self):
+        object_name = '/foo/bar/SP000001'
+        object_info = {
+            'type': ssbench.CREATE_OBJECT,
+            'container': 'Picture',
+            'name': object_name,
+            'size': 99000,
+            'head_first': True,
+        }
+        self.mock_worker.should_receive(
+            'ignoring_http_responses'
+        ).with_args(
+            (503,), client.head_object, object_info,
+        ).and_raise(client.ClientException('oh noes!')).once
+        self.mock_worker.should_receive(
+            'ignoring_http_responses'
+        ).with_args(
+            (503,), client.put_object, object_info,
+            content_length=99000,
+            chunk_size=worker.BLOCK_SIZE, contents='A' * worker.BLOCK_SIZE,
+        ).and_return({
+            'x-swiftstack-first-byte-latency': 0.3248,
+            'x-swiftstack-last-byte-latency': 4.493,
+            'x-trans-id': 'evn',
+            'retries': 0,
+        }).once
+        self.time_expectation.once
+        exp_put = add_dicts(
+            object_info, worker_id=self.worker_id, first_byte_latency=0.3248,
+            last_byte_latency=4.493, trans_id='evn',
+            completed_at=self.stub_time, retries=0)
+        exp_put.pop('head_first')
+        self.result_queue.should_receive('put').with_args(exp_put).once
+        self.mock_worker.handle_upload_object(object_info)
+
     def test_handle_delete_object(self):
         object_info = {
             'type': ssbench.DELETE_OBJECT,
