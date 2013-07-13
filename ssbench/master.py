@@ -21,7 +21,9 @@ gevent.monkey.patch_ssl()
 gevent.monkey.patch_time()
 
 import os
+import re
 import sys
+import time
 import signal
 import random
 import logging
@@ -34,7 +36,8 @@ from ssbench.run_state import RunState
 from ssbench.util import raise_file_descriptor_limit
 
 
-def _container_creator(storage_url, token, container):
+def _container_creator(storage_urls, token, container):
+    storage_url = random.choice(storage_urls)
     http_conn = client.http_connection(storage_url)
     try:
         client.head_container(storage_url, token, container,
@@ -42,6 +45,27 @@ def _container_creator(storage_url, token, container):
     except client.ClientException:
         client.put_container(storage_url, token, container,
                              http_conn=http_conn)
+
+
+def _container_deleter(concurrency, storage_urls, token, container_info):
+    container_name = container_info['name']
+    logging.info('deleting %r (%d objs)', container_name,
+                 container_info['count'])
+    storage_url = random.choice(storage_urls)
+    http_conn = client.http_connection(storage_url)
+    resp_headers, obj_list = client.get_container(
+        random.choice(storage_urls), token, container_name,
+        http_conn=http_conn)
+
+    pool = gevent.pool.Pool(concurrency)
+    for obj_name in [o['name'] for o in obj_list]:
+        pool.spawn(client.delete_object, random.choice(storage_urls), token,
+                   container_name, obj_name)
+    pool.join()
+
+    client.delete_container(
+        random.choice(storage_urls), token, container_name,
+        http_conn=http_conn)
 
 
 def _gen_cleanup_job(object_info):
@@ -213,27 +237,63 @@ class Master:
                 break
             signal.alarm(0)
 
-    def run_scenario(self, scenario, auth_url, user, key, auth_version,
-                     os_options, cacert, insecure, storage_urls, token,
-                     run_results, noop=False, with_profiling=False,
-                     keep_objects=False, batch_size=1):
+    def cleanup_containers(self, auth_kwargs, concurrency):
+        storage_urls, token = self._authenticate(auth_kwargs)
+
+        resp_headers, container_list = client.get_account(
+            random.choice(storage_urls), token)
+
+        our_container_re = re.compile('ssbench_\d+$')
+
+        start_time = time.time()
+        obj_count = 0
+        container_count = 0
+        pool = gevent.pool.Pool(concurrency)
+        for container_info in container_list:
+            # e.g. {'count': 41, 'bytes': 496485, 'name': 'doc'}
+            if our_container_re.match(container_info['name']):
+                pool.spawn(_container_deleter, concurrency, storage_urls,
+                           token, container_info)
+                container_count += 1
+                obj_count += container_info['count']
+            else:
+                logging.debug('Ignoring non-ssbench container %r',
+                              container_info['name'])
+        pool.join()
+        delta_t = time.time() - start_time
+        logging.info('Deleted %.1f containers/s, %.1f objs/s',
+                     container_count / delta_t, obj_count / delta_t)
+
+    def _authenticate(self, auth_kwargs):
+        """
+        Helper method to turn some auth_kwargs into a set of potential storage
+        URLs and a token.
+        """
+        if auth_kwargs.get('token'):
+            logging.debug('Using token %s at one of %r',
+                          auth_kwargs['token'], auth_kwargs['stroage_urls'])
+            return auth_kwargs['storage_urls'], auth_kwargs['token']
+
+        logging.debug('Authenticating to %s with %s/%s',
+                      auth_kwargs['auth_url'], auth_kwargs['user'],
+                      auth_kwargs['key'])
+        storage_url, token = client.get_auth(**auth_kwargs)
+        if auth_kwargs['storage_urls']:
+            logging.debug('Overriding auth storage url %s with '
+                          'one of %r', storage_url,
+                          auth_kwargs['storage_urls'])
+            return auth_kwargs['storage_urls'], token
+
+        return [storage_url], token
+
+    def run_scenario(self, scenario, auth_kwargs, run_results, noop=False,
+                     with_profiling=False, keep_objects=False, batch_size=1):
         """
         Runs a CRUD scenario, given cluster parameters and a Scenario object.
 
         :param scenario: Scenario object describing the benchmark run
-        :param auth_url: Authentication URL for the Swift cluster
-        :param user: Account/Username to use (format is <account>:<username>)
-        :param key: Password for the Account/Username
-        :param auth_version: OpenStack auth version, default is 1.0
-        :param os_options: The OpenStack options which can have tenant_id,
-                           auth_token, service_type, endpoint_type,
-                           tenant_name, object_storage_url, region_name
-        :param insecure: Allow to access insecure keystone server.
-                         The keystone's certificate will not be verified.
-        :param cacert: Bundle file to use in verifying SSL.
-        :param storage_urls: Optional user-specified list of x-storage-url
-                             values
-        :param token: Optional user-specified x-auth-token
+        :param auth_kwargs: All-you-can-eat dictionary of
+                            authentication-related arguments.
         :param run_results: RunResults objects for the run
         :param noop: Run in no-op mode?
         :param with_profiing: Profile the run?
@@ -249,28 +309,15 @@ class Master:
         raise_file_descriptor_limit()
 
         # Construct auth_kwargs appropriate for client.get_auth()
-        if not token:
-            auth_kwargs = dict(
-                auth_url=auth_url, user=user, key=key,
-                auth_version=auth_version, os_options=os_options,
-                cacert=cacert, insecure=insecure, storage_urls=storage_urls)
-        else:
-            auth_kwargs = dict(storage_urls=storage_urls, token=token)
+        if auth_kwargs.get('token'):
+            auth_kwargs = {
+                'storage_urls': auth_kwargs['storage_urls'],
+                'token': auth_kwargs['token'],
+            }
 
         # Ensure containers exist
         if not noop:
-            if not token:
-                logging.debug('Authenticating to %s with %s/%s', auth_url,
-                              user, key)
-                c_storage_url, c_token = client.get_auth(**auth_kwargs)
-                if storage_urls:
-                    overridden_url = random.choice(storage_urls)
-                    logging.debug('Overriding auth storage url %s with %s',
-                                  c_storage_url, overridden_url)
-                    c_storage_url = overridden_url
-            else:
-                c_storage_url, c_token = random.choice(storage_urls), token
-                logging.debug('Using token %s at %s', c_token, c_storage_url)
+            storage_urls, c_token = self._authenticate(auth_kwargs)
 
             logging.info('Ensuring %d containers (%s_*) exist; '
                          'concurrency=%d...',
@@ -278,7 +325,7 @@ class Master:
                          scenario.container_concurrency)
             pool = gevent.pool.Pool(scenario.container_concurrency)
             for container in scenario.containers:
-                pool.spawn(_container_creator, c_storage_url, c_token,
+                pool.spawn(_container_creator, storage_urls, c_token,
                            container)
             pool.join()
 

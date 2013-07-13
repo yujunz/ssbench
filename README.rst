@@ -191,14 +191,15 @@ either ``run-scenario`` to actually run a benchmark scenario,
 ``kill-workers`` to tell connected ``ssbench-worker`` processes not started
 with ``--workers`` to kill themselves::
 
-  $ ssbench-master -h
   usage: ssbench-master [-h] [-v] [-q]
-                        {report-scenario,kill-workers,run-scenario} ...
+                        
+                        {report-scenario,kill-workers,run-scenario,cleanup-containers}
+                        ...
   
-  SwiftStack Benchmark (ssbench) version 0.2.14
+  SwiftStack Benchmark (ssbench) version 0.2.20
   
   positional arguments:
-    {report-scenario,kill-workers,run-scenario}
+    {report-scenario,kill-workers,run-scenario,cleanup-containers}
       kill-workers        Tell all workers to exit.
       run-scenario        Run CRUD scenario, saving statistics. You must supply
                           a valid set of v1.0 or v2.0 auth credentials. See
@@ -206,16 +207,14 @@ with ``--workers`` to kill themselves::
       report-scenario     Generate a report from saved scenario statistics.
                           Various types of reports may be generated, with the
                           default being a "textual summary".
+      cleanup-containers  Recursively delete all ssbench containers and their
+                          objects.
   
   optional arguments:
     -h, --help            show this help message and exit
     -v, --verbose         Enable more verbose output. (default: False)
     -q, --quiet           Suppress most output (including progress characters
                           during run). (default: False)
-  
-                          
-                          usage: ssbench-master [-h] [-v]
-                          {kill-workers,run-scenario,report-scenario} ...
 
 The ``run-scenario`` sub-command of ``ssbench-master`` actually
 runs a benchmark scenario::
@@ -266,8 +265,31 @@ were not started with ``ssbench-master``'s ``--workers`` option)::
   usage: ssbench-master kill-workers [-h] [--zmq-bind-ip BIND_IP]
                                      [--zmq-work-port PORT]
                                      [--zmq-results_port PORT]
-
   ...
+
+The ``cleanup-containers`` sub-command of ``ssbench-master`` recursively
+deletes all ssbench-created containers and objects.  It takes all the same
+authorization-related options as ``run-scenario``::
+
+  $ ssbench-master cleanup-containers -h
+  usage: ssbench-master cleanup-containers [-h] [-c CONCURRENCY]
+                                           [-V AUTH_VERSION] [-A AUTH_URL]
+                                           [-U USER] [-K KEY]
+                                           [--os-username <auth-user-name>]
+                                           [--os-password <auth-password>]
+                                           [--os-tenant-id <auth-tenant-id>]
+                                           [--os-tenant-name <auth-tenant-name>]
+                                           [--os-auth-url <auth-url>]
+                                           [--os-auth-token <auth-token>]
+                                           [--os-storage-url <storage-url>]
+                                           [--os-region-name <region-name>]
+                                           [--os-service-type <service-type>]
+                                           [--os-endpoint-type <endpoint-type>]
+                                           [--os-cacert <ca-certificate>]
+                                           [--insecure] [-S STORAGE_URL]
+                                           [-T TOKEN]
+  ...
+
 
 Authentication
 --------------

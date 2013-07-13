@@ -1,3 +1,10 @@
+ssbench (0.2.21)
+
+    * Updated AUTHORS file (sorry guys!)
+
+    * Fixed #66: Add cleanup-containers command to ssbench-master to delete all
+                 ssbench-created containers and objects.
+
 ssbench (0.2.20)
 
     * Pick a storage URL for each request (better multiple -S support)
