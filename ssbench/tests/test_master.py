@@ -17,8 +17,9 @@ from unittest import TestCase
 from flexmock import flexmock
 from gevent_zeromq import zmq
 
-from ssbench.master import Master
+import msgpack
 
+from ssbench.master import Master
 from ssbench.tests.test_scenario import ScenarioFixture
 
 
@@ -60,7 +61,7 @@ class TestMaster(ScenarioFixture, TestCase):
         self.mock_context = flexmock()
         flexmock(zmq.Context).new_instances(self.mock_context).once
 
-        self.mock_work_push = flexmock()
+        self.mock_work_push = flexmock(send=self._send)
         self.mock_context.should_receive('socket').with_args(
             zmq.PUSH,
         ).and_return(self.mock_work_push).once
@@ -68,7 +69,7 @@ class TestMaster(ScenarioFixture, TestCase):
             self.work_endpoint,
         ).once
 
-        self.mock_results_pull = flexmock()
+        self.mock_results_pull = flexmock(recv=self._recv)
         self.mock_context.should_receive('socket').with_args(
             zmq.PULL,
         ).and_return(self.mock_results_pull).once
@@ -81,5 +82,30 @@ class TestMaster(ScenarioFixture, TestCase):
                              connect_timeout=3.14159,
                              network_timeout=2.71828)
 
+        self._send_calls = []
+        self._recv_returns = []
+
     def tearDown(self):
         super(TestMaster, self).tearDown()
+
+    def _send(self, data):
+        self._send_calls.append(data)
+
+    def _recv(self):
+        value = self._recv_returns.pop(0)
+        return value
+
+    def test_run_scenario_with_noop(self):
+        bench_jobs = list(self.scenario.bench_jobs())
+
+        job_result = dict(
+            type='dummy',
+            container='dummy',
+            name='john.smith',
+            first_byte_latency=0,
+        )
+        recvs = [[job_result] for _ in range(len(bench_jobs))]
+        self._recv_returns = map(msgpack.dumps, recvs)
+        self.master.run_scenario(self.scenario, auth_kwargs={},
+                                 noop=True, run_results=None)
+        # TODO: do some assertion here
