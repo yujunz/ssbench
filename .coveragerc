@@ -1,2 +1,4 @@
 [run]
-omit=ssbench/swift_client.py
+omit=
+	ssbench/swift_client.py
+	ssbench/ordered_dict.py
