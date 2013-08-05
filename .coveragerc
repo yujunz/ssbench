@@ -1,0 +1,2 @@
+[run]
+omit=ssbench/swift_client.py
