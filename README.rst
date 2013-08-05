@@ -40,6 +40,17 @@ has to be installed in a prior "pip" command to be recognized by
   $ sudo pip install Cython gevent pyzmq==2.2.0
   $ sudo pip install ssbench
 
+Installation on RHEL 6.4
+--------------------------
+
+Installation on RHEL 6.4 using its stock Python 2.6::
+
+  $ sudo rpm -Uvh http://mirror.pnl.gov/epel/6/i386/epel-release-6-8.noarch.rpm
+  $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel libevent-devel python-pip zeromq3-devel python-argparse Cython
+  $ sudo pip-python install --upgrade gevent pyzmq==2.2.0
+  $ sudo pip-python install gevent-zeromq
+  $ sudo pip-python install ssbench
+
 Installation on CentOS 6.3
 --------------------------
 
@@ -199,12 +210,12 @@ either ``run-scenario`` to actually run a benchmark scenario,
 with ``--workers`` to kill themselves::
 
   usage: ssbench-master [-h] [-v] [-q]
-                        
+
                         {report-scenario,kill-workers,run-scenario,cleanup-containers}
                         ...
-  
+
   SwiftStack Benchmark (ssbench) version 0.2.20
-  
+
   positional arguments:
     {report-scenario,kill-workers,run-scenario,cleanup-containers}
       kill-workers        Tell all workers to exit.
@@ -216,7 +227,7 @@ with ``--workers`` to kill themselves::
                           default being a "textual summary".
       cleanup-containers  Recursively delete all ssbench containers and their
                           objects.
-  
+
   optional arguments:
     -h, --help            show this help message and exit
     -v, --verbose         Enable more verbose output. (default: False)
@@ -395,16 +406,16 @@ command.  Simply use the ``--workers COUNT`` option to ``ssbench-master``::
   .........._._...._.._.........._........_._.._....._......._....._.
   INFO:Deleting population objects from cluster
   INFO:Calculating statistics...
-  
+
   Small test scenario  (generated with ssbench version 0.2.14)
   Worker count:   2   Concurrency:   4  Ran 2013-06-07 17:23:16 UTC to 2013-06-07 17:23:22 UTC (5s)
-  
+
   % Ops    C   R   U   D       Size Range       Size Name
    91%   % 10  75  15   0        4 kB -   8 kB  tiny
     9%   % 10  75  15   0       20 kB -  40 kB  small
   ---------------------------------------------------------------------
            10  75  15   0      CRUD weighted average
-  
+
   TOTAL
          Count:   613  (   0 error;    0 retries:  0.00%)  Average requests per second: 118.7
                               min       max      avg      std_dev  50%-ile                   Worst latency TX ID
@@ -414,7 +425,7 @@ command.  Simply use the ``--workers COUNT`` option to ``ssbench-master``::
          Last-byte  latency:  0.004 -   0.157    0.028  (  0.024)    0.019  (    tiny objs)  tx6f988120ec5044329f817-0051b21708
          First-byte latency:  0.005 -   0.044    0.018  (  0.008)    0.016  (   small objs)  txe026893bbf09486c83fcdb629f6f25a3
          Last-byte  latency:  0.005 -   0.120    0.031  (  0.026)    0.021  (   small objs)  tx87bf30db5a70412b97a5c71ae60036c1
-  
+
   CREATE
          Count:    64  (   0 error;    0 retries:  0.00%)  Average requests per second: 12.5
                               min       max      avg      std_dev  50%-ile                   Worst latency TX ID
@@ -424,7 +435,7 @@ command.  Simply use the ``--workers COUNT`` option to ``ssbench-master``::
          Last-byte  latency:  0.024 -   0.157    0.064  (  0.022)    0.059  (    tiny objs)  tx6f988120ec5044329f817-0051b21708
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (   small objs)
          Last-byte  latency:  0.061 -   0.120    0.087  (  0.020)    0.089  (   small objs)  tx87bf30db5a70412b97a5c71ae60036c1
-  
+
   READ
          Count:   459  (   0 error;    0 retries:  0.00%)  Average requests per second: 88.9
                               min       max      avg      std_dev  50%-ile                   Worst latency TX ID
@@ -434,7 +445,7 @@ command.  Simply use the ``--workers COUNT`` option to ``ssbench-master``::
          Last-byte  latency:  0.004 -   0.044    0.017  (  0.007)    0.016  (    tiny objs)  tx1d35c8e273bf4bbeb6298-0051b21705
          First-byte latency:  0.005 -   0.044    0.018  (  0.008)    0.016  (   small objs)  txe026893bbf09486c83fcdb629f6f25a3
          Last-byte  latency:  0.005 -   0.044    0.019  (  0.008)    0.017  (   small objs)  txe026893bbf09486c83fcdb629f6f25a3
-  
+
   UPDATE
          Count:    90  (   0 error;    0 retries:  0.00%)  Average requests per second: 18.1
                               min       max      avg      std_dev  50%-ile                   Worst latency TX ID
@@ -444,7 +455,7 @@ command.  Simply use the ``--workers COUNT`` option to ``ssbench-master``::
          Last-byte  latency:  0.021 -   0.143    0.062  (  0.022)    0.061  (    tiny objs)  tx9a502107a0c246e69a987d120a2b9919
          First-byte latency:  N/A   -   N/A      N/A    (  N/A  )    N/A    (   small objs)
          Last-byte  latency:  0.036 -   0.085    0.065  (  0.015)    0.065  (   small objs)  tx732aae54c9484689b8fea-0051b21709
-  
+
   INFO:Scenario run results saved to /tmp/ssbench-results/Small_test_scenario.u4.o613.r-.2013-06-07.102314.stat.gz
   INFO:You may generate a report with:
     .../ssbench-master report-scenario -s /tmp/ssbench-results/Small_test_scenario.u4.o613.r-.2013-06-07.102314.stat.gz
@@ -562,4 +573,3 @@ never remove any existing copyright lines).  Your copyright line should look
 something like::
 
   # Copyright (c) 2013 FirstName LastName
-

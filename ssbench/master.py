@@ -271,7 +271,7 @@ class Master:
         """
         if auth_kwargs.get('token'):
             logging.debug('Using token %s at one of %r',
-                          auth_kwargs['token'], auth_kwargs['stroage_urls'])
+                          auth_kwargs['token'], auth_kwargs['storage_urls'])
             return auth_kwargs['storage_urls'], auth_kwargs['token']
 
         logging.debug('Authenticating to %s with %s/%s',
