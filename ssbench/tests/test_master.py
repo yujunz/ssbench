@@ -182,7 +182,7 @@ class TestMaster(ScenarioFixture, TestCase):
             stderr_output = stderr.getvalue()
             return stderr_output
 
-        # Test frist byte latency outpu
+        # Test frist byte latency output
         first_byte_0s = run_with_args(first_byte_latency=0)
         self.assert_bench_output(first_byte_0s, '.' * len(bench_jobs))
 
@@ -195,7 +195,7 @@ class TestMaster(ScenarioFixture, TestCase):
         first_byte_ge10s = run_with_args(first_byte_latency=12)
         self.assert_bench_output(first_byte_ge10s, '*' * len(bench_jobs))
 
-        # Test last byte latency outpu
+        # Test last byte latency output
         last_byte_0s = run_with_args(last_byte_latency=0)
         self.assert_bench_output(last_byte_0s, '_' * len(bench_jobs))
 
@@ -208,6 +208,6 @@ class TestMaster(ScenarioFixture, TestCase):
         last_byte_ge10s = run_with_args(last_byte_latency=12)
         self.assert_bench_output(last_byte_ge10s, '@' * len(bench_jobs))
 
-        # Test exception outpu
+        # Test exception output
         exception_output = run_with_args(exception=1)
         self.assert_bench_output(exception_output, 'X' * len(bench_jobs))
