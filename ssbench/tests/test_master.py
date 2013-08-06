@@ -13,7 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+import textwrap
 import tempfile
+import StringIO
 from unittest import TestCase
 from flexmock import flexmock
 from gevent_zeromq import zmq
@@ -97,6 +100,23 @@ class TestMaster(ScenarioFixture, TestCase):
         value = self._recv_returns.pop(0)
         return value
 
+    def assert_bench_output(self, output, expected):
+        expected_stderr = '''\
+        Benchmark Run:
+          X    work job raised an exception
+          .  <  1s first-byte-latency
+          o  <  3s first-byte-latency
+          O  < 10s first-byte-latency
+          * >= 10s first-byte-latency
+          _  <  1s last-byte-latency  (CREATE or UPDATE)
+          |  <  3s last-byte-latency  (CREATE or UPDATE)
+          ^  < 10s last-byte-latency  (CREATE or UPDATE)
+          @ >= 10s last-byte-latency  (CREATE or UPDATE)
+        '''
+        expected_stderr = textwrap.dedent(expected_stderr)
+        expected_stderr += expected + '\n'
+        self.assertEqual(output, expected_stderr)
+
     def test_run_scenario_with_noop(self):
         bench_jobs = list(self.scenario.bench_jobs())
 
@@ -122,8 +142,17 @@ class TestMaster(ScenarioFixture, TestCase):
             .replace_with(mock_process_raw_results) \
             .times(len(bench_jobs))
 
-        self.master.run_scenario(self.scenario, auth_kwargs={},
-                                 noop=True, run_results=mock_run_results)
+        ori_stderr = sys.stderr
+        stderr = StringIO.StringIO()
+        sys.stderr = stderr
+        try:
+            self.master.run_scenario(self.scenario, auth_kwargs={},
+                                     noop=True, run_results=mock_run_results)
+            sys.stderr.flush()
+        finally:
+            sys.stderr = ori_stderr
+        stderr_output = stderr.getvalue()
+        self.assert_bench_output(stderr_output, '.' * len(bench_jobs))
 
         # make sure we get expected result in the RunResults
         parsed_calls = map(lambda d: msgpack.loads(d)[0], process_raw_results_calls)
