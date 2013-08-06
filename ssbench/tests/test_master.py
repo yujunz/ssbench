@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import tempfile
 from unittest import TestCase
 from flexmock import flexmock
 from gevent_zeromq import zmq
@@ -20,6 +21,7 @@ from gevent_zeromq import zmq
 import msgpack
 
 from ssbench.master import Master
+from ssbench.run_results import RunResults
 from ssbench.tests.test_scenario import ScenarioFixture
 
 
@@ -99,13 +101,31 @@ class TestMaster(ScenarioFixture, TestCase):
         bench_jobs = list(self.scenario.bench_jobs())
 
         job_result = dict(
-            type='dummy',
-            container='dummy',
+            type='type',
+            container='container',
             name='john.smith',
             first_byte_latency=0,
         )
         recvs = [[job_result] for _ in range(len(bench_jobs))]
         self._recv_returns = map(msgpack.dumps, recvs)
+
+        process_raw_results_calls = []
+
+        def mock_process_raw_results(raw_results):
+            process_raw_results_calls.append(raw_results)
+
+        # create a mock run result object
+        temp_file = tempfile.NamedTemporaryFile()
+        mock_run_results = flexmock(RunResults(temp_file.name))
+        mock_run_results \
+            .should_receive('process_raw_results') \
+            .replace_with(mock_process_raw_results) \
+            .times(len(bench_jobs))
+
         self.master.run_scenario(self.scenario, auth_kwargs={},
-                                 noop=True, run_results=None)
-        # TODO: do some assertion here
+                                 noop=True, run_results=mock_run_results)
+
+        # make sure we get expected result in the RunResults
+        parsed_calls = map(lambda d: msgpack.loads(d)[0], process_raw_results_calls)
+        expected_results = [job_result] * len(bench_jobs)
+        self.assertEqual(parsed_calls[0], expected_results[0])
