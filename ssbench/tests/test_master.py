@@ -151,10 +151,63 @@ class TestMaster(ScenarioFixture, TestCase):
             sys.stderr.flush()
         finally:
             sys.stderr = ori_stderr
-        stderr_output = stderr.getvalue()
-        self.assert_bench_output(stderr_output, '.' * len(bench_jobs))
 
         # make sure we get expected result in the RunResults
         parsed_calls = map(lambda d: msgpack.loads(d)[0], process_raw_results_calls)
         expected_results = [job_result] * len(bench_jobs)
         self.assertEqual(parsed_calls[0], expected_results[0])
+
+    def test_run_scenario_output(self):
+        bench_jobs = list(self.scenario.bench_jobs())
+
+        def run_with_args(**kwargs):
+            job_result = dict(
+                type='type',
+                container='container',
+                name='john.smith',
+            )
+            job_result.update(kwargs)
+            recvs = [[job_result] for _ in range(len(bench_jobs))]
+            self._recv_returns = map(msgpack.dumps, recvs)
+
+            ori_stderr = sys.stderr
+            stderr = StringIO.StringIO()
+            sys.stderr = stderr
+            try:
+                self.master.run_scenario(self.scenario, auth_kwargs={},
+                                         noop=True, run_results=None)
+                sys.stderr.flush()
+            finally:
+                sys.stderr = ori_stderr
+            stderr_output = stderr.getvalue()
+            return stderr_output
+
+        # Test frist byte latency outpu
+        first_byte_0s = run_with_args(first_byte_latency=0)
+        self.assert_bench_output(first_byte_0s, '.' * len(bench_jobs))
+
+        first_byte_lt3s = run_with_args(first_byte_latency=2)
+        self.assert_bench_output(first_byte_lt3s, 'o' * len(bench_jobs))
+
+        first_byte_lt10s = run_with_args(first_byte_latency=8)
+        self.assert_bench_output(first_byte_lt10s, 'O' * len(bench_jobs))
+
+        first_byte_ge10s = run_with_args(first_byte_latency=12)
+        self.assert_bench_output(first_byte_ge10s, '*' * len(bench_jobs))
+
+        # Test last byte latency outpu
+        last_byte_0s = run_with_args(last_byte_latency=0)
+        self.assert_bench_output(last_byte_0s, '_' * len(bench_jobs))
+
+        last_byte_lt3s = run_with_args(last_byte_latency=2)
+        self.assert_bench_output(last_byte_lt3s, '|' * len(bench_jobs))
+
+        last_byte_lt10s = run_with_args(last_byte_latency=8)
+        self.assert_bench_output(last_byte_lt10s, '^' * len(bench_jobs))
+
+        last_byte_ge10s = run_with_args(last_byte_latency=12)
+        self.assert_bench_output(last_byte_ge10s, '@' * len(bench_jobs))
+
+        # Test exception outpu
+        exception_output = run_with_args(exception=1)
+        self.assert_bench_output(exception_output, 'X' * len(bench_jobs))
