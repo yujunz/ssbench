@@ -23,8 +23,10 @@ from gevent_zeromq import zmq
 
 import msgpack
 
+import ssbench
 from ssbench.master import Master
 from ssbench.run_results import RunResults
+from ssbench import swift_client as client
 from ssbench.tests.test_scenario import ScenarioFixture
 
 
@@ -156,6 +158,75 @@ class TestMaster(ScenarioFixture, TestCase):
         parsed_calls = map(lambda d: msgpack.loads(d)[0], process_raw_results_calls)
         expected_results = [job_result] * len(bench_jobs)
         self.assertEqual(parsed_calls[0], expected_results[0])
+
+    def test_run_scenario_only_doable_job_should_pass(self):
+
+        def not_doable_jobs():
+            yield dict(
+                type=ssbench.CREATE_OBJECT,
+                size_str='small',
+                test_id=0,
+            )
+            yield dict(
+                type=ssbench.READ_OBJECT,
+                size_str='small',
+                test_id=1,
+            )
+
+        # make the scenario returns not doable jobs sequence
+        self.scenario = flexmock(self.scenario)
+        self.scenario \
+            .should_receive('bench_jobs') \
+            .replace_with(not_doable_jobs)
+        # make the scenario return no init jobs
+        self.scenario \
+            .should_receive('initial_jobs') \
+            .replace_with(lambda: [])
+
+        # make clinet not to send a real request
+        mock_client = flexmock(client)
+        mock_client \
+            .should_receive('head_container')
+
+        bench_jobs = list(self.scenario.bench_jobs())
+
+        def mock_result(**kwargs):
+            job_result = dict(
+                type=ssbench.READ_OBJECT,
+                size_str='small',
+                container='container',
+                name='john.smith',
+                first_byte_latency=0,
+            )
+            job_result.update(kwargs)
+            return job_result
+
+        # the first create object result will let RunState put it in queue
+        recvs = [[mock_result(type=ssbench.CREATE_OBJECT)]] + \
+            [[mock_result()] for i in range(len(bench_jobs))]
+        self._recv_returns = map(msgpack.dumps, recvs)
+
+        # run the scenario
+        auth_kwargs = dict(
+            token='MOCK_TOKEN',
+            storage_urls=['http://127.0.0.1:8080/auth/v1.0'],
+        )
+        self.master.run_scenario(self.scenario, auth_kwargs=auth_kwargs,
+                                 run_results=None, batch_size=2)
+
+        sent_jobs = map(msgpack.loads, self._send_calls)
+        sent_jobs = sum(sent_jobs, [])  # flatten the list
+
+        # As the sequence is
+        #     Batch 1.
+        #         Create -> doable
+        #         Read -> not doable
+        # only doable jobs should be passed to the worker
+
+        # There is a bug which allows non-doable job to be passed
+        # into send job queue as None, we are here to make sure
+        # None doesn't exist in the sent_jobs
+        self.assertNotIn(None, sent_jobs)
 
     def test_run_scenario_output(self):
         bench_jobs = list(self.scenario.bench_jobs())
