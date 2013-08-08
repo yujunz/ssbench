@@ -157,7 +157,7 @@ class TestMaster(ScenarioFixture, TestCase):
         # make sure we get expected result in the RunResults
         parsed_calls = map(lambda d: msgpack.loads(d)[0], process_raw_results_calls)
         expected_results = [job_result] * len(bench_jobs)
-        self.assertEqual(parsed_calls[0], expected_results[0])
+        self.assertEqual(parsed_calls, expected_results)
 
     def test_run_scenario_only_doable_job_should_pass(self):
 
