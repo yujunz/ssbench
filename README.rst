@@ -66,7 +66,7 @@ Installation on OS X
 --------------------
 
 On the Mac, I recommend installing `Homebrew`_ and using that to install Python
-2.7 and `libevent`_.  I haven't tested a fresh install in a while, but I had far
+2.7, `libevent`_, and zeromq.  I haven't tested a fresh install in a while, but I had far
 less problems with Cython and gevent-zeormq on OS X, probably because the
 `Homebrew`_ Python was newer than Ubuntu 12.04's?
 
