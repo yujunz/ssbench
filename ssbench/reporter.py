@@ -29,6 +29,16 @@ from ssbench.ordered_dict import OrderedDict
 REPORT_TIME_FORMAT = '%F %T UTC'
 
 
+if hasattr(csv.DictWriter, "writeheader"):
+    DictWriter = csv.DictWriter
+else:
+    class DictWriter(csv.DictWriter):
+
+        def writeheader(self):
+            header = dict(zip(self.fieldnames, self.fieldnames))
+            self.writerow(header)
+
+
 class Reporter:
     def __init__(self, run_results):
         self.run_results = run_results
@@ -166,9 +176,9 @@ Distribution of requests per worker-ID: ${jobs_per_worker_stats['min']} - ${jobs
                                                 size_str, per_size_stats,
                                                 tmpl_vars['nth_pctile'])
             csv_file = StringIO()
-            csv_writer = csv.DictWriter(csv_file, csv_fields,
-                                        lineterminator='\n',
-                                        quoting=csv.QUOTE_NONNUMERIC)
+            csv_writer = DictWriter(csv_file, csv_fields,
+                                    lineterminator='\n',
+                                    quoting=csv.QUOTE_NONNUMERIC)
             csv_writer.writeheader()
             csv_writer.writerow(csv_data)
             return csv_file.getvalue()
