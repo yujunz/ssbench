@@ -25,7 +25,11 @@ import re
 import sys
 import time
 import signal
-import random
+try:
+    from random import SystemRandom
+    random = SystemRandom()
+except ImportError:
+    import random
 import logging
 import msgpack
 from gevent_zeromq import zmq

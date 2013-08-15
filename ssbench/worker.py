@@ -28,7 +28,11 @@ gevent.monkey.patch_time()
 
 import os
 import time
-import random
+try:
+    from random import SystemRandom
+    random = SystemRandom()
+except ImportError:
+    import random
 import socket
 import msgpack
 import logging
