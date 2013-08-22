@@ -513,10 +513,10 @@ Distribution of requests per worker-ID: ${jobs_per_worker_stats['min']} - ${jobs
         else:
             if result['completed_at'] > sd_stop:
                 stat_dict['stop'] = result['completed_at']
-        stat_dict['req_count'] = stat_dict.get('req_count', 0) + 1
         stat_dict['retries'] = \
             stat_dict.get('retries', 0) + int(result['retries'])
         if 'exception' not in result:
+            stat_dict['req_count'] = stat_dict.get('req_count', 0) + 1
             self._rec_latency(stat_dict, result)
         else:
             stat_dict['errors'] += 1

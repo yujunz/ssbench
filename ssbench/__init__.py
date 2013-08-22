@@ -14,7 +14,7 @@
 # limitations under the License.
 
 _version = (0, 2, 22)
-version = '.'.join(map(str, _version)) + '-0'
+version = '.'.join(map(str, _version)) + '-1'
 
 # Constant names (which happen to need to match methods called
 # handle_<OPERATION> in worker.py)
