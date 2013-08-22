@@ -344,48 +344,76 @@ Distribution of requests per worker-ID: ${jobs_per_worker_stats['min']} - ${jobs
             size_stats=OrderedDict.fromkeys(
                 self.scenario.sizes_by_name.keys()))
         for results in self.unpacker:
+            skipped = 0
             for result in results:
-                completion_time = int(result['completed_at'])
-                if 'exception' in result:
+                try:
+                    res_completed_at = result['completed_at']
+                    res_completion_time = int(res_completed_at)
+                    res_worker_id = result['worker_id']
+                    res_type = result['type']
+                    res_size_str = result['size_str']
+                except KeyError as err:
+                    logging.info('Skipped result with missing keys (%r): %r',
+                                 err, result)
+                    skipped += 1
+                    continue
+
+                try:
+                    res_exception = result['exception']
+                except KeyError:
+                    try:
+                        res_last_byte_latency = result['last_byte_latency']
+                    except KeyError:
+                        logging.info('Skipped result with missing'
+                                     ' last_byte_latency key: %r',
+                                     result)
+                        skipped += 1
+                        continue
+                    if res_completion_time < completion_time_min:
+                        completion_time_min = res_completion_time
+                        start_time = (
+                            res_completion_time - res_last_byte_latency)
+                    if res_completion_time > completion_time_max:
+                        completion_time_max = res_completion_time
+                    req_completion_seconds[res_completion_time] = \
+                        1 + req_completion_seconds.get(res_completion_time, 0)
+                    result['start'] = res_completed_at - res_last_byte_latency
+                else:
                     # report log exceptions
                     logging.warn('calculate_scenario_stats: exception from '
                                  'worker %d: %s',
-                                 result['worker_id'], result['exception'])
-                    logging.info(result['traceback'])
-                else:
-                    if completion_time < completion_time_min:
-                        completion_time_min = completion_time
-                        start_time = (
-                            completion_time - result['last_byte_latency'])
-                    if completion_time > completion_time_max:
-                        completion_time_max = completion_time
-                    req_completion_seconds[completion_time] = \
-                        1 + req_completion_seconds.get(completion_time, 0)
-                    result['start'] = (
-                        result['completed_at'] - result['last_byte_latency'])
+                                 res_worker_id, res_exception)
+                    try:
+                        res_traceback = result['traceback']
+                    except KeyError:
+                        logging.warn('traceback missing')
+                    else:
+                        logging.info(res_traceback)
 
                 # Stats per-worker
-                if result['worker_id'] not in stats['worker_stats']:
-                    stats['worker_stats'][result['worker_id']] = {}
-                self._add_result_to(stats['worker_stats'][result['worker_id']],
+                if res_worker_id not in stats['worker_stats']:
+                    stats['worker_stats'][res_worker_id] = {}
+                self._add_result_to(stats['worker_stats'][res_worker_id],
                                     result)
 
                 # Stats per-file-size
-                if not stats['size_stats'][result['size_str']]:
-                    stats['size_stats'][result['size_str']] = {}
-                self._add_result_to(stats['size_stats'][result['size_str']],
+                if not stats['size_stats'][res_size_str]:
+                    stats['size_stats'][res_size_str] = {}
+                self._add_result_to(stats['size_stats'][res_size_str],
                                     result)
 
                 self._add_result_to(agg_stats, result)
 
-                type_stats = op_stats[result['type']]
+                type_stats = op_stats[res_type]
                 self._add_result_to(type_stats, result)
 
                 # Stats per-operation-per-file-size
-                if not type_stats['size_stats'][result['size_str']]:
-                    type_stats['size_stats'][result['size_str']] = {}
+                if not type_stats['size_stats'][res_size_str]:
+                    type_stats['size_stats'][res_size_str] = {}
                 self._add_result_to(
-                    type_stats['size_stats'][result['size_str']], result)
+                    type_stats['size_stats'][res_size_str], result)
+            if skipped > 0:
+                logging.warn("Total number of results skipped: %d", skipped)
 
         agg_stats['worker_count'] = len(stats['worker_stats'].keys())
         self._compute_req_per_sec(agg_stats)
@@ -449,13 +477,15 @@ Distribution of requests per worker-ID: ${jobs_per_worker_stats['min']} - ${jobs
             raise
 
     def _compute_req_per_sec(self, stat_dict):
-        if 'start' in stat_dict:
-            delta_t = stat_dict['stop'] - stat_dict['start']
+        try:
+            sd_start = stat_dict['start']
+        except KeyError:
+            stat_dict['avg_req_per_sec'] = 0.0
+        else:
+            delta_t = stat_dict['stop'] - sd_start
             stat_dict['avg_req_per_sec'] = round(
                 stat_dict['req_count'] / delta_t,
                 6)
-        else:
-            stat_dict['avg_req_per_sec'] = 0.0
 
     def _compute_retry_rate(self, stat_dict):
         stat_dict['retry_rate'] = round((float(stat_dict['retries']) /
@@ -464,12 +494,25 @@ Distribution of requests per worker-ID: ${jobs_per_worker_stats['min']} - ${jobs
     def _add_result_to(self, stat_dict, result):
         if 'errors' not in stat_dict:
             stat_dict['errors'] = 0
-        if 'start' in result and ('start' not in stat_dict or
-                                  result['start'] < stat_dict['start']):
-            stat_dict['start'] = result['start']
-        if 'stop' not in stat_dict or \
-                result['completed_at'] > stat_dict['stop']:
+        try:
+            res_start = result['start']
+        except KeyError:
+            pass
+        else:
+            try:
+                sd_start = stat_dict['start']
+            except KeyError:
+                stat_dict['start'] = res_start
+            else:
+                if res_start < sd_start:
+                    stat_dict['start'] = res_start
+        try:
+            sd_stop = stat_dict['stop']
+        except KeyError:
             stat_dict['stop'] = result['completed_at']
+        else:
+            if result['completed_at'] > sd_stop:
+                stat_dict['stop'] = result['completed_at']
         stat_dict['req_count'] = stat_dict.get('req_count', 0) + 1
         stat_dict['retries'] = \
             stat_dict.get('retries', 0) + int(result['retries'])
