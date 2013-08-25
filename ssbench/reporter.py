@@ -397,8 +397,13 @@ Distribution of requests per worker-ID: ${jobs_per_worker_stats['min']} - ${jobs
                                     result)
 
                 # Stats per-file-size
-                if not stats['size_stats'][res_size_str]:
+                try:
+                    val = stats['size_stats'][res_size_str]
+                except KeyError:
                     stats['size_stats'][res_size_str] = {}
+                else:
+                    if not val:
+                        stats['size_stats'][res_size_str] = {}
                 self._add_result_to(stats['size_stats'][res_size_str],
                                     result)
 
@@ -408,8 +413,13 @@ Distribution of requests per worker-ID: ${jobs_per_worker_stats['min']} - ${jobs
                 self._add_result_to(type_stats, result)
 
                 # Stats per-operation-per-file-size
-                if not type_stats['size_stats'][res_size_str]:
+                try:
+                    val = type_stats['size_stats'][res_size_str]
+                except KeyError:
                     type_stats['size_stats'][res_size_str] = {}
+                else:
+                    if not val:
+                        type_stats['size_stats'][res_size_str] = {}
                 self._add_result_to(
                     type_stats['size_stats'][res_size_str], result)
             if skipped > 0:
