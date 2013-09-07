@@ -50,6 +50,7 @@ class TestReporter(ScenarioFixture, TestCase):
             #             C  R  U  D
             crud_profile=[5, 3, 1, 1],
             user_count=2,
+            delete_after=None,
         )
         super(TestReporter, self).setUp()
 
@@ -837,6 +838,7 @@ class TestReporter(ScenarioFixture, TestCase):
         self.assertListEqual(u"""
 Reporter Test Scenario - ablkei  (generated with ssbench version 0.2.14)
 Worker count:   3   Concurrency:   2  Ran 1970-01-01 00:01:39 UTC to 1970-01-01 00:01:46 UTC (7s)
+Object expiration(delete_after): None(sec)
 
 % Ops    C   R   U   D       Size Range       Size Name
  20%   % 50  30  10  10       99  B - 100  B  tiny
@@ -931,6 +933,7 @@ Distribution of requests per worker-ID:  4.000 -   4.000 (avg:   4.000; stddev: 
             'start_time': '1970-01-01 00:01:39 UTC',
             'stop_time': '1970-01-01 00:01:46 UTC',
             'duration': '6.800000000000011',
+            'delete_after': 'None',
             'total_count': '12',
             'total_avg_req_per_s': '0.229885',
             'total_first_all_min': '0.1',

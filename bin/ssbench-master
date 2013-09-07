@@ -133,6 +133,8 @@ def run_scenario(args):
     run_seconds = int(args.run_seconds) \
         if args.run_seconds != DEFAULT_FROM_SCENARIO else None
 
+    delete_after = args.delete_after
+
     if args.noop:
         scenario_class = ScenarioNoop
         logging.info('NOTE: --noop was specified; not testing Swift.')
@@ -147,6 +149,7 @@ def run_scenario(args):
                               user_count=user_count,
                               operation_count=operation_count,
                               run_seconds=run_seconds,
+                              delete_after=delete_after,
                               **scenario_kwargs)
 
     # Sanity-check batch_size
@@ -529,6 +532,13 @@ if __name__ == "__main__":
     run_scenario_arg_parser.add_argument(
         '--pctile', type=int, metavar='PERCENTILE', default=95,
         help='Report on the N-th percentile, if generating a report.')
+    run_scenario_arg_parser.add_argument(
+        '--delete-after', type=int, default=None,
+        help='Adds a X-Delete-After header (in seconds) to every CREATE or '
+             'UPDATE to emulate a continuous load of expiring objects.  A '
+             'scenario file may specify a delete_after value, but this flag '
+             'will override it.  So if you specify 0 here, a non-zero '
+             'delete_after value in the scenario file will be suppressed.')
     run_scenario_arg_parser.set_defaults(func=run_scenario)
 
     report_scenario_arg_parser = subparsers.add_parser(

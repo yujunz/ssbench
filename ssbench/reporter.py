@@ -56,6 +56,7 @@ class Reporter:
         return """
 ${scenario.name}  (generated with ssbench version ${scenario.version})
 Worker count: ${'%3d' % agg_stats['worker_count']}   Concurrency: ${'%3d' % scenario.user_count}  Ran ${start_time} to ${stop_time} (${'%.0f' % round(duration)}s)
+Object expiration(delete_after): ${scenario.delete_after}(sec)
 
 %% Ops    C   R   U   D       Size Range       Size Name
 % for size_datum in size_data:
@@ -150,7 +151,8 @@ Distribution of requests per worker-ID: ${jobs_per_worker_stats['min']} - ${jobs
         if output_csv:
             csv_fields = [
                 'scenario_name', 'ssbench_version', 'worker_count',
-                'concurrency', 'start_time', 'stop_time', 'duration']
+                'concurrency', 'start_time', 'stop_time', 'duration',
+                'delete_after']
             csv_data = {
                 'scenario_name': self.scenario.name,
                 'ssbench_version': self.scenario.version,
@@ -159,6 +161,7 @@ Distribution of requests per worker-ID: ${jobs_per_worker_stats['min']} - ${jobs
                 'start_time': tmpl_vars['start_time'],
                 'stop_time': tmpl_vars['stop_time'],
                 'duration': tmpl_vars['duration'],
+                'delete_after': str(self.scenario.delete_after),
             }
             for label, stats, sstats in tmpl_vars['stat_list']:
                 label_lc = label.lower()

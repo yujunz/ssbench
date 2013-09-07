@@ -158,6 +158,12 @@ defining a benchmark run.  Specifically, it defines:
 - A ``container_concurrency`` value which determines the level of client
   concurrency used by ``ssbench-master`` to create the benchmark containers.
   This value is optional and defaults to 10.
+- A ``delete_after`` value appends expiring time(in seconds) to all objects.
+  It emulates continuous loads of PUT operation (CREATE and UPDATE) with
+  X-Delete-After header. If setting 0 (or None by default), this feature is
+  disable and all objects will not be expired. This value may be overridden
+  for any given run with the ``--delete-after DELETE_AFTER`` flag to
+ ``ssbench-master run-scenario``.
 
 For each operation of the benchmark run, a size category is first chosen based
 on the relative counts for each size category in the ``initial_files``
@@ -274,6 +280,7 @@ runs a benchmark scenario::
                                      [--network-timeout NETWORK_TIMEOUT]
                                      [-s STATS_FILE] [-R] [--csv]
                                      [--pctile PERCENTILE]
+                                     [--delete-after DELETE_AFTER]
   ...
 
 
@@ -421,6 +428,7 @@ command.  Simply use the ``--workers COUNT`` option to ``ssbench-master``::
 
   Small test scenario  (generated with ssbench version 0.2.14)
   Worker count:   2   Concurrency:   4  Ran 2013-06-07 17:23:16 UTC to 2013-06-07 17:23:22 UTC (5s)
+  Object expiration(delete-after): None (sec)
 
   % Ops    C   R   U   D       Size Range       Size Name
    91%   % 10  75  15   0        4 kB -   8 kB  tiny

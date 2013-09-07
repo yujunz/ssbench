@@ -38,7 +38,7 @@ class Scenario(object):
     def __init__(self, scenario_filename=None, container_count=None,
                  user_count=None, operation_count=None, run_seconds=None,
                  block_size=None, _scenario_data=None,
-                 version=ssbench.version):
+                 version=ssbench.version, delete_after=None):
         """Initializes the object from a scenario file on disk.
 
         :scenario_filename: path to a scenario file
@@ -128,6 +128,13 @@ class Scenario(object):
                    self.sizes_by_name.keys()),
             self._scenario_data['initial_files'])
 
+        # Expiring time(sec) for create object.
+        if delete_after is not None:
+            self.delete_after = delete_after
+        else:
+            self.delete_after = self._scenario_data.get('delete_after',
+                                                        None)
+
     def packb(self):
         return msgpack.packb({
             '_scenario_data': self._scenario_data,
@@ -139,6 +146,7 @@ class Scenario(object):
             'container_base': self.container_base,
             'container_count': self.container_count,
             'container_concurrency': self.container_concurrency,
+            'delete_after': self.delete_after,
         })
 
     @classmethod
@@ -152,7 +160,8 @@ class Scenario(object):
                        operation_count=data['operation_count'],
                        run_seconds=data['run_seconds'],
                        version=data['version'],
-                       _scenario_data=data['_scenario_data'])
+                       _scenario_data=data['_scenario_data'],
+                       delete_after=data['delete_after'])
         return scenario
 
     @property
@@ -189,7 +198,8 @@ class Scenario(object):
                             self.sizes_by_name[size_str]['size_min'],
                             self.sizes_by_name[size_str]['size_max']),
                         block_size=self.block_size,
-                        head_first=head_first)
+                        head_first=head_first,
+                        delete_after=self.delete_after)
 
     def bench_job(self, size_str, crud_index, i):
         """Creates a benchmark work job dict of a given size and crud "index"

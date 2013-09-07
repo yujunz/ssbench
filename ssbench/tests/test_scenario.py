@@ -431,6 +431,7 @@ class TestScenario(ScenarioFixture):
             'name': 'tiny_000001',
             'head_first': True,
             'block_size': None,
+            'delete_after': None,
         }, jobs[0])
         assert_in(jobs[1].pop('size'), [199, 200])
         assert_dict_equal({
@@ -440,6 +441,7 @@ class TestScenario(ScenarioFixture):
             'name': 'small_000001',
             'head_first': True,
             'block_size': None,
+            'delete_after': None,
         }, jobs[1])
         assert_in(jobs[2].pop('size'), [299, 300])
         assert_dict_equal({
@@ -449,6 +451,7 @@ class TestScenario(ScenarioFixture):
             'name': 'medium_000001',
             'head_first': True,
             'block_size': None,
+            'delete_after': None,
         }, jobs[2])
         assert_in(jobs[3].pop('size'), [399, 400])
         assert_dict_equal({
@@ -458,6 +461,7 @@ class TestScenario(ScenarioFixture):
             'name': 'large_000001',
             'head_first': True,
             'block_size': None,
+            'delete_after': None,
         }, jobs[3])
         # This scenario called for no initial "huge" files, so we wrapped back
         # to tiny (#2)
@@ -469,6 +473,7 @@ class TestScenario(ScenarioFixture):
             'name': 'tiny_000002',
             'head_first': True,
             'block_size': None,
+            'delete_after': None,
         }, jobs[4])
 
         size_counter = Counter([_['size_str'] for _ in jobs])

@@ -421,10 +421,15 @@ class Worker:
         object_info['size'] = int(object_info['size'])
         block_size = object_info.get('block_size') or DEFAULT_BLOCK_SIZE
         contents = letter * block_size
+        send_headers = {}
+        if object_info.get('delete_after'):
+            send_headers.update(
+                {'x-delete-after': object_info.get('delete_after')})
         headers = self.ignoring_http_responses(
             (503,), client.put_object, object_info,
             content_length=object_info['size'],
-            chunk_size=block_size, contents=contents)
+            chunk_size=block_size, contents=contents,
+            headers=send_headers)
         self._put_results_from_response(object_info, headers)
 
     # By the time a job gets to the worker, an object create and update look

@@ -141,7 +141,7 @@ class Master:
 
     def do_a_run(self, concurrency, job_generator, result_processor,
                  auth_kwargs, mapper_fn=None, label='', noop=False,
-                 batch_size=1, run_results=None):
+                 batch_size=1, run_results=None, delete_after=None):
 
         if label and not self.quiet:
             print >>sys.stderr, label + """

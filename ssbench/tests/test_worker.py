@@ -311,6 +311,7 @@ class TestWorker(object):
             'container': 'Picture',
             'name': object_name,
             'size': 99000,
+            'delete_after': None,
         }
         self.mock_worker.should_receive(
             'ignoring_http_responses'
@@ -319,6 +320,7 @@ class TestWorker(object):
             content_length=99000,
             chunk_size=worker.DEFAULT_BLOCK_SIZE,
             contents='A' * worker.DEFAULT_BLOCK_SIZE,
+            headers={},
         ).and_return({
             'x-swiftstack-first-byte-latency': 0.492393,
             'x-swiftstack-last-byte-latency': 8.23283,
@@ -343,6 +345,7 @@ class TestWorker(object):
             'size': 99000,
             'head_first': True,
             'block_size': 889,
+            'delete_after': None,
         }
         self.mock_worker.should_receive(
             'ignoring_http_responses'
@@ -361,6 +364,7 @@ class TestWorker(object):
             content_length=99000,
             chunk_size=889,
             contents='A' * 889,
+            headers={},
         ).never
         self.time_expectation.once
         exp_put = add_dicts(
@@ -381,6 +385,7 @@ class TestWorker(object):
             'size': 99000,
             'head_first': True,
             'block_size': None,
+            'delete_after': None,
         }
         self.mock_worker.should_receive(
             'ignoring_http_responses'
@@ -394,6 +399,7 @@ class TestWorker(object):
             content_length=99000,
             chunk_size=worker.DEFAULT_BLOCK_SIZE,
             contents='A' * worker.DEFAULT_BLOCK_SIZE,
+            headers={},
         ).and_return({
             'x-swiftstack-first-byte-latency': 0.3248,
             'x-swiftstack-last-byte-latency': 4.493,
@@ -440,6 +446,7 @@ class TestWorker(object):
             'container': 'Picture',
             'name': 'BestObjEvar',
             'size': 483213,
+            'delete_after': None,
         }
         self.mock_worker.should_receive(
             'ignoring_http_responses',
@@ -448,6 +455,7 @@ class TestWorker(object):
             content_length=483213,
             chunk_size=worker.DEFAULT_BLOCK_SIZE,
             contents='B' * worker.DEFAULT_BLOCK_SIZE,
+            headers={},
         ).and_return({
             'x-swiftstack-first-byte-latency': 4.45,
             'x-swiftstack-last-byte-latency': 23.283,
