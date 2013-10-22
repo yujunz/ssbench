@@ -171,6 +171,7 @@ class Master:
             return work_job
 
         active = 0
+        send_q = []
         for raw_job in job_generator:
             work_job = _job_decorator(raw_job)
             if not work_job:
@@ -190,10 +191,16 @@ class Master:
             while len(send_q) < min(batch_size, concurrency - active):
                 try:
                     work_job = _job_decorator(job_generator.next())
+                    if not work_job:
+                        logging.warning('Unable to fill in job %r', raw_job)
+                        continue
                     send_q.append(work_job)
                 except StopIteration:
                     break
 
+            self.work_push.send(msgpack.dumps(send_q))
+            active += len(send_q)
+        if len(send_q) > 0:
             self.work_push.send(msgpack.dumps(send_q))
             active += len(send_q)
 
