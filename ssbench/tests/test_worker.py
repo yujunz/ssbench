@@ -19,6 +19,7 @@ from flexmock import flexmock
 from nose.tools import assert_equal, assert_raises, assert_true
 import gevent.queue
 from gevent_zeromq import zmq
+from contextlib import contextmanager
 
 import ssbench
 from ssbench import worker
@@ -260,6 +261,42 @@ class TestWorker(object):
 
     def test_ignoring_http_responses_handles_401(self):
         pass
+
+    def test_ignoring_http_responses_handles_401_with_storage_token(self):
+        call_info = {
+            'container': 'someContainer',
+            'name': 'someName',
+            'auth_kwargs': {
+                'storage_urls': ['someUrl'],
+                'token': 'someToken',
+            }
+        }
+        mock_pool = flexmock()
+
+        def _insert_mock_pool(url, ignored1, ignored2):
+            self.worker.conn_pools[url] = mock_pool
+
+        self.mock_worker.should_receive('_create_connection_pool').with_args(
+            'someUrl', 10, 20,
+        ).replace_with(_insert_mock_pool).once
+
+        @contextmanager
+        def _get_mock_conn(url):
+            yield self.worker.conn_pools[url]
+
+        def _raise_401(**args):
+            raise client.ClientException('oh noes!', http_status=401)
+
+        self.mock_worker.should_receive('connection').with_args(
+            'someUrl'
+        ).replace_with(_get_mock_conn).times(self.max_retries + 1)
+
+        with assert_raises(client.ClientException) as ce:
+            self.worker.ignoring_http_responses((503,), _raise_401,
+                                                call_info)
+
+        assert_equal(str(ce.exception), 'oh noes!: 401')
+        assert_equal(ce.exception.retries, 9)
 
     def test_ignoring_http_responses_after_some_retries(self):
         pass

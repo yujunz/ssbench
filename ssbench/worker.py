@@ -255,6 +255,7 @@ class Worker:
         while True:
             # Make sure we've got a current storage_url/token
             if call_info['auth_kwargs'].get('token', None):
+                token_key = None
                 args['url'] = random.choice(
                     call_info['auth_kwargs']['storage_urls'])
                 args['token'] = call_info['auth_kwargs']['token']
