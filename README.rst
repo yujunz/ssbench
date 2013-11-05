@@ -43,13 +43,25 @@ has to be installed in a prior "pip" command to be recognized by
 Installation on RHEL 6.4
 --------------------------
 
+Installation on Fedora 18 using its stock Python 2.7::
+
+  $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel libevent-devel python-pip zeromq3-devel python-argparse Cython gevent
+  $ sudo pip install Distribute
+  $ sudo pip install --upgrade pyzmq==2.2.0
+  $ sudo pip install gevent-zeromq
+  $ sudo pip install ssbench
+
+Installation on RHEL 6.4
+--------------------------
+
 Installation on RHEL 6.4 using its stock Python 2.6::
 
   $ sudo rpm -Uvh http://mirror.pnl.gov/epel/6/i386/epel-release-6-8.noarch.rpm
   $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel libevent-devel python-pip zeromq3-devel python-argparse Cython
-  $ sudo pip-python install --upgrade gevent pyzmq==2.2.0
-  $ sudo pip-python install gevent-zeromq
-  $ sudo pip-python install ssbench
+  $ sudo pip install Distribute
+  $ sudo pip install --upgrade gevent pyzmq==2.2.0
+  $ sudo pip install gevent-zeromq
+  $ sudo pip install ssbench
 
 Installation on CentOS 6.3
 --------------------------

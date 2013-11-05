@@ -15,7 +15,11 @@
 
 import copy
 import json
-import random
+try:
+    from random import SystemRandom
+    random = SystemRandom()
+except ImportError:
+    import random
 import signal
 import logging
 import msgpack
