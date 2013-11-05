@@ -279,7 +279,6 @@ class TestWorker(object):
         self.mock_worker.should_receive('_create_connection_pool').with_args(
             'someUrl', 10, 20,
         ).replace_with(_insert_mock_pool).once
-        mock_conn = flexmock()
 
         @contextmanager
         def _get_mock_conn(url):
