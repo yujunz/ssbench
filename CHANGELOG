@@ -1,3 +1,15 @@
+ssbench (0.2.23)
+
+    * Misc test fixes/improvements including Travis CI integration.
+
+    * Improved Python 2.6 support.
+
+    * Fixed bug in batch job generation when job decoration fails.
+
+    * Worker job exceptions no longer count toward request counts.
+
+    * Updated AUTHORS file.
+
 ssbench (0.2.22)
 
     * Always print the distribution of requests per worker-ID in the report.

@@ -40,8 +40,8 @@ has to be installed in a prior "pip" command to be recognized by
   $ sudo pip install Cython gevent pyzmq==2.2.0
   $ sudo pip install ssbench
 
-Installation on RHEL 6.4
---------------------------
+Installation on Fedora 18
+-------------------------
 
 Installation on Fedora 18 using its stock Python 2.7::
 
