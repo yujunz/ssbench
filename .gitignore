@@ -15,3 +15,6 @@
 # Nose coverage data
 /.coverage
 /cover
+
+# Tox stuff
+.tox
