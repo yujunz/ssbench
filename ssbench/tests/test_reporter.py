@@ -184,12 +184,12 @@ class TestReporter(ScenarioFixture, TestCase):
             some_stats)
 
     def test_calculate_scenario_stats_per_worker(self):
-        req_counts = [4, 5, 4]
+        req_counts = [4, 4, 4]
         self.assertDictEqual(dict(
             min='%6.3f' % 4,
-            max='%7.3f' % 5,
+            max='%7.3f' % 4,
             avg='%7.3f' % stats.lmean(req_counts),
-            pctile='%7.3f' % 5,
+            pctile='%7.3f' % 4,
             std_dev='%7.3f' % stats.lsamplestdev(req_counts),
             median='%7.3f' % stats.lmedianscore(req_counts),
         ), self.reporter.stats['jobs_per_worker_stats'])
@@ -200,9 +200,10 @@ class TestReporter(ScenarioFixture, TestCase):
         last_byte_latency_all = [3, 0.8, 2.2, 0.3, 2.8, 0.4, 0.2,
                                  0.5, 1.8, 0.8, 0.4, 0.699]
         self.assertDictEqual(dict(
-            worker_count=3, start=100.0, stop=152.2, req_count=13,
-            retries=7, retry_rate=53.846154, errors=1,
-            avg_req_per_sec=round(13 / (152.2 - 100), 6),
+            worker_count=3, start=100.0, stop=152.2, req_count=12,
+            retries=7, errors=1,
+            retry_rate=round(7.0 / 12 * 100, 6),
+            avg_req_per_sec=round(12 / (152.2 - 100), 6),
             first_byte_latency=dict(
                 min='%6.3f' % 0.1,
                 max='%7.3f' % 1.2,
@@ -233,9 +234,10 @@ class TestReporter(ScenarioFixture, TestCase):
         self.reporter.read_results(nth_pctile=20)
 
         self.assertDictEqual(dict(
-            worker_count=3, start=100.0, stop=152.2, req_count=13,
-            retries=7, retry_rate=53.846154, errors=1,
-            avg_req_per_sec=round(13 / (152.2 - 100), 6),
+            worker_count=3, start=100.0, stop=152.2, req_count=12,
+            retries=7, errors=1,
+            retry_rate=round(7.0 / 12 * 100, 6),
+            avg_req_per_sec=round(12 / (152.2 - 100), 6),
             first_byte_latency=dict(
                 min='%6.3f' % 0.1,
                 max='%7.3f' % 1.2,
@@ -290,9 +292,10 @@ class TestReporter(ScenarioFixture, TestCase):
         w2_first_byte_latency = [0.8, 0.1, 0.1, 0.2]
         w2_last_byte_latency = [2.8, 0.4, 0.2, 0.5]
         self.assertDictEqual(dict(
-            start=100.1, stop=152.2, req_count=5,
-            retries=7, retry_rate=140.0, errors=1,
-            avg_req_per_sec=round(5 / (152.2 - 100.1), 6),
+            start=100.1, stop=152.2, req_count=4,
+            retries=7, errors=1,
+            retry_rate=round(7.0 / 4 * 100, 6),
+            avg_req_per_sec=round(4 / (152.2 - 100.1), 6),
             first_byte_latency=dict(
                 min='%6.3f' % min(w2_first_byte_latency),
                 max='%7.3f' % max(w2_first_byte_latency),
@@ -532,9 +535,10 @@ class TestReporter(ScenarioFixture, TestCase):
         u_first_byte_latency = [0.2, 0.8, 0.6]
         u_last_byte_latency = [0.3, 2.8, 0.699]
         self.assertDictEqual(dict(
-            start=100.1, stop=152.2, req_count=4,
-            retries=6, retry_rate=150.0, errors=1,
-            avg_req_per_sec=round(4 / (152.2 - 100.1), 6),
+            start=100.1, stop=152.2, req_count=3,
+            retries=6, errors=1,
+            retry_rate=round(6.0 / 3 * 100, 6),
+            avg_req_per_sec=round(3 / (152.2 - 100.1), 6),
             first_byte_latency=dict(
                 min='%6.3f' % min(u_first_byte_latency),
                 max='%7.3f' % max(u_first_byte_latency),
@@ -596,7 +600,7 @@ class TestReporter(ScenarioFixture, TestCase):
                             'errors': 0,
                             'start': 100.1,
                             'stop': 102.9}),
-                ('large', {'avg_req_per_sec': 0.043384,
+                ('large', {'avg_req_per_sec': 0.021692,
                            'first_byte_latency': {'avg': '%7.3f' % 0.2,
                                                   'pctile': '%7.3f' % 0.2,
                                                   'max': '%7.3f' % 0.2,
@@ -611,9 +615,9 @@ class TestReporter(ScenarioFixture, TestCase):
                                                  'min': '%6.3f' % 0.3,
                                                  'std_dev': '%7.3f' % 0.0},
                            'worst_last_byte_latency': (0.3, 'txID005'),
-                           'req_count': 2,
+                           'req_count': 1,
                            'retries': 5,
-                           'retry_rate': 250.0,
+                           'retry_rate': 5.0 * 100,
                            'errors': 1,
                            'start': 106.1,
                            'stop': 152.2})]),
@@ -754,7 +758,7 @@ class TestReporter(ScenarioFixture, TestCase):
                         'errors': 0,
                         'start': 100.1,
                         'stop': 104.3}),
-            ('large', {'avg_req_per_sec': 0.060852,
+            ('large', {'avg_req_per_sec': 0.040568,
                        'first_byte_latency': {'avg': '%7.3f' % 0.15,
                                               'max': '%7.3f' % 0.2,
                                               'pctile': '%7.3f' % 0.2,
@@ -769,9 +773,9 @@ class TestReporter(ScenarioFixture, TestCase):
                                              'std_dev': '%7.3f' % 0.05},
                        'worst_first_byte_latency': (0.2, 'txID005'),
                        'worst_last_byte_latency': (0.4, 'txID007'),
-                       'req_count': 3,
+                       'req_count': 2,
                        'retries': 5,
-                       'retry_rate': 166.666667,
+                       'retry_rate': 250.0,
                        'errors': 1,
                        'start': 102.9,
                        'stop': 152.2}),
@@ -845,7 +849,7 @@ Worker count:   3   Concurrency:   2  Ran 1970-01-01 00:01:39 UTC to 1970-01-01 
          51  29  10  10      CRUD weighted average
 
 TOTAL
-       Count:    13 (    1 error;     7 retries: 53.85%)  Average requests per second:   0.2
+       Count:    12 (    1 error;     7 retries: 58.33%)  Average requests per second:   0.2
                             min       max      avg      std_dev  50%-ile                   Worst latency TX ID
        First-byte latency:  0.100 -   1.200    0.508  (  0.386)    0.400  (all obj sizes)  txID004
        Last-byte  latency:  0.200 -   3.000    1.158  (  0.970)    0.749  (all obj sizes)  txID002
@@ -885,7 +889,7 @@ READ
        Last-byte  latency:  0.400 -   0.400    0.400  (  0.000)    0.400  (  medium objs)  txID012
 
 UPDATE
-       Count:     4 (    1 error;     6 retries: 150.00%)  Average requests per second:   0.1
+       Count:     3 (    1 error;     6 retries: 200.00%)  Average requests per second:   0.1
                             min       max      avg      std_dev  50%-ile                   Worst latency TX ID
        First-byte latency:  0.200 -   0.800    0.533  (  0.249)    0.600  (all obj sizes)  txID006
        Last-byte  latency:  0.300 -   2.800    1.266  (  1.097)    0.699  (all obj sizes)  txID006
@@ -906,7 +910,7 @@ DELETE
        First-byte latency:  0.100 -   0.100    0.100  (  0.000)    0.100  (   large objs)  txID007
        Last-byte  latency:  0.400 -   0.400    0.400  (  0.000)    0.400  (   large objs)  txID007
 
-Distribution of requests per worker-ID:  4.000 -   5.000 (avg:   4.333; stddev:   0.471)
+Distribution of requests per worker-ID:  4.000 -   4.000 (avg:   4.000; stddev:   0.000)
 """.split('\n'), self.reporter.generate_default_report().split('\n'))
 
     def test_generate_default_report_csv(self):
@@ -927,8 +931,8 @@ Distribution of requests per worker-ID:  4.000 -   5.000 (avg:   4.333; stddev: 
             'start_time': '1970-01-01 00:01:39 UTC',
             'stop_time': '1970-01-01 00:01:46 UTC',
             'duration': '6.800000000000011',
-            'total_count': '13',
-            'total_avg_req_per_s': '0.249042',
+            'total_count': '12',
+            'total_avg_req_per_s': '0.229885',
             'total_first_all_min': '0.1',
             'total_first_all_max': '1.2',
             'total_first_all_avg': '0.508333',
@@ -1101,8 +1105,8 @@ Distribution of requests per worker-ID:  4.000 -   5.000 (avg:   4.333; stddev: 
             'read_last_medium_std_dev': '0.0',
             'read_last_medium_50_pctile': '0.4',
             'read_last_medium_worst_txid': 'txID012',
-            'update_count': '4',
-            'update_avg_req_per_s': '0.076775',
+            'update_count': '3',
+            'update_avg_req_per_s': '0.057582',
             'update_first_all_min': '0.2',
             'update_first_all_max': '0.8',
             'update_first_all_avg': '0.533333',
