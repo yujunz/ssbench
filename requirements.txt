@@ -1,8 +1,8 @@
 Cython
 gevent
-geventhttpclient
+geventhttpclient>=1.0a
 pyzmq==2.2.0
 gevent_zeromq
-msgpack-python
+msgpack-python>=0.3.0
 Mako
 statlib
