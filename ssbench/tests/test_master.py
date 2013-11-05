@@ -211,8 +211,15 @@ class TestMaster(ScenarioFixture, TestCase):
             token='MOCK_TOKEN',
             storage_urls=['http://127.0.0.1:8080/auth/v1.0'],
         )
-        self.master.run_scenario(self.scenario, auth_kwargs=auth_kwargs,
-                                 run_results=None, batch_size=2)
+
+        orig_stderr = sys.stderr
+        sys.stderr = open('/dev/null', 'wb')
+
+        try:
+            self.master.run_scenario(self.scenario, auth_kwargs=auth_kwargs,
+                                     run_results=None, batch_size=2)
+        finally:
+            sys.stderr = orig_stderr
 
         sent_jobs = map(msgpack.loads, self._send_calls)
         sent_jobs = sum(sent_jobs, [])  # flatten the list
@@ -229,6 +236,8 @@ class TestMaster(ScenarioFixture, TestCase):
         self.assertNotIn(None, sent_jobs)
 
     def test_run_scenario_output(self):
+        # Don't actually run a lot of jobs...
+        self.scenario.operation_count = 100
         bench_jobs = list(self.scenario.bench_jobs())
 
         def run_with_args(**kwargs):
