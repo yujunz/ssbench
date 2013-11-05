@@ -13,10 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import json
 import time
 import signal
+import tempfile
 import msgpack
 from cStringIO import StringIO
 from nose.tools import (assert_equal, assert_dict_equal, assert_is_instance,
@@ -37,7 +37,8 @@ class ScenarioFixture(object):
             superclass.setUp()
 
         if not hasattr(self, 'stub_scenario_file'):
-            self.stub_scenario_file = '/tmp/.430gjf.test_scenario.py'
+            self.tmp_file = tempfile.NamedTemporaryFile()
+            self.stub_scenario_file = self.tmp_file.name
 
         if not getattr(self, 'scenario_dict', None):
             self.scenario_dict = dict(
@@ -66,7 +67,9 @@ class ScenarioFixture(object):
 
     def tearDown(self):
         try:
-            os.unlink(self.stub_scenario_file)
+            if hasattr(self, 'tmp_file'):
+                self.tmp_file.close()
+                del self.tmp_file
         except OSError:
             pass  # don't care if it didn't get created
         superclass = super(ScenarioFixture, self)

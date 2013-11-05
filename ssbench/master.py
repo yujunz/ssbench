@@ -175,11 +175,9 @@ class Master:
             return work_job
 
         active = 0
-        send_q = []
         for raw_job in job_generator:
             work_job = _job_decorator(raw_job)
             if not work_job:
-                logging.warning('Unable to fill in job %r', raw_job)
                 continue
 
             send_q = [work_job]
@@ -196,7 +194,6 @@ class Master:
                 try:
                     work_job = _job_decorator(job_generator.next())
                     if not work_job:
-                        logging.warning('Unable to fill in job %r', raw_job)
                         continue
                     send_q.append(work_job)
                 except StopIteration:
@@ -204,9 +201,7 @@ class Master:
 
             self.work_push.send(msgpack.dumps(send_q))
             active += len(send_q)
-        if len(send_q) > 0:
-            self.work_push.send(msgpack.dumps(send_q))
-            active += len(send_q)
+            # NOTE: we'll never exit this loop with unsent contents in send_q
 
         # Drain the results
         logging.debug('All jobs sent; awaiting results...')
