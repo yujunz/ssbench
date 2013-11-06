@@ -62,7 +62,9 @@ class ConnectionPool(gevent.queue.Queue):
                      'connections...',
                      factory_kwargs.get('url', 'UNKNOWN'), maxsize)
         for _ in xrange(maxsize):
-            self.put(self.create(is_initial=True))
+            # This awkward construction is so that a linter will chill out
+            # about "put" not being a member of this class.
+            super(ConnectionPool, self).put(self.create(is_initial=True))
 
     def create(self, is_initial=False):
         if not is_initial:

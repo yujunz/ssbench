@@ -61,7 +61,7 @@ def http_log(args, kwargs, resp, body):
             header = ' -H "%s: %s"' % (element, kwargs['headers'][element])
             string_parts.append(header)
 
-    logger.debug("REQ: %s" % "".join(string_parts))
+    logger.debug("REQ: %s", "".join(string_parts))
     if 'raw_body' in kwargs:
         logger.debug("REQ BODY (RAW): %s", kwargs['raw_body'])
     if 'body' in kwargs:

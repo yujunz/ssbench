@@ -246,7 +246,7 @@ class Master(object):
     def cleanup_containers(self, auth_kwargs, container_base, concurrency):
         storage_urls, token = self._authenticate(auth_kwargs)
 
-        resp_headers, container_list = client.get_account(
+        _, container_list = client.get_account(
             random.choice(storage_urls), token)
 
         our_container_re = re.compile('%s_\d+$' % container_base)

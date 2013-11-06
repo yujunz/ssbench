@@ -260,7 +260,9 @@ class Scenario(object):
         keep_running = [True]
         prev_alarm = None
         if self.run_seconds:
-            def _stop_running(*args, **kwargs):  # signal, frame; unused
+            def _stop_running(signal, frame):
+                signal = signal  # appease the linter
+                frame = frame  # appease the linter
                 keep_running[0] = False
             prev_alarm = signal.signal(signal.SIGALRM, _stop_running)
             signal.alarm(self.run_seconds)
