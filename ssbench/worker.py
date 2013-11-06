@@ -71,7 +71,7 @@ class ConnectionPool(gevent.queue.Queue):
         try:
             conn = self.factory(**self.factory_kwargs)
             conn[1].connect()
-        except socket.error, socket.timeout:
+        except (socket.error, socket.timeout):
             # Give the server a little time, then try one more time...
             gevent.sleep(0.01)
             conn = self.factory(**self.factory_kwargs)
@@ -87,7 +87,7 @@ class ConnectionPool(gevent.queue.Queue):
         return conn
 
 
-class Worker:
+class Worker(object):
     def __init__(self, zmq_host, zmq_work_port, zmq_results_port, worker_id,
                  max_retries, profile_count=0, concurrency=256, batch_size=1):
         work_endpoint = 'tcp://%s:%d' % (zmq_host, zmq_work_port)

@@ -35,7 +35,7 @@ def _thread_writer(queue, target_file):
         blob = queue.get()
 
 
-class RunResults:
+class RunResults(object):
     def __init__(self, results_file_path):
         self.results_file_path = results_file_path
         self.write_threshold = 1000000  # 1 MB

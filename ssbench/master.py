@@ -57,7 +57,7 @@ def _container_deleter(concurrency, storage_urls, token, container_info):
                  container_info['count'])
     storage_url = random.choice(storage_urls)
     http_conn = client.http_connection(storage_url)
-    resp_headers, obj_list = client.get_container(
+    _, obj_list = client.get_container(
         random.choice(storage_urls), token, container_name,
         http_conn=http_conn)
 
@@ -80,7 +80,7 @@ def _gen_cleanup_job(object_info):
     }
 
 
-class Master:
+class Master(object):
     def __init__(self, zmq_bind_ip=None, zmq_work_port=None,
                  zmq_results_port=11300, quiet=False, connect_timeout=None,
                  network_timeout=None):
