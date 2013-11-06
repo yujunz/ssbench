@@ -28,11 +28,6 @@ gevent.monkey.patch_time()
 
 import os
 import time
-try:
-    from random import SystemRandom
-    random = SystemRandom()
-except ImportError:
-    import random
 import socket
 import msgpack
 import logging
@@ -42,6 +37,7 @@ from httplib import CannotSendRequest
 from contextlib import contextmanager
 from geventhttpclient.response import HTTPConnectionClosed
 
+from ssbench.importer import random
 from ssbench.util import add_dicts, raise_file_descriptor_limit
 import ssbench.swift_client as client
 
@@ -62,9 +58,7 @@ class ConnectionPool(gevent.queue.Queue):
                      'connections...',
                      factory_kwargs.get('url', 'UNKNOWN'), maxsize)
         for _ in xrange(maxsize):
-            # This awkward construction is so that a linter will chill out
-            # about "put" not being a member of this class.
-            super(ConnectionPool, self).put(self.create(is_initial=True))
+            self.put(self.create(is_initial=True))  # pylint: disable=E1101
 
     def create(self, is_initial=False):
         if not is_initial:

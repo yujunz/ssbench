@@ -25,16 +25,12 @@ import re
 import sys
 import time
 import signal
-try:
-    from random import SystemRandom
-    random = SystemRandom()
-except ImportError:
-    import random
 import logging
 import msgpack
 from gevent_zeromq import zmq
 
 import ssbench
+from ssbench.importer import random
 import ssbench.swift_client as client
 from ssbench.run_state import RunState
 from ssbench.util import raise_file_descriptor_limit

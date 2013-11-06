@@ -15,17 +15,13 @@
 
 import copy
 import json
-try:
-    from random import SystemRandom
-    random = SystemRandom()
-except ImportError:
-    import random
 import signal
 import logging
 import msgpack
 import itertools
 
 import ssbench
+from ssbench.importer import random
 from ssbench.ordered_dict import OrderedDict
 
 
