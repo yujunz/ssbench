@@ -227,7 +227,7 @@ class TestScenario(ScenarioFixture):
         for job in jobs:
             assert_not_in('noop', job)
 
-        err_pct = 0.20   # Expect +/- 20% for size/CRUD distribution
+        err_pct = 0.30   # Expect +/- 30% for size/CRUD distribution
 
         # Expect count of sizes to be +/- 10% of expected proportions (which
         # are derived from the initial counts; 30%, 30%, 30%, 10% in this case)
