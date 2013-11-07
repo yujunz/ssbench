@@ -25,16 +25,12 @@ import re
 import sys
 import time
 import signal
-try:
-    from random import SystemRandom
-    random = SystemRandom()
-except ImportError:
-    import random
 import logging
 import msgpack
 from gevent_zeromq import zmq
 
 import ssbench
+from ssbench.importer import random
 import ssbench.swift_client as client
 from ssbench.run_state import RunState
 from ssbench.util import raise_file_descriptor_limit
@@ -57,7 +53,7 @@ def _container_deleter(concurrency, storage_urls, token, container_info):
                  container_info['count'])
     storage_url = random.choice(storage_urls)
     http_conn = client.http_connection(storage_url)
-    resp_headers, obj_list = client.get_container(
+    _, obj_list = client.get_container(
         random.choice(storage_urls), token, container_name,
         http_conn=http_conn)
 
@@ -80,7 +76,7 @@ def _gen_cleanup_job(object_info):
     }
 
 
-class Master:
+class Master(object):
     def __init__(self, zmq_bind_ip=None, zmq_work_port=None,
                  zmq_results_port=11300, quiet=False, connect_timeout=None,
                  network_timeout=None):
@@ -246,7 +242,7 @@ class Master:
     def cleanup_containers(self, auth_kwargs, container_base, concurrency):
         storage_urls, token = self._authenticate(auth_kwargs)
 
-        resp_headers, container_list = client.get_account(
+        _, container_list = client.get_account(
             random.choice(storage_urls), token)
 
         our_container_re = re.compile('%s_\d+$' % container_base)

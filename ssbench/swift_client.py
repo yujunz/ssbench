@@ -61,11 +61,11 @@ def http_log(args, kwargs, resp, body):
             header = ' -H "%s: %s"' % (element, kwargs['headers'][element])
             string_parts.append(header)
 
-    logger.debug("REQ: %s" % "".join(string_parts))
+    logger.debug("REQ: %s", "".join(string_parts))
     if 'raw_body' in kwargs:
-        logger.debug("REQ BODY (RAW): %s" % (kwargs['raw_body']))
+        logger.debug("REQ BODY (RAW): %s", kwargs['raw_body'])
     if 'body' in kwargs:
-        logger.debug("REQ BODY: %s" % (kwargs['body']))
+        logger.debug("REQ BODY: %s", kwargs['body'])
 
     logger.debug("RESP STATUS: %s", resp.status)
     if body:
@@ -384,7 +384,6 @@ def get_account(url, token, marker=None, limit=None, prefix=None,
                               http_status=resp.status, http_reason=resp.reason,
                               http_response_content=body)
     if resp.status == 204:
-        body
         return resp_headers, []
     return resp_headers, json_loads(body)
 
@@ -1022,7 +1021,7 @@ class Connection(object):
             sleep(backoff)
             backoff *= 2
             if reset_func:
-                reset_func(func, *args, **kwargs)
+                reset_func()
 
     def head_account(self):
         """Wrapper for :func:`head_account`"""
@@ -1081,7 +1080,7 @@ class Connection(object):
                    headers=None):
         """Wrapper for :func:`put_object`"""
 
-        def _default_reset(*args, **kwargs):
+        def _default_reset():
             raise ClientException('put_object(%r, %r, ...) failure and no '
                                   'ability to reset contents for reupload.'
                                   % (container, obj))
@@ -1091,9 +1090,9 @@ class Connection(object):
         seek = getattr(contents, 'seek', None)
         if tell and seek:
             orig_pos = tell()
-            reset_func = lambda *a, **k: seek(orig_pos)
+            reset_func = lambda: seek(orig_pos)
         elif not contents:
-            reset_func = lambda *a, **k: None
+            reset_func = lambda: None
 
         return self._retry(reset_func, put_object, container, obj, contents,
                            content_length=content_length,

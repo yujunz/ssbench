@@ -1,3 +1,5 @@
+.. contents::  :depth:  1
+
 What Is This?
 =============
 
@@ -24,8 +26,25 @@ given a job referencing an object created by a different worker).
 .. _`SwiftStack`: http://swiftstack.com/
 
 
-Installation on Ubuntu
-----------------------
+Project Status
+==============
+
+Continuous Integration: |travisci|
+
+Code Quality: |landscape|
+
+.. |travisci| image:: https://travis-ci.org/swiftstack/ssbench.png?branch=master
+    :target: https://travis-ci.org/swiftstack/ssbench
+
+.. |landscape| image:: https://landscape.io/github/swiftstack/ssbench/master/landscape.png
+    :target: https://landscape.io/github/swiftstack/ssbench/master
+
+
+Installation
+============
+
+Ubuntu
+------
 
 I apologize for this stupid dependency dance with Ubuntu (tested with **12.04
 LTS Precise**).  With the --noop benchmark, ``gevent-zeromq`` is about 25%
@@ -40,8 +59,8 @@ has to be installed in a prior "pip" command to be recognized by
   $ sudo pip install Cython gevent pyzmq==2.2.0
   $ sudo pip install ssbench
 
-Installation on Fedora 18
--------------------------
+Fedora 18
+---------
 
 Installation on Fedora 18 using its stock Python 2.7::
 
@@ -51,8 +70,8 @@ Installation on Fedora 18 using its stock Python 2.7::
   $ sudo pip install gevent-zeromq
   $ sudo pip install ssbench
 
-Installation on RHEL 6.4
---------------------------
+RHEL 6.4
+--------
 
 Installation on RHEL 6.4 using its stock Python 2.6::
 
@@ -63,8 +82,8 @@ Installation on RHEL 6.4 using its stock Python 2.6::
   $ sudo pip install gevent-zeromq
   $ sudo pip install ssbench
 
-Installation on CentOS 6.3
---------------------------
+CentOS 6.3
+----------
 
 Installation on CentOS 6.3 using its stock Python 2.6::
 
@@ -74,8 +93,8 @@ Installation on CentOS 6.3 using its stock Python 2.6::
   $ sudo pip-python install gevent-zeromq
   $ sudo pip-python install ssbench
 
-Installation on OS X
---------------------
+OS X
+----
 
 On the Mac, I recommend installing `Homebrew`_ and using that to install Python
 2.7, `libevent`_, and zeromq.  I haven't tested a fresh install in a while, but I had far
@@ -100,6 +119,9 @@ and how that works...
 .. _`libev`: http://software.schmorp.de/pkg/libev.html
 .. _`libevent`: http://libevent.org/
 
+
+How Does It Work?
+=================
 
 Scenarios
 ---------
@@ -498,6 +520,9 @@ You can think of the two CVS lines as a linear denormalization of the contents
 of the two-dimensional table output.
 
 
+How Does It Scale?
+==================
+
 Scalability and Throughput
 --------------------------
 
@@ -562,8 +587,8 @@ With ZeorMQ sockets (no beanstalkd involved), the same laptop can get between
 **7,000 and 8,000 requests per second** with ``--noop``.
 
 
-Contributing to ssbench
------------------------
+Contributing To ssbench
+=======================
 
 First, please use the Github Issues for the project when submitting bug reports
 or feature requests.

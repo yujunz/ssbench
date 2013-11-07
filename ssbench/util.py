@@ -18,7 +18,7 @@ def add_dicts(*args, **kwargs):
 
 
 def raise_file_descriptor_limit():
-    soft_nofile, hard_nofile = resource.getrlimit(resource.RLIMIT_NOFILE)
+    _, hard_nofile = resource.getrlimit(resource.RLIMIT_NOFILE)
     nofile_target = hard_nofile
     if os.geteuid() == 0:
         nofile_target = 1024 * 64

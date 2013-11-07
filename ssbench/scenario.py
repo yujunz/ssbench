@@ -15,17 +15,13 @@
 
 import copy
 import json
-try:
-    from random import SystemRandom
-    random = SystemRandom()
-except ImportError:
-    import random
 import signal
 import logging
 import msgpack
 import itertools
 
 import ssbench
+from ssbench.importer import random
 from ssbench.ordered_dict import OrderedDict
 
 
@@ -271,6 +267,8 @@ class Scenario(object):
         prev_alarm = None
         if self.run_seconds:
             def _stop_running(signal, frame):
+                signal = signal  # appease the linter
+                frame = frame  # appease the linter
                 keep_running[0] = False
             prev_alarm = signal.signal(signal.SIGALRM, _stop_running)
             signal.alarm(self.run_seconds)

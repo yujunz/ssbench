@@ -39,7 +39,7 @@ else:
             self.writerow(header)
 
 
-class Reporter:
+class Reporter(object):
     def __init__(self, run_results):
         self.run_results = run_results
 
@@ -446,7 +446,7 @@ Distribution of requests per worker-ID: ${jobs_per_worker_stats['min']} - ${jobs
         logging.debug('Jobs per worker stats:\n' +
                       pformat(stats['jobs_per_worker_stats']))
 
-        for op_stat, op_stats_dict in op_stats.iteritems():
+        for op_stats_dict in op_stats.itervalues():
             if op_stats_dict['req_count']:
                 self._compute_req_per_sec(op_stats_dict)
                 self._compute_retry_rate(op_stats_dict)
@@ -542,7 +542,7 @@ Distribution of requests per worker-ID: ${jobs_per_worker_stats['min']} - ${jobs
                         pctile='  N/A  ', std_dev='  N/A  ', median='  N/A  ')
         sequence.sort()
         try:
-            n, (minval, maxval), mean, std_dev, skew, kurtosis = \
+            _, (minval, maxval), mean, _, _, _ = \
                 statlib.stats.ldescribe(sequence)
         except ZeroDivisionError:
             # Handle the case of a single-element sequence (population standard
