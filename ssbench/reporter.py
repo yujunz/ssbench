@@ -56,7 +56,7 @@ class Reporter:
         return """
 ${scenario.name}  (generated with ssbench version ${scenario.version})
 Worker count: ${'%3d' % agg_stats['worker_count']}   Concurrency: ${'%3d' % scenario.user_count}  Ran ${start_time} to ${stop_time} (${'%.0f' % round(duration)}s)
-Object expiration(delete_after): ${scenario.delete_after}(sec)
+Object expiration (X-Delete-After): ${scenario.delete_after} (sec)
 
 %% Ops    C   R   U   D       Size Range       Size Name
 % for size_datum in size_data:

@@ -163,7 +163,7 @@ defining a benchmark run.  Specifically, it defines:
   X-Delete-After header. If setting 0 (or None by default), this feature is
   disable and all objects will not be expired. This value may be overridden
   for any given run with the ``--delete-after DELETE_AFTER`` flag to
- ``ssbench-master run-scenario``.
+  ``ssbench-master run-scenario``.
 
 For each operation of the benchmark run, a size category is first chosen based
 on the relative counts for each size category in the ``initial_files``
@@ -428,7 +428,7 @@ command.  Simply use the ``--workers COUNT`` option to ``ssbench-master``::
 
   Small test scenario  (generated with ssbench version 0.2.14)
   Worker count:   2   Concurrency:   4  Ran 2013-06-07 17:23:16 UTC to 2013-06-07 17:23:22 UTC (5s)
-  Object expiration(delete-after): None (sec)
+  Object expiration (X-Delete-After): None (sec)
 
   % Ops    C   R   U   D       Size Range       Size Name
    91%   % 10  75  15   0        4 kB -   8 kB  tiny

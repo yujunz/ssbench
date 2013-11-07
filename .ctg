@@ -1,0 +1,11 @@
+#!/bin/bash
+# Helper script to regenerate ctags data
+
+# Find the absolute path of the directory in which this script lives (top-level
+# dir).  This method is cross-platform (OS X and Linux)
+TOP_LEVEL=$(dirname $(python -c 'import os,sys;print os.path.realpath(sys.argv[1])' $0))
+pushd "$TOP_LEVEL"
+
+ctags -R --exclude=cover --exclude=dist --exclude=.tox
+
+popd
