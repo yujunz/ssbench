@@ -324,7 +324,7 @@ Distribution of requests per worker-ID: ${jobs_per_worker_stats['min']} - ${jobs
         #   'last_byte_latency': 0.913769006729126,
         #   'retries': 1
         #   'completed_at': 1324372892.360802,
-        #}
+        # }
         # OR
         # {
         #   'worker_id': 1,
