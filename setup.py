@@ -23,6 +23,7 @@ sys.path.insert(0, thispath)
 
 import ssbench
 
+
 def parse_requires(file_name):
     with open(os.path.join(thispath, file_name), 'r') as f:
         stripped = [x.strip() for x in f]
