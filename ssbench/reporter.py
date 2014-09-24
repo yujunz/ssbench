@@ -169,6 +169,15 @@ Distribution of requests per worker-ID: ${jobs_per_worker_stats['min']} - ${jobs
                     self._add_csv_kv(csv_fields, csv_data,
                                      '%s_count' % label_lc, stats['req_count'])
                     self._add_csv_kv(csv_fields, csv_data,
+                                     '%s_errors' % label_lc,
+                                     stats['errors'])
+                    self._add_csv_kv(csv_fields, csv_data,
+                                     '%s_retries' % label_lc,
+                                     stats['retries'])
+                    self._add_csv_kv(csv_fields, csv_data,
+                                     '%s_retry_rate' % label_lc,
+                                     '%f' % stats['retry_rate'])
+                    self._add_csv_kv(csv_fields, csv_data,
                                      '%s_avg_req_per_s' % label_lc,
                                      stats['avg_req_per_sec'])
                     self._add_stats_for(csv_fields, csv_data, label, 'all',
