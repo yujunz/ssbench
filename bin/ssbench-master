@@ -132,6 +132,8 @@ def run_scenario(args):
         if args.op_count != DEFAULT_FROM_SCENARIO else None
     run_seconds = int(args.run_seconds) \
         if args.run_seconds != DEFAULT_FROM_SCENARIO else None
+    policy = str(args.policy) \
+        if args.policy != DEFAULT_FROM_SCENARIO else None
 
     delete_after = args.delete_after
 
@@ -150,6 +152,7 @@ def run_scenario(args):
                               operation_count=operation_count,
                               run_seconds=run_seconds,
                               delete_after=delete_after,
+                              policy=policy,
                               **scenario_kwargs)
 
     # Sanity-check batch_size
@@ -539,6 +542,10 @@ if __name__ == "__main__":
              'scenario file may specify a delete_after value, but this flag '
              'will override it.  So if you specify 0 here, a non-zero '
              'delete_after value in the scenario file will be suppressed.')
+    run_scenario_arg_parser.add_argument(
+        '-p', '--policy', default=DEFAULT_FROM_SCENARIO,
+        metavar='POLICY',
+        help='Set the storage policy on the containers created.')
     run_scenario_arg_parser.set_defaults(func=run_scenario)
 
     report_scenario_arg_parser = subparsers.add_parser(
