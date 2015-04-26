@@ -65,6 +65,7 @@ setup(
         'bin/ssbench-master',
         'bin/ssbench-worker',
     ],
-    data_files=[('share/ssbench/scenarios', glob('scenarios/*')),
+    data_files=[('share/ssbench/scenarios', glob('scenarios/*.scenario')),
+                ('share/ssbench/scenarios/ec_test_scenarios', glob('scenarios/ec_test_scenarios/*.scenario')),
                 ('share/ssbench', ['CHANGELOG', 'AUTHORS', 'LICENSE'])],
 )
