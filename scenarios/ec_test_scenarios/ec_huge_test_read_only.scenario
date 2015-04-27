@@ -6,7 +6,7 @@
     "size_max": 5368709120
   }],
   "initial_files": {
-    "objects": 5,
+    "objects": 5
   },
   "operation_count": 5,
   "crud_profile": [0, 100, 0, 0],
