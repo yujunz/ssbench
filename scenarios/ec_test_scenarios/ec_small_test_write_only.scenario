@@ -6,9 +6,9 @@
     "size_max": 5242880
   }],
   "initial_files": {
-    "objects": 100,
+    "objects": 1000,
   },
-  "operation_count": 500,
+  "operation_count": 1500,
   "crud_profile": [100, 0, 0, 0],
   "user_count": 4,
   "container_base": "ssbench-ectest-small-writeonly",

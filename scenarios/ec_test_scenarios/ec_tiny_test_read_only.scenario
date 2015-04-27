@@ -8,7 +8,7 @@
   "initial_files": {
     "objects": 0,
   },
-  "operation_count": 500,
+  "operation_count": 2000,
   "crud_profile": [0, 100, 0, 0],
   "user_count": 4,
   "container_base": "ssbench-ectest-tiny-readonly",

@@ -6,9 +6,9 @@
     "size_max": 2048
   }],
   "initial_files": {
-    "objects": 0,
+    "objects": 1000,
   },
-  "operation_count": 500,
+  "operation_count": 5000,
   "crud_profile": [0, 100, 0, 0],
   "user_count": 4,
   "container_base": "ssbench-ectest-miniscule-readonly",
