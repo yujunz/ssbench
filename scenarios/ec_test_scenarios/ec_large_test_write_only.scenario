@@ -11,7 +11,7 @@
   "operation_count": 500,
   "crud_profile": [100, 0, 0, 0],
   "user_count": 4,
-  "container_base": "ssbench",
+  "container_base": "ssbench-ectest-large-writeonly",
   "container_count": 100,
   "container_concurrency": 10
 }
