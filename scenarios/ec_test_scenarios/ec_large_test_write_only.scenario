@@ -8,7 +8,7 @@
   "initial_files": {
     "objects": 15
   },
-  "operation_count": 100,
+  "run_seconds": 1200,
   "crud_profile": [100, 0, 0, 0],
   "user_count": 4,
   "container_base": "ssbench-ectest-large-writeonly",
