@@ -1,15 +1,22 @@
 {
   "name": "Small test scenario",
   "sizes": [{
+    "name": "zero",
+    "size_min": 0,
+    "size_max": 0,
+    "crud_profile": [60, 15, 20, 5]
+  }, {
     "name": "tiny",
     "size_min": 4096,
-    "size_max": 8192
+    "size_max": 8192,
+    "crud_profile": [10, 80, 9, 1]
   }, {
     "name": "small",
     "size_min": 20000,
     "size_max": 40000
   }],
   "initial_files": {
+    "zero": 300,
     "tiny": 100,
     "small": 10
   },
