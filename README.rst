@@ -43,55 +43,46 @@ Code Quality: |landscape|
 Installation
 ============
 
-Ubuntu
-------
+Ubuntu (Precise & Trusty tested)
+--------------------------------
 
-I apologize for this stupid dependency dance with Ubuntu (tested with **12.04
-LTS Precise**).  With the --noop benchmark, ``gevent-zeromq`` is about 25%
-faster than ``pyzmq`` 2.2.0.1's zmq.green module, so I consider the annoying
-``gevent-zeromq`` dependency worth it.  The ``gevent-zeormq``
-Cython build doesn't work with Ubuntu 12.04's Python's distribute, and Cython
-has to be installed in a prior "pip" command to be recognized by
-``gevent-zeromq``'s setup.py::
+Installation on Ubuntu Precise or Trusty::
 
+  $ sudo apt-get update
   $ sudo apt-get install -y python-dev python-pip 'g++' libzmq-dev libevent-dev
-  $ sudo pip install --upgrade distribute
-  $ sudo pip install Cython gevent pyzmq==2.2.0
+  $ sudo pip install pip --upgrade
   $ sudo pip install ssbench
 
 Fedora 18
 ---------
 
-Installation on Fedora 18 using its stock Python 2.7::
+Installation on Fedora 18 using its stock Python 2.7 (NOT ACTUALLY TESTED YET)::
 
-  $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel libevent-devel python-pip zeromq3-devel python-argparse Cython gevent
-  $ sudo pip install Distribute
-  $ sudo pip install --upgrade pyzmq==2.2.0
-  $ sudo pip install gevent-zeromq
+  $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel python-pip zeromq3-devel python-argparse Cython gevent
+  $ sudo pip install pip --upgrade
   $ sudo pip install ssbench
 
-RHEL 6.4
+RHEL 6.6
 --------
 
-Installation on RHEL 6.4 using its stock Python 2.6::
+Installation on RHEL 6.6 using its stock Python 2.6::
 
   $ sudo rpm -Uvh http://mirror.pnl.gov/epel/6/i386/epel-release-6-8.noarch.rpm
-  $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel libevent-devel python-pip zeromq3-devel python-argparse Cython
-  $ sudo pip install Distribute
-  $ sudo pip install --upgrade gevent pyzmq==2.2.0
-  $ sudo pip install gevent-zeromq
+  $ sudo yum makecache
+  $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel python-pip zeromq3-devel python-argparse Cython
+  $ sudo pip install pip --upgrade
   $ sudo pip install ssbench
 
-CentOS 6.3
+CentOS 6.6
 ----------
 
-Installation on CentOS 6.3 using its stock Python 2.6::
+Installation on CentOS 6.6 using its stock Python 2.6::
 
   $ sudo rpm -Uvh http://mirror.pnl.gov/epel/6/i386/epel-release-6-8.noarch.rpm
-  $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel libevent-devel python-pip zeromq3-devel
-  $ sudo pip-python install --upgrade argparse distribute Cython gevent pyzmq==2.2.0
-  $ sudo pip-python install gevent-zeromq
-  $ sudo pip-python install ssbench
+  $ sudo yum makecache
+  $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel python-pip zeromq3-devel python-argparse Cython
+  $ sudo pip install pip --upgrade
+  $ sudo pip install ssbench
 
 OS X
 ----
@@ -104,20 +95,6 @@ less problems with Cython and gevent-zeormq on OS X, probably because the
 .. _`Homebrew`: http://mxcl.github.com/homebrew/
 
 Then you should be able to just ``pip install ssbench``.
-
-Gevent 1.0beta
---------------
-
-I have not tested ``ssbench`` against
-`gevent 1.0rc2`_, but according to an old `gevent blog post`_, gevent v1.x will
-bundle `libev`_ and not require the installation of `libevent`_ or
-`libev_`.  If you try ``ssbench`` with `gevent 1.0rc2`_, please let me know if
-and how that works...
-
-.. _`gevent 1.0rc2`: https://github.com/SiteSupport/gevent/downloads
-.. _`gevent blog post`: http://blog.gevent.org/2011/04/28/libev-and-libevent/
-.. _`libev`: http://software.schmorp.de/pkg/libev.html
-.. _`libevent`: http://libevent.org/
 
 
 How Does It Work?
