@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2013 SwiftStack, Inc.
+# Copyright (c) 2012-2015 SwiftStack, Inc.
 # Copyright (c) 2010-2013 OpenStack, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
