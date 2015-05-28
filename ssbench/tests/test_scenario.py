@@ -119,6 +119,29 @@ class TestScenario(ScenarioFixture):
         for attr in ['name', '_scenario_data', 'user_count', 'operation_count',
                      'run_seconds', 'container_base', 'container_count',
                      'containers', 'container_concurrency', 'sizes_by_name',
+                     'version', 'bench_size_thresholds', 'delete_after']:
+            assert_equal(getattr(unpacked, attr), getattr(self.scenario, attr))
+
+    def test_unpackb_backwards_compat(self):
+        # Older ssbench didn't have a delete_after key in scenario data; make
+        # sure we can still load those for reporting
+        packed = msgpack.packb({
+            '_scenario_data': self.scenario._scenario_data,
+            'name': self.scenario.name,
+            'version': self.scenario.version,
+            'user_count': self.scenario.user_count,
+            'operation_count': self.scenario.operation_count,
+            'run_seconds': self.scenario.run_seconds,
+            'container_base': self.scenario.container_base,
+            'container_count': self.scenario.container_count,
+            'container_concurrency': self.scenario.container_concurrency,
+        })
+        assert_is_instance(packed, bytes)
+        unpacked = Scenario.unpackb(packed)
+        assert_is_instance(unpacked, Scenario)
+        for attr in ['name', '_scenario_data', 'user_count', 'operation_count',
+                     'run_seconds', 'container_base', 'container_count',
+                     'containers', 'container_concurrency', 'sizes_by_name',
                      'version', 'bench_size_thresholds']:
             assert_equal(getattr(unpacked, attr), getattr(self.scenario, attr))
 
@@ -184,10 +207,12 @@ class TestScenario(ScenarioFixture):
 
     def test_constructor_overrides(self):
         scenario = Scenario(self.stub_scenario_file, container_count=21,
-                            user_count=37, operation_count=101)
+                            user_count=37, operation_count=101,
+                            delete_after=202)
         assert_equal(21, len(scenario.containers))
         assert_equal(37, scenario.user_count)
         assert_equal(101, scenario.operation_count)
+        assert_equal(202, scenario.delete_after)
 
     def test_invalid_user_count(self):
         self.scenario_dict['user_count'] = -1
