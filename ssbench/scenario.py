@@ -137,8 +137,7 @@ class Scenario(object):
         if delete_after is not None:
             self.delete_after = delete_after
         else:
-            self.delete_after = self._scenario_data.get('delete_after',
-                                                        None)
+            self.delete_after = self._scenario_data.get('delete_after')
 
     def packb(self):
         return msgpack.packb({
@@ -166,7 +165,7 @@ class Scenario(object):
                        run_seconds=data['run_seconds'],
                        version=data['version'],
                        _scenario_data=data['_scenario_data'],
-                       delete_after=data['delete_after'])
+                       delete_after=data.get('delete_after'))
         return scenario
 
     @property
