@@ -63,7 +63,7 @@ class Scenario(object):
         else:
             self.user_count = self._scenario_data['user_count']
         if self.user_count < 1:
-            raise ValueError('user_count must be > 1')
+            raise ValueError('user_count must be >= 1')
 
         # Command-line-specified values trump values in the scenario, and
         # within each of those levels, run_seconds trumps operation_count.

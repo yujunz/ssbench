@@ -23,11 +23,14 @@ sys.path.insert(0, thispath)
 
 import ssbench
 
-with open(os.path.join(thispath, 'requirements.txt'), 'r') as f:
-    requires = [x.strip() for x in f if x.strip()]
 
-with open(os.path.join(thispath, 'test-requirements.txt'), 'r') as f:
-    test_requires = [x.strip() for x in f if x.strip()]
+def parse_requires(file_name):
+    with open(os.path.join(thispath, file_name), 'r') as f:
+        stripped = [x.strip() for x in f]
+        return [x for x in stripped if x and not x.startswith('--')]
+
+requires = parse_requires('requirements.txt')
+test_requires = parse_requires('test-requirements.txt')
 
 with open(os.path.join(thispath, 'README.rst'), 'r') as f:
     readme = f.read()
