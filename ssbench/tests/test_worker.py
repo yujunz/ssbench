@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2013 SwiftStack, Inc.
+# Copyright (c) 2012-2015 SwiftStack, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ import socket
 from flexmock import flexmock
 from nose.tools import assert_equal, assert_raises, assert_true
 import gevent.queue
-from gevent_zeromq import zmq
+import zmq.green as zmq
 from contextlib import contextmanager
 
 import ssbench

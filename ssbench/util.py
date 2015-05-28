@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2013 SwiftStack, Inc.
+# Copyright (c) 2012-2015 SwiftStack, Inc.
 
 import os
 import resource
