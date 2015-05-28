@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2013 SwiftStack, Inc.
+# Copyright (c) 2012-2015 SwiftStack, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-_version = (0, 2, 23)
+_version = (0, 3, 1)
 version = '.'.join(map(str, _version))
 
 # Constant names (which happen to need to match methods called

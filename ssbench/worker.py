@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2013 SwiftStack, Inc.
+# Copyright (c) 2012-2015 SwiftStack, Inc.
 # Copyright (c) 2010-2012 OpenStack, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,7 +32,7 @@ import socket
 import msgpack
 import logging
 import traceback
-from gevent_zeromq import zmq
+import zmq.green as zmq
 from httplib import CannotSendRequest
 from contextlib import contextmanager
 from geventhttpclient.response import HTTPConnectionClosed
