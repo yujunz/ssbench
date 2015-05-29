@@ -37,10 +37,7 @@ from ssbench.util import raise_file_descriptor_limit
 
 
 def _container_creator(storage_urls, token, container, policy=None):
-    put_headers = None
-    if policy is not None:
-        put_headers = {}
-        put_headers['x-storage-policy'] = policy
+    put_headers = None if policy is None else {'x-storage-policy': policy}
     storage_url = random.choice(storage_urls)
     http_conn = client.http_connection(storage_url)
     try:
