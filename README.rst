@@ -51,7 +51,7 @@ Installation on Ubuntu Precise or Trusty::
   $ sudo apt-get update
   $ sudo apt-get install -y python-dev python-pip 'g++' libzmq-dev
   $ sudo pip install pip --upgrade
-  $ sudo pip install ssbench
+  $ sudo pip install ssbench --allow-external statlib --allow-unverified statlib
 
 Fedora 18
 ---------
@@ -60,7 +60,7 @@ Installation on Fedora 18 using its stock Python 2.7 (NOT ACTUALLY TESTED YET)::
 
   $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel python-pip zeromq3-devel python-argparse Cython gevent
   $ sudo pip install pip --upgrade
-  $ sudo pip install ssbench
+  $ sudo pip install ssbench --allow-external statlib --allow-unverified statlib
 
 RHEL 6.6
 --------
@@ -71,7 +71,7 @@ Installation on RHEL 6.6 using its stock Python 2.6::
   $ sudo yum makecache
   $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel python-pip zeromq3-devel python-argparse Cython
   $ sudo pip install pip --upgrade
-  $ sudo pip install ssbench
+  $ sudo pip install ssbench --allow-external statlib --allow-unverified statlib
 
 CentOS 6.6
 ----------
@@ -82,7 +82,7 @@ Installation on CentOS 6.6 using its stock Python 2.6::
   $ sudo yum makecache
   $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel python-pip zeromq3-devel python-argparse Cython
   $ sudo pip install pip --upgrade
-  $ sudo pip install ssbench
+  $ sudo pip install ssbench --allow-external statlib --allow-unverified statlib
 
 OS X
 ----
