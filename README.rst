@@ -49,9 +49,9 @@ Ubuntu (Precise & Trusty tested)
 Installation on Ubuntu Precise or Trusty::
 
   $ sudo apt-get update
-  $ sudo apt-get install -y python-dev python-pip 'g++' libzmq-dev libevent-dev
+  $ sudo apt-get install -y python-dev python-pip 'g++' libzmq-dev
   $ sudo pip install pip --upgrade
-  $ sudo pip install ssbench
+  $ sudo pip install ssbench --allow-external statlib --allow-unverified statlib
 
 Fedora 18
 ---------
@@ -60,7 +60,7 @@ Installation on Fedora 18 using its stock Python 2.7 (NOT ACTUALLY TESTED YET)::
 
   $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel python-pip zeromq3-devel python-argparse Cython gevent
   $ sudo pip install pip --upgrade
-  $ sudo pip install ssbench
+  $ sudo pip install ssbench --allow-external statlib --allow-unverified statlib
 
 RHEL 6.6
 --------
@@ -71,7 +71,7 @@ Installation on RHEL 6.6 using its stock Python 2.6::
   $ sudo yum makecache
   $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel python-pip zeromq3-devel python-argparse Cython
   $ sudo pip install pip --upgrade
-  $ sudo pip install ssbench
+  $ sudo pip install ssbench --allow-external statlib --allow-unverified statlib
 
 CentOS 6.6
 ----------
@@ -82,13 +82,13 @@ Installation on CentOS 6.6 using its stock Python 2.6::
   $ sudo yum makecache
   $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel python-pip zeromq3-devel python-argparse Cython
   $ sudo pip install pip --upgrade
-  $ sudo pip install ssbench
+  $ sudo pip install ssbench --allow-external statlib --allow-unverified statlib
 
 OS X
 ----
 
 On the Mac, I recommend installing `Homebrew`_ and using that to install Python
-2.7, `libevent`_, and zeromq.  I haven't tested a fresh install in a while, but I had far
+2.7 and zeromq.  I haven't tested a fresh install in a while, but I had far
 less problems with Cython and gevent-zeormq on OS X, probably because the
 `Homebrew`_ Python was newer than Ubuntu 12.04's?
 
