@@ -165,7 +165,7 @@ defining a benchmark run.  Specifically, it defines:
   ``ssbench-master run-scenario``.
 - A ``policy`` which is the name of a Storage Policy. This storage policy
   should already exist in your Swift cluster. All containers created for the
-  text will be created with this Storage Policy.
+  run will be created with this Storage Policy.
   This can be overridden for any given run with the ``--policy storage-policy``
   flag to ``ssbench-master run-scenario``.
 
