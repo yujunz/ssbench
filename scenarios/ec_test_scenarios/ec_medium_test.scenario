@@ -1,0 +1,17 @@
+{
+  "name": "EC validation test scenario",
+  "sizes": [{
+    "name": "objects",
+    "size_min": 5242880,
+    "size_max": 26214400
+  }],
+  "initial_files": {
+    "objects": 100
+  },
+  "run_seconds": 1200,
+  "crud_profile": [10, 75, 15, 0],
+  "user_count": 4,
+  "container_base": "ssbench-ectest-medium-mixed",
+  "container_count": 100,
+  "container_concurrency": 10
+}

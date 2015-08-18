@@ -36,7 +36,8 @@ from ssbench.run_state import RunState
 from ssbench.util import raise_file_descriptor_limit
 
 
-def _container_creator(storage_urls, token, container):
+def _container_creator(storage_urls, token, container, policy=None):
+    put_headers = None if policy is None else {'x-storage-policy': policy}
     storage_url = random.choice(storage_urls)
     http_conn = client.http_connection(storage_url)
     try:
@@ -44,7 +45,7 @@ def _container_creator(storage_urls, token, container):
                               http_conn=http_conn)
     except client.ClientException:
         client.put_container(storage_url, token, container,
-                             http_conn=http_conn)
+                             headers=put_headers, http_conn=http_conn)
 
 
 def _container_deleter(concurrency, storage_urls, token, container_info):
@@ -328,7 +329,7 @@ class Master(object):
             pool = gevent.pool.Pool(scenario.container_concurrency)
             for container in scenario.containers:
                 pool.spawn(_container_creator, storage_urls, c_token,
-                           container)
+                           container, policy=scenario.policy)
             pool.join()
 
         # Enqueue initialization jobs

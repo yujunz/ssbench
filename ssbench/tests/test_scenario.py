@@ -223,9 +223,18 @@ class TestScenario(ScenarioFixture):
             Scenario(self.stub_scenario_file, user_count=0)
 
     def test_containers_default(self):
-        assert_list_equal(self.scenario.containers,
-                          ['ssbench_%06d' % i for i in xrange(100)])
+        assert_list_equal(
+            self.scenario.containers,
+            ['ssbench_%06d_default_policy' % i for i in xrange(100)])
         assert_equal(10, self.scenario.container_concurrency)
+
+    def test_containers_custom_policy(self):
+        self.scenario_dict['policy'] = 'candlestick'
+        self.write_scenario_file()
+        scenario = Scenario(self.stub_scenario_file)
+        assert_list_equal(
+            scenario.containers,
+            ['ssbench_%06d_candlestick' % i for i in xrange(100)])
 
     def test_containers_custom(self):
         self.scenario_dict['container_base'] = 'iggy'
@@ -233,8 +242,9 @@ class TestScenario(ScenarioFixture):
         self.scenario_dict['container_concurrency'] = 13
         self.write_scenario_file()
         scenario = Scenario(self.stub_scenario_file)
-        assert_list_equal(scenario.containers,
-                          ['iggy_%06d' % i for i in xrange(77)])
+        assert_list_equal(
+            scenario.containers,
+            ['iggy_%06d_default_policy' % i for i in xrange(77)])
         assert_equal(13, scenario.container_concurrency)
 
     def test_crud_pcts(self):
