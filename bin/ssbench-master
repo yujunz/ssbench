@@ -132,7 +132,7 @@ def run_scenario(args):
         if args.op_count != DEFAULT_FROM_SCENARIO else None
     run_seconds = int(args.run_seconds) \
         if args.run_seconds != DEFAULT_FROM_SCENARIO else None
-    policy = str(args.policy) \
+    policy = args.policy \
         if args.policy != DEFAULT_FROM_SCENARIO else None
 
     delete_after = args.delete_after

@@ -8,7 +8,7 @@
   "initial_files": {
     "objects": 1000
   },
-  "operation_count": 5000,
+  "run_seconds": 1200,
   "crud_profile": [10, 75, 15, 0],
   "user_count": 4,
   "container_base": "ssbench-ectest-miniscule-mixed",

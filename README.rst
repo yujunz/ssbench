@@ -163,6 +163,11 @@ defining a benchmark run.  Specifically, it defines:
   disable and all objects will not be expired. This value may be overridden
   for any given run with the ``--delete-after DELETE_AFTER`` flag to
   ``ssbench-master run-scenario``.
+- A ``policy`` which is the name of a Storage Policy. This storage policy
+  should already exist in your Swift cluster. All containers created for the
+  run will be created with this Storage Policy.
+  This can be overridden for any given run with the ``--policy storage-policy``
+  flag to ``ssbench-master run-scenario``.
 
 For each operation of the benchmark run, a size category is first chosen based
 on the relative counts for each size category in the ``initial_files``
