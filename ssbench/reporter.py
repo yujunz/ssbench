@@ -16,13 +16,13 @@
 import csv
 import math
 import logging
-import statlib.stats
 from pprint import pformat
 from datetime import datetime
 from cStringIO import StringIO
 from mako.template import Template
 
 import ssbench
+import ssbench.util
 from ssbench.ordered_dict import OrderedDict
 
 
@@ -542,8 +542,9 @@ Distribution of requests per worker-ID: ${jobs_per_worker_stats['min']} - ${jobs
                         pctile='  N/A  ', std_dev='  N/A  ', median='  N/A  ')
         sequence.sort()
         try:
-            _, (minval, maxval), mean, _, _, _ = \
-                statlib.stats.ldescribe(sequence)
+            minval = min(sequence)
+            maxval = max(sequence)
+            mean = ssbench.util.mean(sequence)
         except ZeroDivisionError:
             # Handle the case of a single-element sequence (population standard
             # deviation divides by N-1)
@@ -556,16 +557,16 @@ Distribution of requests per worker-ID: ${jobs_per_worker_stats['min']} - ${jobs
                 max='%7.3f' % maxval,
                 avg='%7.3f' % mean,
                 pctile='%7.3f' % self.pctile(sequence, nth_pctile),
-                std_dev='%7.3f' % statlib.stats.lsamplestdev(sequence),
-                median='%7.3f' % statlib.stats.lmedianscore(sequence))
+                std_dev='%7.3f' % ssbench.util.uncorrected_stdev(sequence),
+                median='%7.3f' % ssbench.util.median(sequence))
         else:
             return dict(
                 min=round(minval, 6),
                 max=round(maxval, 6),
                 avg=round(mean, 6),
                 pctile=round(self.pctile(sequence, nth_pctile), 6),
-                std_dev=round(statlib.stats.lsamplestdev(sequence), 6),
-                median=round(statlib.stats.lmedianscore(sequence), 6))
+                std_dev=round(ssbench.util.uncorrected_stdev(sequence), 6),
+                median=round(ssbench.util.median(sequence), 6))
 
     def pctile(self, sequence, nth_pctile):
         seq_len = len(sequence)

@@ -4,6 +4,3 @@ geventhttpclient>=1.0a
 pyzmq>=14.0.1
 msgpack-python>=0.3.0
 Mako
---allow-external statlib
---allow-unverified statlib
-statlib
