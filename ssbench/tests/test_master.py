@@ -19,6 +19,7 @@ import tempfile
 import StringIO
 from unittest import TestCase
 from flexmock import flexmock
+import mock
 import zmq.green as zmq
 
 import msgpack
@@ -84,10 +85,13 @@ class TestMaster(ScenarioFixture, TestCase):
             self.results_endpoint,
         ).once
 
-        self.master = Master(self.zmq_host, self.zmq_work_port,
-                             self.zmq_results_port,
-                             connect_timeout=3.14159,
-                             network_timeout=2.71828)
+        with mock.patch.object(ssbench.master, 'is_ipv6') as mock_is_ipv6:
+            mock_is_ipv6.return_value = False
+            self.master = Master(self.zmq_host, self.zmq_work_port,
+                                 self.zmq_results_port,
+                                 connect_timeout=3.14159,
+                                 network_timeout=2.71828)
+            mock_is_ipv6.assert_called_once_with(self.zmq_host)
 
         self._send_calls = []
         self._recv_returns = []

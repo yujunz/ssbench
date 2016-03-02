@@ -34,6 +34,7 @@ from ssbench.importer import random
 import ssbench.swift_client as client
 from ssbench.run_state import RunState
 from ssbench.util import raise_file_descriptor_limit
+from ssbench.util import is_ipv6
 
 
 def _container_creator(storage_urls, token, container, policy=None):
@@ -84,10 +85,13 @@ class Master(object):
         if zmq_bind_ip is not None and zmq_work_port is not None:
             work_endpoint = 'tcp://%s:%d' % (zmq_bind_ip, zmq_work_port)
             results_endpoint = 'tcp://%s:%d' % (zmq_bind_ip, zmq_results_port)
+            ipv6 = is_ipv6(zmq_bind_ip)
             self.context = zmq.Context()
             self.work_push = self.context.socket(zmq.PUSH)
+            self.work_push.ipv6 = ipv6
             self.work_push.bind(work_endpoint)
             self.results_pull = self.context.socket(zmq.PULL)
+            self.results_pull.ipv6 = ipv6
             self.results_pull.bind(results_endpoint)
         self.connect_timeout = connect_timeout
         self.network_timeout = network_timeout

@@ -501,6 +501,15 @@ columns have the object sizes in them, which are defined in the scenario file.
 You can think of the two CVS lines as a linear denormalization of the contents
 of the two-dimensional table output.
 
+IPv6 support
+------------
+`ssbench` supports IPv6 for both the Swift communication, as well as between the
+master and the workers. When using a hostname, `ssbench` will attempt to
+guess whether to use IPv6 or not. If the host resolves to both IPv4 and IPv6,
+`ssbench` picks IPv4. If this is not the desired behavior, please specify the IP
+address explicitly. To bind to all interfaces, use the `::` address for IPv6;
+for localhost, use `::1`.
+
 
 How Does It Scale?
 ==================
@@ -532,7 +541,6 @@ per second with ``--noop`` (see below) with this command-line (a
 But with a ``--batch-size`` of 8, I can get around **19,500** requests per second::
 
   $ ssbench-master run-scenario ... -u 24 -o 30000 --workers 3 --noop --batch-size 8
-
 
 HTTPS on OS X
 -------------

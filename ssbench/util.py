@@ -3,6 +3,7 @@
 import math
 import os
 import resource
+import socket
 
 
 def add_dicts(*args, **kwargs):
@@ -32,6 +33,17 @@ def raise_file_descriptor_limit():
         except ValueError:
             nofile_target /= 1024
         break
+
+
+def is_ipv6(addr):
+    """
+    For hostnames, we will use IPv4, if both IPv4 and IPv6 are present as
+    results of getaddrinfo().
+    """
+    sockaddrs = socket.getaddrinfo(addr, None)
+    if any([addr_tuple[0] == socket.AF_INET for addr_tuple in sockaddrs]):
+        return False
+    return True
 
 
 def mean(iterable):
