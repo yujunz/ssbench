@@ -11,7 +11,7 @@ against an
 OpenStack Swift cluster, utilizing one or more distributed ``ssbench-worker``
 processes, saving statistics about the run to a file.  The ``ssbench-master
 report-scenario`` command can then generate a
-report from the saved statstics.  By default, ``ssbench-master run-scenario``
+report from the saved statistics.  By default, ``ssbench-master run-scenario``
 will generate a report to STDOUT immediately following a benchmark run in
 addition to saving the raw results to a file.
 
@@ -89,7 +89,7 @@ OS X
 
 On the Mac, I recommend installing `Homebrew`_ and using that to install Python
 2.7 and zeromq.  I haven't tested a fresh install in a while, but I had far
-less problems with Cython and gevent-zeormq on OS X, probably because the
+less problems with Cython and gevent-zeromq on OS X, probably because the
 `Homebrew`_ Python was newer than Ubuntu 12.04's?
 
 .. _`Homebrew`: http://mxcl.github.com/homebrew/
@@ -140,10 +140,10 @@ defining a benchmark run.  Specifically, it defines:
 - A ``crud_profile`` which determines the distribution of each kind of operation.
   For instance, ``[3, 4, 2, 2]`` would mean 27% CREATE, 36% READ, 18% UPDATE,
   and 18% DELETE.
-- A ``user_count`` which determines the maxiumum client concurrency during the
+- A ``user_count`` which determines the maximum client concurrency during the
   benchmark run.  The user is responsible for ensuring there are enough workers
   running to support the scenario's defined ``user_count``.  (Each
-  ``ssbench-worker`` process uses `gevent`_ to achive very efficient
+  ``ssbench-worker`` process uses `gevent`_ to achieve very efficient
   concurrency for the benchmark client requests.)  This value may be overridden
   for any given run with the ``-u COUNT`` flag to ``ssbench-master
   run-scenario``.
@@ -357,7 +357,7 @@ Load Balancing
 
 You can bypass your normal load-balancing scheme by telling ``ssbench-master``
 to distribute load across a specified set of Storage URLs.  This is done by
-specifiying one or more ``-S STORAGE_URL`` options to ``ssbench-master``.  Any
+specifying one or more ``-S STORAGE_URL`` options to ``ssbench-master``.  Any
 storage URL returned from the auth server will be ignored and a randomly chosen
 command-line-specified storage URL will be used instead.
 
@@ -565,7 +565,7 @@ master/worker communication, my 2012 15" Retina Macbook Pro could get **~2,700
 requests per second** with ``--noop`` using a local beanstalkd, one
 ``ssbench-worker``, and a user count (concurrency) of 4.
 
-With ZeorMQ sockets (no beanstalkd involved), the same laptop can get between
+With ZeroMQ sockets (no beanstalkd involved), the same laptop can get between
 **7,000 and 8,000 requests per second** with ``--noop``.
 
 
