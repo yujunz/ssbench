@@ -3,4 +3,4 @@ include CHANGELOG
 include AUTHORS
 include LICENSE
 include scenarios/*
-include .requirements.txt
+include requirements.txt
