@@ -43,24 +43,29 @@ Code Quality: |landscape|
 Installation
 ============
 
+These instructions setup a _virtualenv_ environment for `ssbench`. This avoids
+conflicts between ssbench and other libraries that may installed systemwide
+(such as libzmq). It is strongly advised to avoid installing `ssbench`
+systemwide to avoid such conflicts.
+
 Ubuntu (Precise & Trusty tested)
 --------------------------------
 
 Installation on Ubuntu Precise or Trusty::
 
   $ sudo apt-get update
-  $ sudo apt-get install -y python-dev python-pip 'g++' libzmq-dev
-  $ sudo pip install pip --upgrade
-  $ sudo pip install ssbench
+  $ sudo apt-get install -y gcc g++ python-dev python-virtualenv
+  $ virtualenv ./ssbench-env
+  $ ./ssbench-env/bin/pip install ssbench
 
 Fedora 18
 ---------
 
 Installation on Fedora 18 using its stock Python 2.7 (NOT ACTUALLY TESTED YET)::
 
-  $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel python-pip zeromq3-devel python-argparse Cython gevent
-  $ sudo pip install pip --upgrade
-  $ sudo pip install ssbench
+  $ sudo yum install -y gcc gcc-c++ python-devel python-virtualenv
+  $ virtualenv ./ssbench-env
+  $ ./ssbench-env/bin/pip install ssbench
 
 RHEL 6.6
 --------
@@ -69,9 +74,9 @@ Installation on RHEL 6.6 using its stock Python 2.6::
 
   $ sudo rpm -Uvh http://mirror.pnl.gov/epel/6/i386/epel-release-6-8.noarch.rpm
   $ sudo yum makecache
-  $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel python-pip zeromq3-devel python-argparse Cython
-  $ sudo pip install pip --upgrade
-  $ sudo pip install ssbench
+  $ sudo yum install -y gcc gcc-c++ python-devel python-virtualenv
+  $ virtualenv ./ssbench-env
+  $ ./ssbench-env/bin/pip install ssbench
 
 CentOS 6.6
 ----------
@@ -80,9 +85,9 @@ Installation on CentOS 6.6 using its stock Python 2.6::
 
   $ sudo rpm -Uvh http://mirror.pnl.gov/epel/6/i386/epel-release-6-8.noarch.rpm
   $ sudo yum makecache
-  $ sudo yum install -y gcc gcc-c++ python-setuptools python-devel python-pip zeromq3-devel python-argparse Cython
-  $ sudo pip install pip --upgrade
-  $ sudo pip install ssbench
+  $ sudo yum install -y gcc gcc-c++ python-devel python-virtualenv
+  $ virtualenv ./ssbench-env
+  $ ./ssbench-env/bin/pip install ssbench
 
 OS X
 ----
