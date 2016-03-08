@@ -1,3 +1,11 @@
+ssbench (0.3.8)
+
+    * Added IPv6 support for the master and workers
+    * Added errors, retries and retry_rate to cvs output
+    * Removed the statlib dependency
+    * Updated README to encourage using virtualenv
+    * Updated AUHORS file
+
 ssbench (0.2.23)
 
     * Misc test fixes/improvements including Travis CI integration.
