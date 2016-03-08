@@ -4,3 +4,4 @@ include AUTHORS
 include LICENSE
 include scenarios/*
 include requirements.txt
+include test-requirements.txt
