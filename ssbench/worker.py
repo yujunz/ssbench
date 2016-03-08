@@ -39,6 +39,7 @@ from geventhttpclient.response import HTTPConnectionClosed
 
 from ssbench.importer import random
 from ssbench.util import add_dicts, raise_file_descriptor_limit
+from ssbench.util import is_ipv6
 import ssbench.swift_client as client
 
 
@@ -88,6 +89,7 @@ class Worker(object):
                  max_retries, profile_count=0, concurrency=256, batch_size=1):
         work_endpoint = 'tcp://%s:%d' % (zmq_host, zmq_work_port)
         results_endpoint = 'tcp://%s:%d' % (zmq_host, zmq_results_port)
+        ipv6 = is_ipv6(zmq_host)
         self.worker_id = worker_id
         self.max_retries = max_retries
         self.profile_count = profile_count
@@ -103,8 +105,10 @@ class Worker(object):
 
         self.context = zmq.Context()
         self.work_pull = self.context.socket(zmq.PULL)
+        self.work_pull.ipv6 = ipv6
         self.work_pull.connect(work_endpoint)
         self.results_push = self.context.socket(zmq.PUSH)
+        self.results_push.ipv6 = ipv6
         self.results_push.connect(results_endpoint)
 
         self.result_queue = gevent.queue.Queue()

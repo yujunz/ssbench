@@ -16,6 +16,7 @@
 import time
 import socket
 from flexmock import flexmock
+import mock
 from nose.tools import assert_equal, assert_raises, assert_true
 import gevent.queue
 import zmq.green as zmq
@@ -65,9 +66,12 @@ class TestWorker(object):
             gevent.queue.Queue,
         ).once
 
-        self.worker = worker.Worker(self.zmq_host, self.zmq_work_port,
-                                    self.zmq_results_port, self.worker_id,
-                                    self.max_retries)
+        with mock.patch.object(ssbench.worker, 'is_ipv6') as mock_is_ipv6:
+            mock_is_ipv6.return_value = False
+            self.worker = worker.Worker(self.zmq_host, self.zmq_work_port,
+                                        self.zmq_results_port, self.worker_id,
+                                        self.max_retries)
+            mock_is_ipv6.assert_called_once_with(self.zmq_host)
         self.mock_worker = flexmock(self.worker)
 
         self.stub_time = 98438243.3921
