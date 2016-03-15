@@ -48,6 +48,11 @@ conflicts between ssbench and other libraries that may installed systemwide
 (such as libzmq). It is strongly advised to avoid installing `ssbench`
 systemwide to avoid such conflicts.
 
+If a system install of `libzmq` is present, to ensure that `ssbench` will work
+correctly, the `pyzmq` package must be installed with its bundled version of
+`libzmq`.  The below steps demonstrate how to accomplish that on various
+distributions.
+
 Ubuntu (Precise & Trusty tested)
 --------------------------------
 
@@ -56,6 +61,7 @@ Installation on Ubuntu Precise or Trusty::
   $ sudo apt-get update
   $ sudo apt-get install -y gcc g++ python-dev python-virtualenv
   $ virtualenv ./ssbench-env
+  $ ./ssbench-env/bin/pip install pyzmq==14.0.1 --install-option="--zmq=bundled"
   $ ./ssbench-env/bin/pip install ssbench
 
 Fedora 18
@@ -65,6 +71,7 @@ Installation on Fedora 18 using its stock Python 2.7 (NOT ACTUALLY TESTED YET)::
 
   $ sudo yum install -y gcc gcc-c++ python-devel python-virtualenv
   $ virtualenv ./ssbench-env
+  $ ./ssbench-env/bin/pip install pyzmq==14.0.1 --install-option="--zmq=bundled"
   $ ./ssbench-env/bin/pip install ssbench
 
 RHEL 6.6
@@ -76,6 +83,7 @@ Installation on RHEL 6.6 using its stock Python 2.6::
   $ sudo yum makecache
   $ sudo yum install -y gcc gcc-c++ python-devel python-virtualenv
   $ virtualenv ./ssbench-env
+  $ ./ssbench-env/bin/pip install pyzmq==14.0.1 --install-option="--zmq=bundled"
   $ ./ssbench-env/bin/pip install ssbench
 
 CentOS 6.6
@@ -87,6 +95,7 @@ Installation on CentOS 6.6 using its stock Python 2.6::
   $ sudo yum makecache
   $ sudo yum install -y gcc gcc-c++ python-devel python-virtualenv
   $ virtualenv ./ssbench-env
+  $ ./ssbench-env/bin/pip install pyzmq==14.0.1 --install-option="--zmq=bundled"
   $ ./ssbench-env/bin/pip install ssbench
 
 OS X
