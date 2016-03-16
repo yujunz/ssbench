@@ -58,7 +58,7 @@ def kill_workers(args):
 def cleanup_containers(args):
     auth_kwargs = auth_kwargs_from_args(args)
     master_from_args(args).cleanup_containers(auth_kwargs, args.container_base,
-                                              args.concurrency)
+                                              args.concurrency, args.policy)
 
 
 def auth_kwargs_from_args(args):
@@ -594,6 +594,12 @@ Recursively delete all ssbench containers and their objects.
         'deleting this many objects per container concurrently. '
         'So the total delete concurrency may be as high as this '
         'value SQUARED.')
+    cleanup_containers_arg_parser.add_argument(
+        '-p', '--policy', default='default_policy',
+        help='The storage policy for which the containers were created. By '
+        'default "default_policy" is used '
+        '(e.g. container_0001_default_policy). You should supply the policy '
+        'used in your scenario or the default is assumed.')
     _add_auth_options(cleanup_containers_arg_parser)
     cleanup_containers_arg_parser.set_defaults(func=cleanup_containers)
 

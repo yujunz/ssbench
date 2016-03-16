@@ -295,3 +295,56 @@ class TestMaster(ScenarioFixture, TestCase):
         # Test exception output
         exception_output = run_with_args(exception=1)
         self.assert_bench_output(exception_output, 'X' * len(bench_jobs))
+
+    def test_cleanup_containers(self):
+        container_test_sets = [
+            # default policy
+            {'delete_containers': ['ssbench_001_default_policy'],
+             'other_containers': ['foo', 'bar', 'ssbench_001_ec_policy',
+                                  'ssbench_002_stuff'],
+             'base': 'ssbench',
+             'policy': 'default_policy'},
+
+            # ec_policy
+            {'delete_containers': ['ssbench_001_ec_policy'],
+             'other_containers': ['foo', 'bar', 'ssbench_001_default_policy',
+                                  'ssbench_002_stuff'],
+             'base': 'ssbench',
+             'policy': 'ec_policy'},
+
+            # policy named "stuff"
+            {'delete_containers': ['ssbench_002_stuff'],
+             'other_containers': ['foo', 'bar', 'ssbench_001_ec_policy',
+                                  'ssbench_001_ec_policy'],
+             'base': 'ssbench',
+             'policy': 'stuff'}
+        ]
+
+        for test_input in container_test_sets:
+            client = mock.Mock()
+            policy = test_input['policy']
+            base_name = test_input['base']
+            delete_containers = test_input['delete_containers']
+            other_containers = test_input['other_containers']
+            all_containers = delete_containers + other_containers
+            container_info = [{'name': container, 'count': 0} for container
+                              in all_containers]
+            client.get_account.return_value = (None, container_info)
+            client.get_container.return_value = (None, [])
+            client.http_connection.return_value = None
+
+            auth_args = {'token': 'auth_token',
+                         'storage_urls': ['http://storageUrl']}
+
+            with mock.patch('ssbench.master.client', new=client):
+                self.master.cleanup_containers(auth_args, base_name, 1, policy)
+
+            expected_calls = []
+            for container in delete_containers:
+                expected_calls.append(mock.call(
+                    auth_args['storage_urls'][0],
+                    auth_args['token'],
+                    container,
+                    http_conn=None
+                ))
+            client.delete_container.assert_has_calls(expected_calls, any_order=True)
