@@ -79,6 +79,8 @@ def _gen_cleanup_job(object_info):
 
 
 class Master(object):
+    DELETER_RE = '^%s_\d+_.*$'
+
     def __init__(self, zmq_bind_ip=None, zmq_work_port=None,
                  zmq_results_port=11300, quiet=False, connect_timeout=None,
                  network_timeout=None):
@@ -250,7 +252,7 @@ class Master(object):
         _, container_list = client.get_account(
             random.choice(storage_urls), token)
 
-        our_container_re = re.compile('%s_\d+$' % container_base)
+        our_container_re = re.compile(self.DELETER_RE % container_base)
 
         start_time = time.time()
         obj_count = 0
