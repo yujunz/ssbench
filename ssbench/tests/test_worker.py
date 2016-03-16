@@ -115,6 +115,38 @@ class TestWorker(object):
         self.worker.conn_pools[stub_url] = 'foobar'
         self.worker._create_connection_pool(stub_url)
 
+    def test_put_open_connection_back(self):
+        url = 'http://someAuthUrl'
+
+        sock_mock = mock.Mock()
+        sock_mock.closed = False
+        mock_conn = mock.Mock()
+        mock_conn.sock = sock_mock
+
+        pool_mock = mock.Mock()
+        pool_mock.get.return_value = (url, mock_conn)
+        self.mock_worker.conn_pools[url] = pool_mock
+        with self.mock_worker.connection(url):
+            pass
+        pool_mock.put.assert_called_with((url, mock_conn))
+
+    def test_put_closed_connection_back(self):
+        url = 'http://someAuthUrl'
+
+        sock_mock = mock.Mock()
+        sock_mock.closed = True
+        mock_closed_conn = mock.Mock()
+        mock_closed_conn.close.return_value = None
+        mock_closed_conn.sock = sock_mock
+
+        pool_mock = mock.Mock()
+        pool_mock.get.return_value = (url, mock_closed_conn)
+        pool_mock.create.return_value = (None, None)
+        self.mock_worker.conn_pools[url] = pool_mock
+        with self.mock_worker.connection(url) as conn:
+            conn[1].close
+        pool_mock.put.assert_called_with((None, None))
+
     def test_ignoring_http_responses_with_storage_url(self):
         call_info = {
             'container': 'someContainer',
@@ -137,9 +169,13 @@ class TestWorker(object):
         self.mock_worker.should_receive('_create_connection_pool').with_args(
             'someUrl', 3.142, 2.718,
         ).replace_with(_insert_mock_pool).once
-        mock_conn = flexmock()
-        mock_pool.should_receive('get').and_return(mock_conn).ordered.once
-        mock_pool.should_receive('put').with_args(mock_conn).ordered.once
+        mock_sock = mock.Mock()
+        mock_sock.closed = False
+        mock_conn = mock.Mock()
+        mock_conn.sock = mock_sock
+        mock_entry = ('http://someUrl', mock_conn)
+        mock_pool.should_receive('get').and_return(mock_entry).ordered.once
+        mock_pool.should_receive('put').with_args(mock_entry).ordered.once
         flexmock(gevent).should_receive('sleep').never
 
         got = self.worker.ignoring_http_responses([], self.stub_fn, call_info,
@@ -151,7 +187,7 @@ class TestWorker(object):
             name='someName',
             url='someUrl',
             token='someToken',
-            http_conn=mock_conn,
+            http_conn=mock_entry,
             extra_key='extra value',
         ))], self.stub_fn_calls)
 
@@ -194,9 +230,13 @@ class TestWorker(object):
         self.mock_worker.should_receive('_create_connection_pool').with_args(
             'someStorageUrl', 3.142, 2.718,
         ).replace_with(_insert_mock_pool).once
-        mock_conn = flexmock()
-        mock_pool.should_receive('get').and_return(mock_conn).ordered.once
-        mock_pool.should_receive('put').with_args(mock_conn).ordered.once
+        mock_sock = mock.Mock()
+        mock_sock.closed = False
+        mock_conn = mock.Mock()
+        mock_conn.sock = mock_sock
+        mock_entry = ('http://someUrl', mock_conn)
+        mock_pool.should_receive('get').and_return(mock_entry).ordered.once
+        mock_pool.should_receive('put').with_args(mock_entry).ordered.once
         flexmock(gevent).should_receive('sleep').never
 
         got = self.worker.ignoring_http_responses([], self.stub_fn, call_info,
@@ -208,7 +248,7 @@ class TestWorker(object):
             name='someName',
             url='someStorageUrl',
             token='someStorageToken',
-            http_conn=mock_conn,
+            http_conn=mock_entry,
             extra_key='extra value',
         ))], self.stub_fn_calls)
 
@@ -242,9 +282,13 @@ class TestWorker(object):
         self.mock_worker.should_receive('_create_connection_pool').with_args(
             'otherUrl', 3.142, 2.718,
         ).replace_with(_insert_mock_pool).once
-        mock_conn = flexmock()
-        mock_pool.should_receive('get').and_return(mock_conn).ordered.once
-        mock_pool.should_receive('put').with_args(mock_conn).ordered.once
+        mock_sock = mock.Mock()
+        mock_sock.closed = False
+        mock_conn = mock.Mock()
+        mock_conn.sock = mock_sock
+        mock_entry = ('http://someUrl', mock_conn)
+        mock_pool.should_receive('get').and_return(mock_entry).ordered.once
+        mock_pool.should_receive('put').with_args(mock_entry).ordered.once
         flexmock(gevent).should_receive('sleep').with_args(0.005).once
 
         got = self.worker.ignoring_http_responses([], self.stub_fn, call_info,
@@ -256,7 +300,7 @@ class TestWorker(object):
             name='someName',
             url='otherUrl',
             token='otherToken',
-            http_conn=mock_conn,
+            http_conn=mock_entry,
             extra_key='extra value',
         ))], self.stub_fn_calls)
 

@@ -115,20 +115,24 @@ class Worker(object):
 
     @contextmanager
     def connection(self, storage_url):
+        pool = self.conn_pools[storage_url]
         try:
-            hc = self.conn_pools[storage_url].get()
+            hc = pool.get()
             try:
                 yield hc
             except (CannotSendRequest, HTTPConnectionClosed,
-                    socket.timeout) as e:
+                    socket.timeout, socket.error) as e:
                 logging.debug("@connection hit %r...", e)
                 try:
                     hc[1].close()
                 except Exception:
                     pass
-                hc = self.conn_pools[storage_url].create()
+                hc = pool.create()
         finally:
-            self.conn_pools[storage_url].put(hc)
+            if hc and hc[1] and not hc[1].sock.closed:
+                pool.put(hc)
+            else:
+                pool.put(pool.create())
 
     def go(self):
         logging.debug('Worker %s starting...', self.worker_id)
