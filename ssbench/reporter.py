@@ -505,9 +505,12 @@ Distribution of requests per worker-ID: ${jobs_per_worker_stats['min']} - ${jobs
             stat_dict['avg_req_per_sec'] = 0.0
         else:
             delta_t = stat_dict['stop'] - sd_start
-            stat_dict['avg_req_per_sec'] = round(
-                stat_dict['req_count'] / delta_t,
-                6)
+            if delta_t != 0:
+                stat_dict['avg_req_per_sec'] = round(
+                    stat_dict['req_count'] / delta_t,
+                    6)
+            else:
+                stat_dict['avg_req_per_sec'] = float("inf")
 
     def _compute_retry_rate(self, stat_dict):
         stat_dict['retry_rate'] = round((float(stat_dict['retries']) /
