@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-_version = (0, 3, 8)
+_version = (0, 3, 9)
 version = '.'.join(map(str, _version))
 
 # Constant names (which happen to need to match methods called
