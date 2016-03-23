@@ -1,10 +1,29 @@
+ssbench (0.3.9)
+
+    * Fix #123: ssbench should detect closed connections and not reuse them.
+
+    * Fix #124: update the README instructions for using ssbench with
+    * virtualenv.
+
+    * Fix #117: ssbench cleanup-containers needs to be aware of the policy
+      suffix (otherwise no containers are cleaned up).
+
+    * Fix #96: when reporting average time per request, if no time elapsed
+      (happens if --noop was specified), ssbench should not print a
+      DivideByZero exception. The behavior is changed to print "inf" in such
+      cases.
+
 ssbench (0.3.8)
 
-    * Added IPv6 support for the master and workers
-    * Added errors, retries and retry_rate to cvs output
-    * Removed the statlib dependency
-    * Updated README to encourage using virtualenv
-    * Updated AUHORS file
+    * Added IPv6 support for the master and workers.
+
+    * Added errors, retries and retry_rate to cvs output.
+
+    * Removed the statlib dependency.
+
+    * Updated README to encourage using virtualenv.
+
+    * Updated AUHORS file.
 
 ssbench (0.2.23)
 
