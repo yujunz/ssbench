@@ -701,10 +701,22 @@ def get_object(url, token, container, name, http_conn=None,
                               http_path=path, http_status=resp.status,
                               http_reason=resp.reason,
                               http_response_content=body)
+    expected_bytes = None
+    for header, value in resp.getheaders():
+        if header.lower() == 'content-length':
+            expected_bytes = int(value)
+            break
     last_byte_latency = None
     buf = True
     while buf:
         buf = resp.read(resp_chunk_size)
+        if expected_bytes is not None:
+            expected_bytes -= len(buf)
+    if expected_bytes is not None and expected_bytes != 0:
+        raise ClientException('Object GET read disconnect',
+                              http_scheme=parsed.scheme, http_host=conn.host,
+                              http_port=conn.port, http_path=path,
+                              http_status=503, http_reason='Server Disconnect')
     last_byte_latency = time() - start
     resp_headers = _decorated_response_headers(
         resp, first_byte_latency=first_byte_latency,
