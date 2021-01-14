@@ -1,7 +1,12 @@
 # {{{ http://code.activestate.com/recipes/576693/ (r9)
+
+#Copyright (c) 2009, Raymond Hettinger
+#SPDX-License-Identifier: MIT
+
 # Backport of OrderedDict() class that runs on Python 2.4, 2.5, 2.6, 2.7 and
 # pypy.
 # Passes Python2.7's test suite and incorporates all the latest updates.
+
 
 try:
     from thread import get_ident as _get_ident
